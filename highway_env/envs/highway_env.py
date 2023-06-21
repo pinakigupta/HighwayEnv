@@ -39,13 +39,14 @@ class HighwayEnv(AbstractEnv):
             "ego_spacing": 2,
             "vehicles_density": 1,
             "collision_reward": -1,    # The reward received when colliding with a vehicle.
-            "right_lane_reward": 0.1,  # The reward received when driving on the right-most lanes, linearly mapped to
+            "right_lane_reward": 0.0,  # The reward received when driving on the right-most lanes, linearly mapped to
                                        # zero for other lanes.
-            "high_speed_reward": 0.4,  # The reward received when driving at full speed, linearly mapped to zero for
+            "high_speed_reward": 0.0,  # The reward received when driving at full speed, linearly mapped to zero for
                                        # lower speeds according to config["reward_speed_range"].
-            "lane_change_reward": 0,   # The reward received at each lane change action.
+            "lane_change_reward": -0.1,   # The reward received at each lane change action.
             "reward_speed_range": [20, 30],
-            "normalize_reward": True,
+            "truncate_reward": 2,
+            "normalize_reward": False,
             "offroad_terminal": False
         })
         return config
@@ -88,13 +89,17 @@ class HighwayEnv(AbstractEnv):
         :return: the corresponding reward
         """
         rewards = self._rewards(action)
-        reward = sum(self.config.get(name, 0) * reward for name, reward in rewards.items())
+        weighed_reward = [self.config.get(name, 0) * reward for name, reward in rewards.items()]
+        reward = sum(weighed_reward)
+        print(" reward ", reward, " weighed_reward ", weighed_reward)
         if self.config["normalize_reward"]:
             reward = utils.lmap(reward,
                                 [self.config["collision_reward"],
-                                 self.config["high_speed_reward"] + self.config["right_lane_reward"]],
+                                 (self.config["high_speed_reward"] + self.config["right_lane_reward"] + self.config["truncate_reward"])/\
+                                    (self.config["duration"]*self.config["policy_frequency"])
+                                 ],
                                 [0, 1])
-        reward *= rewards['on_road_reward']
+        # reward *= rewards['on_road_reward']
         return reward
 
     def _rewards(self, action: Action) -> Dict[Text, float]:
@@ -108,7 +113,9 @@ class HighwayEnv(AbstractEnv):
             "collision_reward": float(self.vehicle.crashed),
             "right_lane_reward": lane / max(len(neighbours) - 1, 1),
             "high_speed_reward": np.clip(scaled_speed, 0, 1),
-            "on_road_reward": float(self.vehicle.on_road)
+            # "on_road_reward": float(self.vehicle.on_road),
+            "lane_change_reward": action in [0, 2] ,
+            "truncate_reward": np.clip(float(self._is_truncated()), 0, 1) ,
         }
 
     def _is_terminated(self) -> bool:

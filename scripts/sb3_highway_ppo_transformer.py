@@ -13,7 +13,11 @@ from torch.nn import functional as F
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
+from tensorboard import program
+import os, sys
 import highway_env
+
+ 
 
 # ==================================
 #        Policy Architecture
@@ -182,6 +186,8 @@ class EgoAttentionNetwork(BaseModule):
         embedding_layer_kwargs = embedding_layer_kwargs or {}
         if not embedding_layer_kwargs.get("in_size", None):
             embedding_layer_kwargs["in_size"] = in_size
+        # if 'num_layers' in kwargs:
+        #     self.encoder = nn.ModuleList([EncoderLayer(d_model, heads) for _ in range(kwargs['num_layers'])])
         self.ego_embedding = MultiLayerPerceptron(**embedding_layer_kwargs)
         self.embedding = MultiLayerPerceptron(**embedding_layer_kwargs)
 
@@ -190,6 +196,9 @@ class EgoAttentionNetwork(BaseModule):
 
     def forward(self, x):
         ego_embedded_att, _ = self.forward_attention(x)
+        # print(ego_embedded_att.shape)
+        # for _ in range(4):
+        #     ego_embedded_att, _=self.forward_attention(ego_embedded_att)
         return ego_embedded_att
 
     def split_input(self, x, mask=None):
@@ -246,9 +255,10 @@ def attention(query, key, value, mask=None, dropout=None):
 
 
 attention_network_kwargs = dict(
-    in_size=5*15,
+    # in_size=5*15,
     embedding_layer_kwargs={"in_size": 7, "layer_sizes": [64, 64], "reshape": False},
     attention_layer_kwargs={"feature_size": 64, "heads": 2},
+    # num_layers = 3,
 )
 
 
@@ -272,7 +282,7 @@ class CustomExtractor(BaseFeaturesExtractor):
 # ==================================
 
 def make_configure_env(**kwargs):
-    env = gym.make(kwargs["id"])
+    env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"])
     env.configure(kwargs["config"])
     env.reset()
     return env
@@ -280,9 +290,13 @@ def make_configure_env(**kwargs):
 
 env_kwargs = {
     'id': 'highway-v0',
+    'render_mode': 'rgb_array',
     'config': {
-        "lanes_count": 3,
-        "vehicles_count": 15,
+        # "lanes_count": 3,
+        # "vehicles_count": 15,
+        "action": {
+                "type": "DiscreteMetaAction",
+            },
         "observation": {
             "type": "Kinematics",
             "vehicles_count": 10,
@@ -299,6 +313,8 @@ env_kwargs = {
         },
         "policy_frequency": 2,
         "duration": 40,
+        "screen_width": 960,
+        "screen_height": 180,
     }
 }
 
@@ -309,27 +325,35 @@ env_kwargs = {
 
 def display_vehicles_attention(agent_surface, sim_surface, env, model, min_attention=0.01):
         v_attention = compute_vehicles_attention(env, model)
+        # print("v_attention ", v_attention)
+        # Extract the subsurface of the larger rectangle
+        attention_surface = pygame.Surface(sim_surface.get_size(), pygame.SRCALPHA)
+        pygame.draw.circle(
+                                        surface=attention_surface,
+                                        color=pygame.Color("white"),
+                                        center=sim_surface.vec2pix(env.vehicle.position),
+                                        radius=20,
+                                        width=2
+                          )
         for head in range(list(v_attention.values())[0].shape[0]):
-            attention_surface = pygame.Surface(sim_surface.get_size(), pygame.SRCALPHA)
+            
             for vehicle, attention in v_attention.items():
                 if attention[head] < min_attention:
                     continue
+                # if True: 
+                #     print("attention[head] ", attention[head], "vehicle ", vehicle)
                 width = attention[head] * 5
                 desat = np.clip(lmap(attention[head], (0, 0.5), (0.7, 1)), 0.7, 1)
                 colors = sns.color_palette("dark", desat=desat)
                 color = np.array(colors[(2*head) % (len(colors) - 1)]) * 255
                 color = (*color, np.clip(lmap(attention[head], (0, 0.5), (100, 200)), 100, 200))
-                if vehicle is env.vehicle:
-                    pygame.draw.circle(attention_surface, color,
-                                       sim_surface.vec2pix(env.vehicle.position),
-                                       max(sim_surface.pix(width / 2), 1))
-                else:
-                    pygame.draw.line(attention_surface, color,
+                pygame.draw.line(attention_surface, color,
                                      sim_surface.vec2pix(env.vehicle.position),
                                      sim_surface.vec2pix(vehicle.position),
-                                     max(sim_surface.pix(width), 1))
+                                     max(sim_surface.pix(width), 1)
+                                )
+            # subsurface = attention_surface.subsurface(pygame.Rect(0, 0, 4800, 200))
             sim_surface.blit(attention_surface, (0, 0))
-
 
 def compute_vehicles_attention(env, model):
     obs = env.unwrapped.observation_type.observe()
@@ -352,25 +376,57 @@ def compute_vehicles_attention(env, model):
             v_position[feature] = v_feature
         v_position = np.array([v_position["x"], v_position["y"]])
         if not obs_type.absolute and v_index > 0:
-            v_position += env.unwrapped.vehicle.position
+            v_position += env.unwrapped.vehicle.position # This is ego
         vehicle = min(env.unwrapped.road.vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
         v_attention[vehicle] = attention[:, v_index]
     return v_attention
 
+def write_module_hierarchy_to_file(model, file):
+    def write_module_recursive(module, file=None, indent='', processed_submodules=None):
+        if file is None:
+            file = sys.stdout
+        if processed_submodules is None:
+            processed_submodules = set()
+
+        num_members = [tuple(_.shape) for _ in module.parameters()]
+        # num_members = len(list(module.modules())) - 1
+        module_name = f'{module.__class__.__name__} (ID: {id(module)})'
+        file.write(f'{indent}├─{module_name} '+ ' containing '+ str(len(num_members))  + ' items\n')
+
+        if isinstance(module, nn.Sequential):
+            for submodule in module:
+                write_module_recursive(submodule, file, indent + '    ')
+        elif isinstance(module, nn.ModuleList):
+            for idx, submodule in enumerate(module):
+                file.write(f'{indent}    ├─ModuleList[{idx}]\n')
+                write_module_recursive(submodule, file, indent + '        ')
+        else:
+            for name, submodule in module._modules.items():
+                if submodule not in processed_submodules:
+                    processed_submodules.add(submodule)
+                    write_module_recursive(submodule, file, indent + '    ')
+
+            for name, submodule in module._parameters.items():
+                if submodule is not None:
+                    if submodule not in processed_submodules:
+                        processed_submodules.add(submodule)
+                        file.write(f'{indent}    ├─{name}: {submodule.shape}\n')
+
+    write_module_recursive(model, file, processed_submodules=set())
 
 # ==================================
 #        Main script
 # ==================================
 
 if __name__ == "__main__":
-    train = True
+    train = False
     if train:
-        n_cpu = 4
+        n_cpu = 1
         policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
         )
-        env = make_vec_env(make_configure_env, n_envs=n_cpu, seed=0, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
+        env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
         model = PPO("MlpPolicy", env,
                     n_steps=512 // n_cpu,
                     batch_size=64,
@@ -382,15 +438,53 @@ if __name__ == "__main__":
         model.learn(total_timesteps=200*1000)
         # Save the agent
         model.save("highway_attention_ppo/model")
+    else:
+        device = torch.device("cpu")
+        model = PPO.load("highway_attention_ppo/model", device=device)
 
-    model = PPO.load("highway_attention_ppo/model")
-    env = make_configure_env(**env_kwargs)
-    env.render()
-    env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, model=model))
-    for _ in range(5):
-        obs, info = env.reset()
-        done = truncated = False
-        while not (done or truncated):
-            action, _ = model.predict(obs)
-            obs, reward, done, truncated, info = env.step(action)
-            env.render()
+        from torch.utils.tensorboard import SummaryWriter
+        # Path to the directory containing the TensorBoard logs
+        log_dir = os.getcwd() + '/highway_attention_ppo/PPO_1/'
+
+        # Create a TensorBoard instance
+        # tb = program.TensorBoard()
+        # tb.configure(argv=[None, '--logdir', log_dir])
+
+        # import torch
+        # from torchsummary import summary
+
+
+        # Print the summary of the network
+        # summary(model.policy)
+
+        with open('highway_attention_ppo/network_hierarchy.txt', 'w') as file:
+            file.write("-------------------------- Policy network  ---------------------------------\n")
+            write_module_hierarchy_to_file(model.policy, file)
+            file.write("-------------------------- Value function ----------------------------------\n")
+            write_module_hierarchy_to_file(model.policy.value_net, file)
+
+
+        # if os.path.exists(log_dir):
+        #     print("Log directory exists.", log_dir)
+        #     # Run TensorBoard command or perform other operations
+        #     # Launch TensorBoard
+        #     tb.main()
+        # else:
+        #     print("Log directory not found. Please check the path.", log_dir)
+        
+
+        env = make_configure_env(**env_kwargs,duration=400)
+        env.render()
+        gamma = 1.0
+        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, model=model))
+        for _ in range(50):
+            obs, info = env.reset()
+            done = truncated = False
+            cumulative_reward = 0
+            while not (done or truncated):
+                action, _ = model.predict(obs)
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                env.render()
+            print("--------------------------------------------------------------------------------------")
