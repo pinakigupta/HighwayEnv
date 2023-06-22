@@ -17,7 +17,22 @@ from tensorboard import program
 import os, sys
 import highway_env
 
- 
+from stable_baselines3.common.callbacks import BaseCallback
+
+class CustomCheckpointCallback(BaseCallback):
+    def __init__(self, save_freq, save_path):
+        super(CustomCheckpointCallback, self).__init__()
+        self.save_freq = save_freq
+        self.save_path = save_path
+
+    def _init_callback(self) -> None:
+        if self.save_freq > 0:
+            self.agent.save(self.save_path)  # Save the initial agent
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.save_freq == 0:
+            self.agent.save(self.save_path)  # Save the agent at specified intervals
+        return True
 
 # ==================================
 #        Policy Architecture
@@ -323,8 +338,8 @@ env_kwargs = {
 #        Display attention matrix
 # ==================================
 
-def display_vehicles_attention(agent_surface, sim_surface, env, model, min_attention=0.01):
-        v_attention = compute_vehicles_attention(env, model)
+def display_vehicles_attention(agent_surface, sim_surface, env, agent, min_attention=0.01):
+        v_attention = compute_vehicles_attention(env, agent)
         # print("v_attention ", v_attention)
         # Extract the subsurface of the larger rectangle
         attention_surface = pygame.Surface(sim_surface.get_size(), pygame.SRCALPHA)
@@ -355,12 +370,12 @@ def display_vehicles_attention(agent_surface, sim_surface, env, model, min_atten
             # subsurface = attention_surface.subsurface(pygame.Rect(0, 0, 4800, 200))
             sim_surface.blit(attention_surface, (0, 0))
 
-def compute_vehicles_attention(env, model):
+def compute_vehicles_attention(env, agent):
     obs = env.unwrapped.observation_type.observe()
     obs_t = torch.tensor(obs[None, ...], dtype=torch.float)
-    attention = model.policy.features_extractor.extractor.get_attention_matrix(obs_t)
+    attention = agent.policy.features_extractor.extractor.get_attention_matrix(obs_t)
     attention = attention.squeeze(0).squeeze(1).detach().cpu().numpy()
-    ego, others, mask = model.policy.features_extractor.extractor.split_input(obs_t)
+    ego, others, mask = agent.policy.features_extractor.extractor.split_input(obs_t)
     mask = mask.squeeze()
     v_attention = {}
     obs_type = env.observation_type
@@ -381,7 +396,7 @@ def compute_vehicles_attention(env, model):
         v_attention[vehicle] = attention[:, v_index]
     return v_attention
 
-def write_module_hierarchy_to_file(model, file):
+def write_module_hierarchy_to_file(agent, file):
     def write_module_recursive(module, file=None, indent='', processed_submodules=None):
         if file is None:
             file = sys.stdout
@@ -412,39 +427,52 @@ def write_module_hierarchy_to_file(model, file):
                         processed_submodules.add(submodule)
                         file.write(f'{indent}    ├─{name}: {submodule.shape}\n')
 
-    write_module_recursive(model, file, processed_submodules=set())
+    write_module_recursive(agent, file, processed_submodules=set())
 
 # ==================================
 #        Main script
 # ==================================
 
 if __name__ == "__main__":
-    train = False
-    if train:
+    train = 0
+    if train == 1: # training 
         n_cpu = 1
         policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
         )
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
-        model = PPO("MlpPolicy", env,
+        # Set the checkpoint frequency
+        checkpoint_freq = 20000  # Save the agent every 10,000 timesteps
+        agent = PPO("MlpPolicy", env,
                     n_steps=512 // n_cpu,
                     batch_size=64,
                     learning_rate=2e-3,
                     policy_kwargs=policy_kwargs,
                     verbose=2,
                     tensorboard_log="highway_attention_ppo/")
+        callback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callbac
         # Train the agent
-        model.learn(total_timesteps=200*1000)
-        # Save the agent
-        model.save("highway_attention_ppo/model")
+        agent.learn(
+                    total_timesteps=200*1000,
+                    callback=callback
+                    )
+        # Save the final agent
+        agent.save("highway_attention_ppo/agent")
     else:
+        # from models.nets import Expert
+        from models.gail import GAIL
+        # import gail.utils
+        # train==0: # Simulate the env and possibly collect experience
         device = torch.device("cpu")
-        model = PPO.load("highway_attention_ppo/model", device=device)
+        # agent = PPO.load("highway_attention_ppo/agent", device=device)
+        env = make_configure_env(**env_kwargs,duration=400)
+        gail_model = GAIL(len(env.observation_space.high), env.action_space.n, discrete=True, device=torch.device("cpu")).to(device=device)
+        agent = PPO.load("checkpoint", device=device)
 
-        from torch.utils.tensorboard import SummaryWriter
+        # from torch.utils.tensorboard import SummaryWriter
         # Path to the directory containing the TensorBoard logs
-        log_dir = os.getcwd() + '/highway_attention_ppo/PPO_1/'
+        # log_dir = os.getcwd() + '/highway_attention_ppo/PPO_1/'
 
         # Create a TensorBoard instance
         # tb = program.TensorBoard()
@@ -455,13 +483,18 @@ if __name__ == "__main__":
 
 
         # Print the summary of the network
-        # summary(model.policy)
+        # summary(agent.policy)
+
+        
+        # Generate expert trajectories and save as a dataset
+        # generate_expert_traj(agent.policy, 'expert_data.npz', env, n_episodes=10000)
+
 
         with open('highway_attention_ppo/network_hierarchy.txt', 'w') as file:
             file.write("-------------------------- Policy network  ---------------------------------\n")
-            write_module_hierarchy_to_file(model.policy, file)
+            write_module_hierarchy_to_file(agent.policy, file)
             file.write("-------------------------- Value function ----------------------------------\n")
-            write_module_hierarchy_to_file(model.policy.value_net, file)
+            write_module_hierarchy_to_file(agent.policy.value_net, file)
 
 
         # if os.path.exists(log_dir):
@@ -473,16 +506,16 @@ if __name__ == "__main__":
         #     print("Log directory not found. Please check the path.", log_dir)
         
 
-        env = make_configure_env(**env_kwargs,duration=400)
+        
         env.render()
         gamma = 1.0
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, model=model))
+        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, agent=agent))
         for _ in range(50):
             obs, info = env.reset()
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
-                action, _ = model.predict(obs)
+                action, _ = agent.predict(obs)
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
