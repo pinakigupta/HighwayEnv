@@ -16,6 +16,18 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from tensorboard import program
 import os, sys
 import highway_env
+from enum import Enum
+import json
+import copy
+
+from models.nets import Expert
+from models.gail import GAIL
+
+class TrainEnum(Enum):
+    RLTRAIN = 0
+    RLDEPLOY = 1
+    IRLTRAIN = 2
+    IRLDEPLOY = 3
 
 from stable_baselines3.common.callbacks import BaseCallback
 
@@ -291,7 +303,6 @@ class CustomExtractor(BaseFeaturesExtractor):
     def forward(self, observations: th.Tensor) -> th.Tensor:
         return self.extractor(observations)
 
-
 # ==================================
 #     Environment configuration
 # ==================================
@@ -434,13 +445,13 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = 0
-    if train == 1: # training 
-        n_cpu = 1
-        policy_kwargs = dict(
+    train = TrainEnum.IRLTRAIN
+    policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
-            features_extractor_kwargs=attention_network_kwargs,
+            features_extractor_kwargs=copy.deepcopy(attention_network_kwargs),
         )
+    if train == TrainEnum.RLTRAIN: # training 
+        n_cpu = 10
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
         # Set the checkpoint frequency
         checkpoint_freq = 20000  # Save the model every 10,000 timesteps
@@ -448,7 +459,7 @@ if __name__ == "__main__":
                     n_steps=512 // n_cpu,
                     batch_size=64,
                     learning_rate=2e-3,
-                    policy_kwargs=policy_kwargs,
+                    policy_kwargs=copy.deepcopy(policy_kwargs),
                     verbose=2,
                     tensorboard_log="highway_attention_ppo/")
         callback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
@@ -459,20 +470,25 @@ if __name__ == "__main__":
                     )
         # Save the final model
         model.save("highway_attention_ppo/model")
-    else:
-        from models.nets import Expert
-        from models.gail import GAIL
+    elif train==TrainEnum.IRLTRAIN:
         # import gail.utils
         # train==0: # Simulate the env and possibly collect experience
         device = torch.device("cpu")
         # model = PPO.load("highway_attention_ppo/model", device=device)
-        env = make_configure_env(**env_kwargs,duration=400)
-        state_dim = len(env.observation_space.high)
+        env = make_configure_env(**copy.deepcopy(env_kwargs),duration=400).unwrapped
+        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
-        gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu")).to(device=device)
-        # expert = Expert(state_dim, action_dim, discrete=True).to(device)
-        model = PPO.load("checkpoint", device=device)
-        # expert.pi = model.policy
+        # with open("model_config.json") as f:
+        #     expert_config = json.load(f)
+        with open("config.json") as f:
+            config = json.load(f)
+        gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), **config).to(device=device)
+        # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
+        expert = PPO.load("checkpoint", device=device) # For now treat this as expert instead of experience tuples
+        gail_agent.train(env=env, expert=expert)
+
+        # Save the GAIL model
+        torch.save(gail_agent.state_dict(), 'gail_agent.pth')
 
         # from torch.utils.tensorboard import SummaryWriter
         # Path to the directory containing the TensorBoard logs
@@ -482,18 +498,38 @@ if __name__ == "__main__":
         # tb = program.TensorBoard()
         # tb.configure(argv=[None, '--logdir', log_dir])
 
-        # import torch
-        # from torchsummary import summary
-
-
-        # Print the summary of the network
-        # summary(model.policy)
-
         
         # Generate expert trajectories and save as a dataset
         # generate_expert_traj(model.policy, 'expert_data.npz', env, n_episodes=10000)
 
+    elif train==TrainEnum.IRLDEPLOY:
+        env = make_configure_env(**env_kwargs,duration=400)
+        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
+        action_dim = env.action_space.n
+        with open("config.json") as f:
+            config = copy.deepcopy(json.load(f))
+        # Load the GAIL model
+        loaded_gail_agent = GAIL(state_dim, action_dim, discrete=True, device=torch.device("cpu"), **config)
+        loaded_gail_agent.load_state_dict(torch.load('gail_agent.pth'))
 
+        env.render()
+        gamma = 1.0
+        for _ in range(50):
+            obs, info = env.reset()
+            done = truncated = False
+            cumulative_reward = 0
+            while not (done or truncated):
+                action = loaded_gail_agent.act(obs.flatten())
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                env.render()
+            print("--------------------------------------------------------------------------------------")
+
+    elif train==TrainEnum.RLDEPLOY:
+        env = make_configure_env(**env_kwargs,duration=400)
+        device = torch.device("cpu")
+        model = PPO.load("checkpoint", device=device)
         with open('highway_attention_ppo/network_hierarchy.txt', 'w') as file:
             file.write("-------------------------- Policy network  ---------------------------------\n")
             write_module_hierarchy_to_file(model.policy, file)
