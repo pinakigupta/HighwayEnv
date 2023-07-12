@@ -69,6 +69,8 @@ class AbstractEnv(gym.Env):
         self.enable_auto_render = False
 
         self.reset()
+        
+
 
     @property
     def vehicle(self) -> Vehicle:
@@ -233,6 +235,12 @@ class AbstractEnv(gym.Env):
 
         self.time += 1 / self.config["policy_frequency"]
         self._simulate(action)
+
+        if 'mode' in self.config and self.config['mode'] is 'expert':
+            for v in self.road.vehicles:
+                if v is not self.vehicle and isinstance(v, IDMVehicle): 
+                    v.observer = self.observation_type.observe(v)
+
 
         obs = self.observation_type.observe()
         reward = self._reward(action)

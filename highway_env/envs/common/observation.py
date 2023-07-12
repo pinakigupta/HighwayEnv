@@ -26,7 +26,7 @@ class ObservationType(object):
         """Get the observation space."""
         raise NotImplementedError()
 
-    def observe(self):
+    def observe(self, *args, **kwargs):
         """Get an observation of the environment state."""
         raise NotImplementedError()
 
@@ -202,27 +202,28 @@ class KinematicObservation(ObservationType):
                     df[feature] = np.clip(df[feature], -1, 1)
         return df
 
-    def observe(self) -> np.ndarray:
+    def observe(self, ref_vehicle=None) -> np.ndarray:
         if not self.env.road:
             return np.zeros(self.space().shape)
 
+        observer_vehicle = ref_vehicle if ref_vehicle is not None else self.observer_vehicle
         # Add ego-vehicle
-        df = pd.DataFrame.from_records([self.observer_vehicle.to_dict()])
+        df = pd.DataFrame.from_records([observer_vehicle.to_dict()])
         # Add nearby traffic
-        close_vehicles = self.env.road.close_vehicles_to(self.observer_vehicle,
+        close_vehicles = self.env.road.close_vehicles_to(observer_vehicle,
                                                          self.env.PERCEPTION_DISTANCE,
                                                          count=self.vehicles_count - 1,
                                                          see_behind=self.see_behind,
                                                          sort=self.order == "sorted")
         if close_vehicles:
-            origin = self.observer_vehicle if not self.absolute else None
+            origin = observer_vehicle if not self.absolute else None
             vehicles_df = pd.DataFrame.from_records(
                 [v.to_dict(origin, observe_intentions=self.observe_intentions)
                  for v in close_vehicles[-self.vehicles_count + 1:]])
             df = pd.concat([df, vehicles_df], ignore_index=True)
 
         if self.include_obstacles:
-            origin = self.observer_vehicle if not self.absolute else None
+            origin = observer_vehicle if not self.absolute else None
             obstacles_df = pd.DataFrame.from_records(
                 [obstacle.to_dict(origin) for obstacle in self.env.road.objects if obstacle.solid])
             obstacles_df = obstacles_df.iloc[:(self.vehicles_count - df.shape[0])]

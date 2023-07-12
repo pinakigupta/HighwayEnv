@@ -9,6 +9,7 @@ from highway_env import utils
 from highway_env.vehicle.kinematics import Vehicle
 
 
+
 class IDMVehicle(ControlledVehicle):
     """
     A vehicle using both a longitudinal and a lateral decision policies.
@@ -54,10 +55,11 @@ class IDMVehicle(ControlledVehicle):
                  target_speed: float = None,
                  route: Route = None,
                  enable_lane_change: bool = True,
-                 timer: float = None):
+                 timer: float = None,):
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route)
         self.enable_lane_change = enable_lane_change
         self.timer = timer or (np.sum(self.position)*np.pi) % self.LANE_CHANGE_DELAY
+        self.observer = None
 
     def randomize_behavior(self):
         self.DELTA = self.road.np_random.uniform(low=self.DELTA_RANGE[0], high=self.DELTA_RANGE[1])
@@ -101,8 +103,26 @@ class IDMVehicle(ControlledVehicle):
         action['acceleration'] = self.acceleration(ego_vehicle=self,
                                                    front_vehicle=front_vehicle,
                                                    rear_vehicle=rear_vehicle)
+        
+        delta_id = self.target_lane_index[2] - self.lane_index[2]
+        if(delta_id > 0):
+            self.discrete_action = "LANE_RIGHT"
+        elif(delta_id < 0):
+            self.discrete_action = "LANE_LEFT"
+        elif action['acceleration'] > self.DELTA_SPEED/5:
+            self.discrete_action = "FASTER"
+        elif action['acceleration'] < -self.DELTA_SPEED/5:
+            self.discrete_action = "SLOWER"
+        else:
+            self.discrete_action = "IDLE"
+        # print(" vehicle ", id(self)," target_lane_index ", self.target_lane_index[2],
+        #      " lane_index ", self.lane_index[2], self.action, self.observer)
+
         # When changing lane, check both current and target lanes
         if self.lane_index != self.target_lane_index:
+            
+            
+            
             front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.target_lane_index)
             target_idm_acceleration = self.acceleration(ego_vehicle=self,
                                                         front_vehicle=front_vehicle,

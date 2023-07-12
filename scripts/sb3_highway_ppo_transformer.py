@@ -15,7 +15,7 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from tensorboard import program
 import os, sys
-import highway_env
+import multiprocessing
 from enum import Enum
 import json
 import copy
@@ -318,8 +318,8 @@ env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
     'config': {
-        # "lanes_count": 3,
-        # "vehicles_count": 15,
+        "lanes_count": 4,
+        "vehicles_count": 50,
         "action": {
                 "type": "DiscreteMetaAction",
             },
@@ -445,13 +445,16 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLTRAIN
+    train = TrainEnum.IRLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
-            features_extractor_kwargs=copy.deepcopy(attention_network_kwargs),
+            features_extractor_kwargs=attention_network_kwargs,
         )
+    
+
+
     if train == TrainEnum.RLTRAIN: # training 
-        n_cpu = 10
+        n_cpu =  multiprocessing.cpu_count()
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
         # Set the checkpoint frequency
         checkpoint_freq = 20000  # Save the model every 10,000 timesteps
@@ -459,7 +462,7 @@ if __name__ == "__main__":
                     n_steps=512 // n_cpu,
                     batch_size=64,
                     learning_rate=2e-3,
-                    policy_kwargs=copy.deepcopy(policy_kwargs),
+                    policy_kwargs=policy_kwargs,
                     verbose=2,
                     tensorboard_log="highway_attention_ppo/")
         callback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
@@ -475,7 +478,7 @@ if __name__ == "__main__":
         # train==0: # Simulate the env and possibly collect experience
         device = torch.device("cpu")
         # model = PPO.load("highway_attention_ppo/model", device=device)
-        env = make_configure_env(**copy.deepcopy(env_kwargs),duration=400).unwrapped
+        env = make_configure_env(**copy.deepcopy(env_kwargs), mode="expert",duration=400).unwrapped
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         # with open("model_config.json") as f:
@@ -485,10 +488,8 @@ if __name__ == "__main__":
         gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), **config).to(device=device)
         # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
         expert = PPO.load("checkpoint", device=device) # For now treat this as expert instead of experience tuples
-        gail_agent.train(env=env, expert=expert)
+        reward = gail_agent.train(env=env, expert=expert)
 
-        # Save the GAIL model
-        torch.save(gail_agent.state_dict(), 'gail_agent.pth')
 
         # from torch.utils.tensorboard import SummaryWriter
         # Path to the directory containing the TensorBoard logs
@@ -509,8 +510,8 @@ if __name__ == "__main__":
         with open("config.json") as f:
             config = copy.deepcopy(json.load(f))
         # Load the GAIL model
-        loaded_gail_agent = GAIL(state_dim, action_dim, discrete=True, device=torch.device("cpu"), **config)
-        loaded_gail_agent.load_state_dict(torch.load('gail_agent.pth'))
+        loaded_gail_agent = GAIL(state_dim, action_dim, discrete=True, device=torch.device("cpu"), **config, **policy_kwargs)
+        loaded_gail_agent.load_state_dict(torch.load('optimal_gail_agent.pth'))
 
         env.render()
         gamma = 1.0
@@ -520,9 +521,11 @@ if __name__ == "__main__":
             cumulative_reward = 0
             while not (done or truncated):
                 action = loaded_gail_agent.act(obs.flatten())
+                # print("action : " , action)
+                # print("obs : ", obs.flatten())
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 env.render()
             print("--------------------------------------------------------------------------------------")
 
