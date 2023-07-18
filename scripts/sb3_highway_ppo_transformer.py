@@ -487,7 +487,7 @@ if __name__ == "__main__":
         with open("config.json") as f:
             config = json.load(f)
         gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
-                          **config, **policy_kwargs, observation_space= env.observation_space).to(device=device)
+                          **config, observation_space= env.observation_space).to(device=device)
         # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
         expert = PPO.load("checkpoint", device=device) # For now treat this as expert instead of experience tuples
         reward = gail_agent.train(env=env, expert=expert)
@@ -511,14 +511,20 @@ if __name__ == "__main__":
         with open("config.json") as f:
             config = copy.deepcopy(json.load(f))
         # Load the GAIL model
-        loaded_gail_agent = GAIL(state_dim, action_dim, discrete=True, device=torch.device("cpu"), 
-                                 **config, **policy_kwargs, observation_space= env.observation_space)
+        loaded_gail_agent = GAIL(
+                                 state_dim, 
+                                 action_dim, 
+                                 discrete=True, device=torch.device("cpu"), 
+                                 **config, 
+                                #  **policy_kwargs, 
+                                 observation_space= env.observation_space
+                                 )
         loaded_gail_agent.load_state_dict(torch.load('optimal_gail_agent.pth'))
 
         env.render()
         gamma = 1.0
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, 
-                                                       fe=loaded_gail_agent.features_extractor))
+        # env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, 
+        #                                                fe=loaded_gail_agent.features_extractor))
         for _ in range(50):
             obs, info = env.reset()
             done = truncated = False
