@@ -318,6 +318,7 @@ env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
     'config': {
+        # "mode" : 'expert',
         "lanes_count": 4,
         "vehicles_count": 50,
         "action": {
@@ -349,8 +350,8 @@ env_kwargs = {
 #        Display attention matrix
 # ==================================
 
-def display_vehicles_attention(agent_surface, sim_surface, env, model, min_attention=0.01):
-        v_attention = compute_vehicles_attention(env, model)
+def display_vehicles_attention(agent_surface, sim_surface, env, fe, min_attention=0.01):
+        v_attention = compute_vehicles_attention(env, fe)
         # print("v_attention ", v_attention)
         # Extract the subsurface of the larger rectangle
         attention_surface = pygame.Surface(sim_surface.get_size(), pygame.SRCALPHA)
@@ -381,12 +382,12 @@ def display_vehicles_attention(agent_surface, sim_surface, env, model, min_atten
             # subsurface = attention_surface.subsurface(pygame.Rect(0, 0, 4800, 200))
             sim_surface.blit(attention_surface, (0, 0))
 
-def compute_vehicles_attention(env, model):
+def compute_vehicles_attention(env,fe):
     obs = env.unwrapped.observation_type.observe()
     obs_t = torch.tensor(obs[None, ...], dtype=torch.float)
-    attention = model.policy.features_extractor.extractor.get_attention_matrix(obs_t)
+    attention = fe.extractor.get_attention_matrix(obs_t)
     attention = attention.squeeze(0).squeeze(1).detach().cpu().numpy()
-    ego, others, mask = model.policy.features_extractor.extractor.split_input(obs_t)
+    ego, others, mask = fe.extractor.split_input(obs_t)
     mask = mask.squeeze()
     v_attention = {}
     obs_type = env.observation_type
@@ -441,7 +442,7 @@ def write_module_hierarchy_to_file(model, file):
     write_module_recursive(model, file, processed_submodules=set())
 
 # ==================================
-#        Main script
+#        Main script  20 
 # ==================================
 
 if __name__ == "__main__":
@@ -485,7 +486,8 @@ if __name__ == "__main__":
         #     expert_config = json.load(f)
         with open("config.json") as f:
             config = json.load(f)
-        gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), **config).to(device=device)
+        gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
+                          **config, **policy_kwargs, observation_space= env.observation_space).to(device=device)
         # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
         expert = PPO.load("checkpoint", device=device) # For now treat this as expert instead of experience tuples
         reward = gail_agent.train(env=env, expert=expert)
@@ -502,7 +504,6 @@ if __name__ == "__main__":
         
         # Generate expert trajectories and save as a dataset
         # generate_expert_traj(model.policy, 'expert_data.npz', env, n_episodes=10000)
-
     elif train==TrainEnum.IRLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
@@ -510,17 +511,20 @@ if __name__ == "__main__":
         with open("config.json") as f:
             config = copy.deepcopy(json.load(f))
         # Load the GAIL model
-        loaded_gail_agent = GAIL(state_dim, action_dim, discrete=True, device=torch.device("cpu"), **config, **policy_kwargs)
+        loaded_gail_agent = GAIL(state_dim, action_dim, discrete=True, device=torch.device("cpu"), 
+                                 **config, **policy_kwargs, observation_space= env.observation_space)
         loaded_gail_agent.load_state_dict(torch.load('optimal_gail_agent.pth'))
 
         env.render()
         gamma = 1.0
+        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, 
+                                                       fe=loaded_gail_agent.features_extractor))
         for _ in range(50):
             obs, info = env.reset()
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
-                action = loaded_gail_agent.act(obs.flatten())
+                action = loaded_gail_agent.act(obs)
                 # print("action : " , action)
                 # print("obs : ", obs.flatten())
                 obs, reward, done, truncated, info = env.step(action)
@@ -528,7 +532,6 @@ if __name__ == "__main__":
                 # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 env.render()
             print("--------------------------------------------------------------------------------------")
-
     elif train==TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
         device = torch.device("cpu")
@@ -552,7 +555,7 @@ if __name__ == "__main__":
         
         env.render()
         gamma = 1.0
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, model=model))
+        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         for _ in range(50):
             obs, info = env.reset()
             done = truncated = False
