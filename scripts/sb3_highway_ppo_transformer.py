@@ -25,6 +25,7 @@ from datetime import datetime
 
 from models.nets import Expert
 from models.gail import GAIL
+from models.generate_expert_data import collect_expert_data
 
 class TrainEnum(Enum):
     RLTRAIN = 0
@@ -486,6 +487,7 @@ if __name__ == "__main__":
         # Save the final model
         model.save("highway_attention_ppo/model")
     elif train==TrainEnum.IRLTRAIN:
+        
         sweep_config = {
             "method": "grid",
             "metric": {
@@ -494,11 +496,11 @@ if __name__ == "__main__":
             },
             "parameters": {
                 "duration": {
-                    "values": [301, 401, 501]  # Values for the "duration" field to be swept
+                    "values": [500, 1000, 2500]  # Values for the "duration" field to be swept
                 }
             }
         }
-        project_name = f"gail_hyperparameter_tuning"
+        project_name = f"gail_hyperparameter_tuning_1"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
         device = torch.device("cpu")
         expert = PPO.load("checkpoint", device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
@@ -510,13 +512,12 @@ if __name__ == "__main__":
             "duration": 400  # Default value for the "duration" field
         }
         # Customize the project name with the current date and time
-        # Log the model as an artifact in wandb
-        artifact = wandb.Artifact("trained_model", type="model")        
+                
         def train_sweep():
             with wandb.init(
                             project=project_name, 
                             config=config_defaults,
-                            magic=True
+                            magic=True,
                            ) as run:
                 run.name = f"sweep_{month}{day}_{timenow()}"
                 env = make_configure_env(**copy.deepcopy(env_kwargs), mode="expert").unwrapped
@@ -531,15 +532,39 @@ if __name__ == "__main__":
                 for epoch, reward in enumerate(rewards, 1):
                     run.log({f"epoch_{epoch}_rewards": reward})
                 
+                # Log the model as an artifact in wandb
+                artifact = wandb.Artifact("trained_model", type="model")
                 artifact.add_file("optimal_gail_agent.pth")
                 run.log_artifact(artifact)
-            
 
-        wandb.agent(
-                     sweep_id=sweep_id, 
-                     function=train_sweep
-                   )
-        wandb.finish()
+                    
+        env = make_configure_env(**copy.deepcopy(env_kwargs), mode="expert").unwrapped
+        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
+        action_dim = env.action_space.n
+
+        exp_rwd_iter, exp_obs, exp_acts   =           collect_expert_data  (
+                                                                                env,
+                                                                                expert,
+                                                                                config["num_expert_steps"]
+                                                                            )
+
+
+        gail_agent = GAIL(
+                            state_dim, 
+                            action_dim , 
+                            discrete=True, 
+                            device=torch.device("cpu"), 
+                            **config, 
+                            observation_space= env.observation_space,
+                         ).to(device=device)
+        # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
+        rewards, optimal_agent = gail_agent.train(env=env, expert=expert, exp_obs= exp_obs, exp_acts = exp_acts)
+
+        # wandb.agent(
+        #              sweep_id=sweep_id, 
+        #              function=train_sweep
+        #            )
+        # wandb.finish()
 
     elif train==TrainEnum.IRLDEPLOY:
         # Initialize wandb
