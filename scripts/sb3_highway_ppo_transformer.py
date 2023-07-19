@@ -19,6 +19,9 @@ import multiprocessing
 from enum import Enum
 import json
 import copy
+import wandb
+from datetime import datetime
+
 
 from models.nets import Expert
 from models.gail import GAIL
@@ -318,7 +321,7 @@ env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
     'config': {
-        # "mode" : 'expert',
+        "mode" : 'expert',
         "lanes_count": 4,
         "vehicles_count": 50,
         "action": {
@@ -446,13 +449,21 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLDEPLOY
+    train = TrainEnum.IRLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
         )
     
+    # Get the current date and time
+    now = datetime.now()
+    month = now.strftime("%m")
+    day = now.strftime("%d")
 
+    def timenow():
+        return now.strftime("%H%M")
+
+    
 
     if train == TrainEnum.RLTRAIN: # training 
         n_cpu =  multiprocessing.cpu_count()
@@ -475,36 +486,74 @@ if __name__ == "__main__":
         # Save the final model
         model.save("highway_attention_ppo/model")
     elif train==TrainEnum.IRLTRAIN:
-        # import gail.utils
-        # train==0: # Simulate the env and possibly collect experience
+        sweep_config = {
+            "method": "grid",
+            "metric": {
+                "name": "episode_reward",
+                "goal": "maximize"
+            },
+            "parameters": {
+                "duration": {
+                    "values": [301, 401, 501]  # Values for the "duration" field to be swept
+                }
+            }
+        }
+        project_name = f"gail_hyperparameter_tuning"
+        sweep_id = wandb.sweep(sweep_config, project=project_name)
         device = torch.device("cpu")
-        # model = PPO.load("highway_attention_ppo/model", device=device)
-        env = make_configure_env(**copy.deepcopy(env_kwargs), mode="expert",duration=400).unwrapped
-        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-        action_dim = env.action_space.n
-        # with open("model_config.json") as f:
-        #     expert_config = json.load(f)
+        expert = PPO.load("checkpoint", device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
+        # IDM + MOBIL is treated as expert.
         with open("config.json") as f:
             config = json.load(f)
-        gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
-                          **config, observation_space= env.observation_space).to(device=device)
-        # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
-        expert = PPO.load("checkpoint", device=device) # For now treat this as expert instead of experience tuples
-        reward = gail_agent.train(env=env, expert=expert)
 
+        config_defaults = {
+            "duration": 400  # Default value for the "duration" field
+        }
+        # Customize the project name with the current date and time
+        # Log the model as an artifact in wandb
+        artifact = wandb.Artifact("trained_model", type="model")        
+        def train_sweep():
+            with wandb.init(
+                            project=project_name, 
+                            config=config_defaults,
+                            magic=True
+                           ) as run:
+                run.name = f"sweep_{month}{day}_{timenow()}"
+                env = make_configure_env(**copy.deepcopy(env_kwargs), mode="expert").unwrapped
+                state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
+                action_dim = env.action_space.n
+                gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
+                                **config, observation_space= env.observation_space).to(device=device)
+                # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
+                rewards, optimal_agent = gail_agent.train(env=env, expert=expert)
 
-        # from torch.utils.tensorboard import SummaryWriter
-        # Path to the directory containing the TensorBoard logs
-        # log_dir = os.getcwd() + '/highway_attention_ppo/PPO_1/'
+                # Log the reward vector for each epoch
+                for epoch, reward in enumerate(rewards, 1):
+                    run.log({f"epoch_{epoch}_rewards": reward})
+                
+                artifact.add_file("optimal_gail_agent.pth")
+                run.log_artifact(artifact)
+            
 
-        # Create a TensorBoard instance
-        # tb = program.TensorBoard()
-        # tb.configure(argv=[None, '--logdir', log_dir])
+        wandb.agent(
+                     sweep_id=sweep_id, 
+                     function=train_sweep
+                   )
+        wandb.finish()
 
-        
-        # Generate expert trajectories and save as a dataset
-        # generate_expert_traj(model.policy, 'expert_data.npz', env, n_episodes=10000)
     elif train==TrainEnum.IRLDEPLOY:
+        # Initialize wandb
+        wandb.init(project="gail_hyperparameter_tuning_0718_1502")
+        # Access the run containing the logged artifact
+        run = wandb.init()
+
+        # Download the artifact
+        artifact = run.use_artifact("trained_model:v0")
+        artifact_dir = artifact.download()
+
+        # Load the model from the downloaded artifact
+        gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+
         env = make_configure_env(**env_kwargs,duration=400)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
@@ -519,7 +568,8 @@ if __name__ == "__main__":
                                 #  **policy_kwargs, 
                                  observation_space= env.observation_space
                                  )
-        loaded_gail_agent.load_state_dict(torch.load('optimal_gail_agent.pth'))
+        loaded_gail_agent.load_state_dict(torch.load(gail_agent_path))
+        # loaded_gail_agent.eval()
 
         env.render()
         gamma = 1.0
