@@ -22,9 +22,8 @@ import copy
 import pandas as pd
 import wandb
 from datetime import datetime
-import h5py
 from torch import FloatTensor
-
+import h5py
 from models.nets import Expert
 from models.gail import GAIL
 from models.generate_expert_data import collect_expert_data
@@ -453,7 +452,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLTRAIN
+    train = TrainEnum.IRLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -463,6 +462,7 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
+    expert_data='expert_data.h5'
 
     def timenow():
         return now.strftime("%H%M")
@@ -477,26 +477,25 @@ if __name__ == "__main__":
         exp_rwd_iter, exp_obs, exp_acts   =           collect_expert_data  (
                                                                                 env,
                                                                                 expert,
-                                                                                config["num_expert_steps"]
+                                                                                config["num_expert_steps"],
+                                                                                filename=expert_data
                                                                             )
-        # Save the data list as an HDF5 file
-        with h5py.File('expert_data.h5', 'w') as hf:
-            for i, (arr1, arr2) in enumerate(zip(exp_obs, exp_acts)):
-                hf.create_dataset(f'exp_obs{i}',  data=arr1)
-                hf.create_dataset(f'exp_acts{i}', data=arr2)
+
 
     elif train == TrainEnum.RLTRAIN: # training 
         n_cpu =  multiprocessing.cpu_count()
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
         # Set the checkpoint frequency
         checkpoint_freq = 20000  # Save the model every 10,000 timesteps
-        model = PPO("MlpPolicy", env,
+        model = PPO(
+                    "MlpPolicy", env,
                     n_steps=512 // n_cpu,
                     batch_size=64,
                     learning_rate=2e-3,
                     policy_kwargs=policy_kwargs,
                     verbose=2,
-                    tensorboard_log="highway_attention_ppo/")
+                    tensorboard_log="highway_attention_ppo/"
+                    )
         callback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
         # Train the model
         model.learn(
@@ -519,7 +518,7 @@ if __name__ == "__main__":
                 }
             }
         }
-        project_name = f"gail_hyperparameter_tuning_1"
+        project_name = f"gail_hyperparameter_tuning_2"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
         device = torch.device("cpu")
         
@@ -531,8 +530,18 @@ if __name__ == "__main__":
             "duration": 400  # Default value for the "duration" field
         }
         # Customize the project name with the current date and time
-                
-        def train_sweep():
+        exp_obs  = []
+        exp_acts = []
+        with h5py.File('expert_data.h5', 'r') as hf:
+            for i in range(len(hf.keys()) // 2):
+                exp_obs.append(hf[f'exp_obs{i}'][:])
+                exp_acts.append(hf[f'exp_acts{i}'][()])
+
+
+        exp_obs = FloatTensor(exp_obs)
+        exp_acts = FloatTensor(exp_acts)
+
+        def train_sweep(exp_obs, exp_acts):
             with wandb.init(
                             project=project_name, 
                             config=config_defaults,
@@ -545,7 +554,7 @@ if __name__ == "__main__":
                 gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
                                 **config, observation_space= env.observation_space).to(device=device)
                 # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
-                rewards, optimal_agent = gail_agent.train(env=env, expert=expert)
+                rewards, optimal_agent = gail_agent.train(env=env, exp_obs=exp_obs, exp_acts=exp_acts)
 
                 # Log the reward vector for each epoch
                 for epoch, reward in enumerate(rewards, 1):
@@ -561,43 +570,33 @@ if __name__ == "__main__":
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
 
-        exp_obs  = []
-        exp_acts = []
-        with h5py.File('expert_data.h5', 'r') as hf:
-            for i in range(len(hf.keys()) // 2):
-                exp_obs.append(hf[f'exp_obs{i}'][:])
-                exp_acts.append(hf[f'exp_acts{i}'][()])
 
 
-        exp_obs = FloatTensor(exp_obs)
-        exp_acts = FloatTensor(exp_acts)
+        # gail_agent = GAIL(
+        #                     state_dim, 
+        #                     action_dim , 
+        #                     discrete=True, 
+        #                     device=torch.device("cpu"), 
+        #                     **config,
+        #                     # **policy_kwargs, 
+        #                     observation_space= env.observation_space,
+        #                  ).to(device=device)
+        # rewards, optimal_agent = gail_agent.train(env=env, exp_obs= exp_obs, exp_acts = exp_acts)
 
-        gail_agent = GAIL(
-                            state_dim, 
-                            action_dim , 
-                            discrete=True, 
-                            device=torch.device("cpu"), 
-                            **config,
-                            # **policy_kwargs, 
-                            observation_space= env.observation_space,
-                         ).to(device=device)
-        # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
-        rewards, optimal_agent = gail_agent.train(env=env, exp_obs= exp_obs, exp_acts = exp_acts)
-
-        # wandb.agent(
-        #              sweep_id=sweep_id, 
-        #              function=train_sweep
-        #            )
-        # wandb.finish()
+        wandb.agent(
+                     sweep_id=sweep_id, 
+                     function=lambda: train_sweep(exp_obs, exp_acts)
+                   )
+        wandb.finish()
 
     elif train==TrainEnum.IRLDEPLOY:
         # Initialize wandb
-        wandb.init(project="gail_hyperparameter_tuning")
+        wandb.init(project="gail_hyperparameter_tuning_2")
         # Access the run containing the logged artifact
         run = wandb.init()
 
         # Download the artifact
-        artifact = run.use_artifact("trained_model:v0")
+        artifact = run.use_artifact("trained_model:v2")
         artifact_dir = artifact.download()
 
         # Load the model from the downloaded artifact
