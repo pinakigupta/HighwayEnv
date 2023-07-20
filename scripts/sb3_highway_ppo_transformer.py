@@ -19,9 +19,11 @@ import multiprocessing
 from enum import Enum
 import json
 import copy
+import pandas as pd
 import wandb
 from datetime import datetime
-
+import h5py
+from torch import FloatTensor
 
 from models.nets import Expert
 from models.gail import GAIL
@@ -466,8 +468,24 @@ if __name__ == "__main__":
         return now.strftime("%H%M")
 
     
+    if train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
+        env = make_configure_env(**copy.deepcopy(env_kwargs)).unwrapped
+        with open("config.json") as f:
+            config = json.load(f)
+        device = torch.device("cpu")
+        expert = PPO.load("checkpoint", device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
+        exp_rwd_iter, exp_obs, exp_acts   =           collect_expert_data  (
+                                                                                env,
+                                                                                expert,
+                                                                                config["num_expert_steps"]
+                                                                            )
+        # Save the data list as an HDF5 file
+        with h5py.File('expert_data.h5', 'w') as hf:
+            for i, (arr1, arr2) in enumerate(zip(exp_obs, exp_acts)):
+                hf.create_dataset(f'exp_obs{i}',  data=arr1)
+                hf.create_dataset(f'exp_acts{i}', data=arr2)
 
-    if train == TrainEnum.RLTRAIN: # training 
+    elif train == TrainEnum.RLTRAIN: # training 
         n_cpu =  multiprocessing.cpu_count()
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
         # Set the checkpoint frequency
@@ -504,7 +522,7 @@ if __name__ == "__main__":
         project_name = f"gail_hyperparameter_tuning_1"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
         device = torch.device("cpu")
-        expert = PPO.load("checkpoint", device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
+        
         # IDM + MOBIL is treated as expert.
         with open("config.json") as f:
             config = json.load(f)
@@ -539,16 +557,20 @@ if __name__ == "__main__":
                 run.log_artifact(artifact)
 
                     
-        env = make_configure_env(**copy.deepcopy(env_kwargs), mode="expert").unwrapped
+        env = make_configure_env(**copy.deepcopy(env_kwargs)).unwrapped
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
 
-        exp_rwd_iter, exp_obs, exp_acts   =           collect_expert_data  (
-                                                                                env,
-                                                                                expert,
-                                                                                config["num_expert_steps"]
-                                                                            )
+        exp_obs  = []
+        exp_acts = []
+        with h5py.File('expert_data.h5', 'r') as hf:
+            for i in range(len(hf.keys()) // 2):
+                exp_obs.append(hf[f'exp_obs{i}'][:])
+                exp_acts.append(hf[f'exp_acts{i}'][()])
 
+
+        exp_obs = FloatTensor(exp_obs)
+        exp_acts = FloatTensor(exp_acts)
 
         gail_agent = GAIL(
                             state_dim, 
@@ -560,7 +582,7 @@ if __name__ == "__main__":
                             observation_space= env.observation_space,
                          ).to(device=device)
         # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
-        rewards, optimal_agent = gail_agent.train(env=env, expert=expert, exp_obs= exp_obs, exp_acts = exp_acts)
+        rewards, optimal_agent = gail_agent.train(env=env, exp_obs= exp_obs, exp_acts = exp_acts)
 
         # wandb.agent(
         #              sweep_id=sweep_id, 
