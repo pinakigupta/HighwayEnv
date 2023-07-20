@@ -32,6 +32,7 @@ class TrainEnum(Enum):
     RLDEPLOY = 1
     IRLTRAIN = 2
     IRLDEPLOY = 3
+    EXPERT_DATA_COLLECTION =4
 
 from stable_baselines3.common.callbacks import BaseCallback
 
@@ -554,7 +555,8 @@ if __name__ == "__main__":
                             action_dim , 
                             discrete=True, 
                             device=torch.device("cpu"), 
-                            **config, 
+                            **config,
+                            **policy_kwargs, 
                             observation_space= env.observation_space,
                          ).to(device=device)
         # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
@@ -568,7 +570,7 @@ if __name__ == "__main__":
 
     elif train==TrainEnum.IRLDEPLOY:
         # Initialize wandb
-        wandb.init(project="gail_hyperparameter_tuning_0718_1502")
+        wandb.init(project="gail_hyperparameter_tuning")
         # Access the run containing the logged artifact
         run = wandb.init()
 
