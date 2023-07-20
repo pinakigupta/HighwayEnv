@@ -556,7 +556,7 @@ if __name__ == "__main__":
                             discrete=True, 
                             device=torch.device("cpu"), 
                             **config,
-                            **policy_kwargs, 
+                            # **policy_kwargs, 
                             observation_space= env.observation_space,
                          ).to(device=device)
         # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
