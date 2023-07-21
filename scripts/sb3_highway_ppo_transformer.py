@@ -452,7 +452,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLDEPLOY
+    train = TrainEnum.IRLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -468,7 +468,7 @@ if __name__ == "__main__":
         return now.strftime("%H%M")
 
     
-    if train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
+    if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
         env = make_configure_env(**copy.deepcopy(env_kwargs)).unwrapped
         with open("config.json") as f:
             config = json.load(f)
@@ -480,8 +480,6 @@ if __name__ == "__main__":
                                                                                 config["num_expert_steps"],
                                                                                 filename=expert_data
                                                                             )
-
-
     elif train == TrainEnum.RLTRAIN: # training 
         n_cpu =  multiprocessing.cpu_count()
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
@@ -533,9 +531,29 @@ if __name__ == "__main__":
         exp_obs  = []
         exp_acts = []
         with h5py.File('expert_data.h5', 'r') as hf:
-            for i in range(len(hf.keys()) // 2):
-                exp_obs.append(hf[f'exp_obs{i}'][:])
-                exp_acts.append(hf[f'exp_acts{i}'][()])
+            # List all the episode groups in the HDF5 file
+            episode_groups = list(hf.keys())
+
+            # Iterate through each episode group
+            for episode_name in episode_groups:
+                episode = hf[episode_name]
+
+                # List all datasets (exp_obs and exp_acts) in the episode group
+                datasets = list(episode.keys())
+
+                # Iterate through each dataset in the episode group
+                for dataset_name in datasets:
+                    dataset = episode[dataset_name]
+
+                    # Append the data to the corresponding list
+                    if dataset_name.startswith('exp_obs'):
+                        exp_obs.append(dataset[:])
+                    elif dataset_name.startswith('exp_acts'):
+                        exp_acts.append(dataset[()])
+
+            # for i in range(len(hf.keys()) // 2):
+            #     exp_obs.append(hf[f'exp_obs{i}'][:])
+            #     exp_acts.append(hf[f'exp_acts{i}'][()])
 
 
         exp_obs = FloatTensor(exp_obs)
@@ -570,25 +588,15 @@ if __name__ == "__main__":
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
 
-
-
-        # gail_agent = GAIL(
-        #                     state_dim, 
-        #                     action_dim , 
-        #                     discrete=True, 
-        #                     device=torch.device("cpu"), 
-        #                     **config,
-        #                     # **policy_kwargs, 
-        #                     observation_space= env.observation_space,
-        #                  ).to(device=device)
-        # rewards, optimal_agent = gail_agent.train(env=env, exp_obs= exp_obs, exp_acts = exp_acts)
+        # gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
+        #                                 **config, observation_space= env.observation_space).to(device=device)
+        # rewards, optimal_agent = gail_agent.train(env=env, exp_obs=exp_obs, exp_acts=exp_acts)
 
         wandb.agent(
                      sweep_id=sweep_id, 
                      function=lambda: train_sweep(exp_obs, exp_acts)
                    )
         wandb.finish()
-
     elif train==TrainEnum.IRLDEPLOY:
         # Initialize wandb
         wandb.init(project="gail_hyperparameter_tuning_2")
