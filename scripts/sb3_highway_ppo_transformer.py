@@ -314,8 +314,8 @@ class CustomExtractor(BaseFeaturesExtractor):
 # ==================================
 
 def make_configure_env(**kwargs):
-    env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"])
-    env.configure(kwargs["config"])
+    env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"], config=kwargs["config"])
+    # env.configure(kwargs["config"])
     env.reset()
     return env
 
@@ -454,8 +454,8 @@ def write_module_hierarchy_to_file(model, file):
 if __name__ == "__main__":
     train = TrainEnum.EXPERT_DATA_COLLECTION
     policy_kwargs = dict(
-            features_extractor_class=CustomExtractor,g
-            features_extractor_kwargs=attention_network_kwars,
+            features_extractor_class=CustomExtractor,
+            features_extractor_kwargs=attention_network_kwargs,
         )
     
     # Get the current date and time
@@ -469,16 +469,16 @@ if __name__ == "__main__":
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
-        env = make_configure_env(**copy.deepcopy(env_kwargs)).unwrapped
+        env = make_configure_env(**env_kwargs).unwrapped
         with open("config.json") as f:
             config = json.load(f)
         device = torch.device("cpu")
         expert = PPO.load("checkpoint", device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
         exp_rwd_iter, exp_obs, exp_acts   =           collect_expert_data  (
-                                                                                env,
                                                                                 expert,
                                                                                 config["num_expert_steps"],
-                                                                                filename=expert_data
+                                                                                filename=expert_data,
+                                                                                **env_kwargs
                                                                             )
     elif train == TrainEnum.RLTRAIN: # training 
         n_cpu =  multiprocessing.cpu_count()
@@ -567,7 +567,7 @@ if __name__ == "__main__":
                             magic=True,
                            ) as run:
                 run.name = f"sweep_{month}{day}_{timenow()}"
-                env = make_configure_env(**copy.deepcopy(env_kwargs), mode="expert").unwrapped
+                env = env = make_configure_env(env_kwargs).unwrapped
                 state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
                 action_dim = env.action_space.n
                 gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
@@ -585,7 +585,7 @@ if __name__ == "__main__":
                 run.log_artifact(artifact)
 
                     
-        env = make_configure_env(**copy.deepcopy(env_kwargs)).unwrapped
+        env = make_configure_env(env_kwargs).unwrapped
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
 

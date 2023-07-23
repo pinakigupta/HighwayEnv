@@ -39,12 +39,12 @@ class AbstractEnv(gym.Env):
     """The maximum distance of any vehicle present in the observation [m]"""
 
     def __init__(self, config: dict = None, render_mode: Optional[str] = None) -> None:
-        super().__init__()
 
         # Configuration
         self.config = self.default_config()
         self.configure(config)
 
+        super().__init__()
         # Scene
         self.road = None
         self.controlled_vehicles = []

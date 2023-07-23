@@ -69,7 +69,6 @@ class HighwayEnv(AbstractEnv):
 
         self.controlled_vehicles = []
         speed = self.np_random.uniform(low=20, high=30)
-        print("speed ", speed, ' self.config["vehicles_count"] ', self.config["vehicles_count"])
         for others in other_per_controlled:
             vehicle = Vehicle.create_random(
                 self.road,
