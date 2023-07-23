@@ -166,7 +166,7 @@ class KinematicObservation(ObservationType):
         :param observe_intentions: Observe the destinations of other vehicles
         """
         super().__init__(env)
-        self.features = features or self.FEATURES
+        self.features = features or self.FEATURES       
         self.vehicles_count = vehicles_count
         self.features_range = features_range
         self.absolute = absolute

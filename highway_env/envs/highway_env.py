@@ -63,13 +63,17 @@ class HighwayEnv(AbstractEnv):
     def _create_vehicles(self) -> None:
         """Create some new random vehicles of a given type, and add them on the road."""
         other_vehicles_type = utils.class_from_path(self.config["other_vehicles_type"])
+        if self.config["vehicles_count"] == 'random':
+            self.config["vehicles_count"] = self.np_random.integers(30,60) 
         other_per_controlled = near_split(self.config["vehicles_count"], num_bins=self.config["controlled_vehicles"])
 
         self.controlled_vehicles = []
+        speed = self.np_random.uniform(low=20, high=30)
+        print("speed ", speed, ' self.config["vehicles_count"] ', self.config["vehicles_count"])
         for others in other_per_controlled:
             vehicle = Vehicle.create_random(
                 self.road,
-                speed=25,
+                speed=speed,
                 lane_id=self.config["initial_lane_id"],
                 spacing=self.config["ego_spacing"]
             )

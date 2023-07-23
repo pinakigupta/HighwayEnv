@@ -236,7 +236,8 @@ class AbstractEnv(gym.Env):
         self.time += 1 / self.config["policy_frequency"]
         self._simulate(action)
 
-        if 'mode' in self.config and self.config['mode'] is 'expert':
+        
+        if 'mode' in self.config and (self.config['mode'] == 'expert'):
             for v in self.road.vehicles:
                 if v is not self.vehicle and isinstance(v, IDMVehicle): 
                     v.observer = self.observation_type.observe(v)

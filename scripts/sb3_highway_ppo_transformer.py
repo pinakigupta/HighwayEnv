@@ -326,7 +326,7 @@ env_kwargs = {
     'config': {
         "mode" : 'expert',
         "lanes_count": 4,
-        "vehicles_count": 50,
+        "vehicles_count": 'random',
         "action": {
                 "type": "DiscreteMetaAction",
             },
@@ -452,10 +452,10 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLTRAIN
+    train = TrainEnum.EXPERT_DATA_COLLECTION
     policy_kwargs = dict(
-            features_extractor_class=CustomExtractor,
-            features_extractor_kwargs=attention_network_kwargs,
+            features_extractor_class=CustomExtractor,g
+            features_extractor_kwargs=attention_network_kwars,
         )
     
     # Get the current date and time
@@ -512,7 +512,7 @@ if __name__ == "__main__":
             },
             "parameters": {
                 "duration": {
-                    "values": [500, 1000, 2500]  # Values for the "duration" field to be swept
+                    "values": [500]  # Values for the "duration" field to be swept
                 }
             }
         }
@@ -555,7 +555,8 @@ if __name__ == "__main__":
             #     exp_obs.append(hf[f'exp_obs{i}'][:])
             #     exp_acts.append(hf[f'exp_acts{i}'][()])
 
-
+        import random
+        # exp_obs, exp_acts = list(zip(*random.sample(list(zip(exp_obs, exp_acts)), len(exp_acts))))
         exp_obs = FloatTensor(exp_obs)
         exp_acts = FloatTensor(exp_acts)
 
