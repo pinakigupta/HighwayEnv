@@ -452,7 +452,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.EXPERT_DATA_COLLECTION
+    train = TrainEnum.IRLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -469,7 +469,7 @@ if __name__ == "__main__":
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
-        env = make_configure_env(**env_kwargs).unwrapped
+        # env = make_configure_env(**env_kwargs).unwrapped
         with open("config.json") as f:
             config = json.load(f)
         device = torch.device("cpu")
@@ -560,6 +560,15 @@ if __name__ == "__main__":
         exp_obs = FloatTensor(exp_obs)
         exp_acts = FloatTensor(exp_acts)
 
+        def train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs):
+            env= make_configure_env(**env_kwargs).unwrapped
+            state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
+            action_dim = env.action_space.n
+            gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
+                                **config, observation_space= env.observation_space).to(device=device)
+            rewards, optimal_agent = gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
+            return rewards, optimal_agent
+
         def train_sweep(exp_obs, exp_acts):
             with wandb.init(
                             project=project_name, 
@@ -567,13 +576,7 @@ if __name__ == "__main__":
                             magic=True,
                            ) as run:
                 run.name = f"sweep_{month}{day}_{timenow()}"
-                env = env = make_configure_env(env_kwargs).unwrapped
-                state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-                action_dim = env.action_space.n
-                gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
-                                **config, observation_space= env.observation_space).to(device=device)
-                # expert = Expert(state_dim, action_dim, discrete=True, **expert_config).to(device)
-                rewards, optimal_agent = gail_agent.train(env=env, exp_obs=exp_obs, exp_acts=exp_acts)
+                rewards, optimal_agent = train_gail_agent(env=env, exp_obs=exp_obs, exp_acts=exp_acts)
 
                 # Log the reward vector for each epoch
                 for epoch, reward in enumerate(rewards, 1):
@@ -585,19 +588,13 @@ if __name__ == "__main__":
                 run.log_artifact(artifact)
 
                     
-        env = make_configure_env(env_kwargs).unwrapped
-        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-        action_dim = env.action_space.n
+        rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
 
-        # gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
-        #                                 **config, observation_space= env.observation_space).to(device=device)
-        # rewards, optimal_agent = gail_agent.train(env=env, exp_obs=exp_obs, exp_acts=exp_acts)
-
-        wandb.agent(
-                     sweep_id=sweep_id, 
-                     function=lambda: train_sweep(exp_obs, exp_acts)
-                   )
-        wandb.finish()
+        # wandb.agent(
+        #              sweep_id=sweep_id, 
+        #              function=lambda: train_sweep(exp_obs, exp_acts)
+        #            )
+        # wandb.finish()
     elif train==TrainEnum.IRLDEPLOY:
         # Initialize wandb
         wandb.init(project="gail_hyperparameter_tuning_2")
@@ -654,15 +651,6 @@ if __name__ == "__main__":
             write_module_hierarchy_to_file(model.policy, file)
             file.write("-------------------------- Value function ----------------------------------\n")
             write_module_hierarchy_to_file(model.policy.value_net, file)
-
-
-        # if os.path.exists(log_dir):
-        #     print("Log directory exists.", log_dir)
-        #     # Run TensorBoard command or perform other operations
-        #     # Launch TensorBoard
-        #     tb.main()
-        # else:
-        #     print("Log directory not found. Please check the path.", log_dir)
         
 
         
