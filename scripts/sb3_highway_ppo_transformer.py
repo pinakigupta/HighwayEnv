@@ -455,7 +455,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.RLTRAIN
+    train = TrainEnum.IRLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -520,7 +520,7 @@ if __name__ == "__main__":
                 }
             }
         }
-        project_name = f"feature_extractor_TF"
+        project_name = f"random_env_gail"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
         device = torch.device("cpu")
         
@@ -600,17 +600,19 @@ if __name__ == "__main__":
                    )
         wandb.finish()
     elif train==TrainEnum.IRLDEPLOY:
+        # Set the WANDB_MODE environment variable
+        # os.environ["WANDB_MODE"] = "offline"
         # Initialize wandb
-        wandb.init(project="gail_hyperparameter_tuning_2")
+        wandb.init(project="random_env_gail", name="inference")
         # Access the run containing the logged artifact
-        run = wandb.init()
 
         # Download the artifact
-        artifact = run.use_artifact("trained_model:v2")
+        artifact = wandb.use_artifact("trained_model:latest")
         artifact_dir = artifact.download()
 
         # Load the model from the downloaded artifact
         gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+
 
         env = make_configure_env(**env_kwargs,duration=400)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
@@ -633,7 +635,7 @@ if __name__ == "__main__":
         gamma = 1.0
         # env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, 
         #                                                fe=loaded_gail_agent.features_extractor))
-        for _ in range(50):
+        for _ in range(500):
             obs, info = env.reset()
             done = truncated = False
             cumulative_reward = 0
