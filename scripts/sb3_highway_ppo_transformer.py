@@ -28,6 +28,9 @@ from models.nets import Expert
 from models.gail import GAIL
 from models.generate_expert_data import collect_expert_data
 
+import warnings
+warnings.filterwarnings("ignore")
+
 class TrainEnum(Enum):
     RLTRAIN = 0
     RLDEPLOY = 1
@@ -324,7 +327,7 @@ env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
     'config': {
-        "mode" : 'expert',
+        # "mode" : 'expert',
         "lanes_count": 4,
         "vehicles_count": 'random',
         "action": {
@@ -452,7 +455,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLTRAIN
+    train = TrainEnum.RLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -483,8 +486,9 @@ if __name__ == "__main__":
     elif train == TrainEnum.RLTRAIN: # training 
         n_cpu =  multiprocessing.cpu_count()
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
+        total_timesteps=200*10000
         # Set the checkpoint frequency
-        checkpoint_freq = 20000  # Save the model every 10,000 timesteps
+        checkpoint_freq = total_timesteps/10  # Save the model every 10,000 timesteps
         model = PPO(
                     "MlpPolicy", env,
                     n_steps=512 // n_cpu,
@@ -497,7 +501,7 @@ if __name__ == "__main__":
         callback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
         # Train the model
         model.learn(
-                    total_timesteps=200*1000,
+                    total_timesteps=total_timesteps,
                     callback=callback
                     )
         # Save the final model
@@ -516,7 +520,7 @@ if __name__ == "__main__":
                 }
             }
         }
-        project_name = f"gail_hyperparameter_tuning_2"
+        project_name = f"feature_extractor_TF"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
         device = torch.device("cpu")
         
@@ -565,7 +569,7 @@ if __name__ == "__main__":
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             action_dim = env.action_space.n
             gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
-                                **config, observation_space= env.observation_space).to(device=device)
+                                **config, **policy_kwargs, observation_space= env.observation_space).to(device=device)
             rewards, optimal_agent = gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
             return rewards, optimal_agent
 
@@ -576,7 +580,7 @@ if __name__ == "__main__":
                             magic=True,
                            ) as run:
                 run.name = f"sweep_{month}{day}_{timenow()}"
-                rewards, optimal_agent = train_gail_agent(env=env, exp_obs=exp_obs, exp_acts=exp_acts)
+                rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
 
                 # Log the reward vector for each epoch
                 for epoch, reward in enumerate(rewards, 1):
@@ -588,13 +592,13 @@ if __name__ == "__main__":
                 run.log_artifact(artifact)
 
                     
-        rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
+        # rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
 
-        # wandb.agent(
-        #              sweep_id=sweep_id, 
-        #              function=lambda: train_sweep(exp_obs, exp_acts)
-        #            )
-        # wandb.finish()
+        wandb.agent(
+                     sweep_id=sweep_id, 
+                     function=lambda: train_sweep(exp_obs, exp_acts)
+                   )
+        wandb.finish()
     elif train==TrainEnum.IRLDEPLOY:
         # Initialize wandb
         wandb.init(project="gail_hyperparameter_tuning_2")
