@@ -40,6 +40,9 @@ class TrainEnum(Enum):
 
 from stable_baselines3.common.callbacks import BaseCallback
 
+def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
+    kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
+
 class CustomCheckpointCallback(BaseCallback):
     def __init__(self, save_freq, save_path):
         super(CustomCheckpointCallback, self).__init__()
@@ -327,7 +330,6 @@ env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
     'config': {
-        # "mode" : 'expert',
         "lanes_count": 4,
         "vehicles_count": 'random',
         "action": {
@@ -455,7 +457,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLDEPLOY
+    train = TrainEnum.EXPERT_DATA_COLLECTION
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -476,7 +478,8 @@ if __name__ == "__main__":
         with open("config.json") as f:
             config = json.load(f)
         device = torch.device("cpu")
-        expert = PPO.load("checkpoint", device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
+        expert = PPO.load("highway_attention_ppo/model", device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
+        append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
         exp_rwd_iter, exp_obs, exp_acts   =           collect_expert_data  (
                                                                                 expert,
                                                                                 config["num_expert_steps"],
@@ -506,7 +509,7 @@ if __name__ == "__main__":
                     )
         # Save the final model
         model.save("highway_attention_ppo/model")
-    elif train==TrainEnum.IRLTRAIN:
+    elif train == TrainEnum.IRLTRAIN:
         
         sweep_config = {
             "method": "grid",
@@ -599,7 +602,7 @@ if __name__ == "__main__":
                      function=lambda: train_sweep(exp_obs, exp_acts)
                    )
         wandb.finish()
-    elif train==TrainEnum.IRLDEPLOY:
+    elif train == TrainEnum.IRLDEPLOY:
         # Set the WANDB_MODE environment variable
         # os.environ["WANDB_MODE"] = "offline"
         # Initialize wandb
@@ -648,10 +651,10 @@ if __name__ == "__main__":
                 # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 env.render()
             print("--------------------------------------------------------------------------------------")
-    elif train==TrainEnum.RLDEPLOY:
+    elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
         device = torch.device("cpu")
-        model = PPO.load("checkpoint", device=device)
+        model = PPO.load("highway_attention_ppo/model", device=device)
         with open('highway_attention_ppo/network_hierarchy.txt', 'w') as file:
             file.write("-------------------------- Policy network  ---------------------------------\n")
             write_module_hierarchy_to_file(model.policy, file)
