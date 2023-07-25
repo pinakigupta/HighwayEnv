@@ -455,7 +455,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLDEPLOY
+    train = TrainEnum.IRLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -568,8 +568,15 @@ if __name__ == "__main__":
             env= make_configure_env(**env_kwargs).unwrapped
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             action_dim = env.action_space.n
-            gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
-                                **config, **policy_kwargs, observation_space= env.observation_space).to(device=device)
+            gail_agent = GAIL(
+                                state_dim, 
+                                action_dim , 
+                                discrete=True, 
+                                device=torch.device("cpu"), 
+                                **config, 
+                                # **policy_kwargs, 
+                                observation_space= env.observation_space
+                             ).to(device=device)
             rewards, optimal_agent = gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
             return rewards, optimal_agent
 
