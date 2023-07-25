@@ -509,7 +509,7 @@ if __name__ == "__main__":
                     )
         # Save the final model
         model.save("highway_attention_ppo/model")
-    elif train == TrainEnum.IRLTRAIN:
+    elif train==TrainEnum.IRLTRAIN:
         
         sweep_config = {
             "method": "grid",
@@ -571,8 +571,15 @@ if __name__ == "__main__":
             env= make_configure_env(**env_kwargs).unwrapped
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             action_dim = env.action_space.n
-            gail_agent = GAIL(state_dim, action_dim , discrete=True, device=torch.device("cpu"), 
-                                **config, **policy_kwargs, observation_space= env.observation_space).to(device=device)
+            gail_agent = GAIL(
+                                state_dim, 
+                                action_dim , 
+                                discrete=True, 
+                                device=torch.device("cpu"), 
+                                **config, 
+                                # **policy_kwargs, 
+                                observation_space= env.observation_space
+                             ).to(device=device)
             rewards, optimal_agent = gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
             return rewards, optimal_agent
 
@@ -602,7 +609,7 @@ if __name__ == "__main__":
                      function=lambda: train_sweep(exp_obs, exp_acts)
                    )
         wandb.finish()
-    elif train == TrainEnum.IRLDEPLOY:
+    elif train==TrainEnum.IRLDEPLOY:
         # Set the WANDB_MODE environment variable
         # os.environ["WANDB_MODE"] = "offline"
         # Initialize wandb
@@ -651,7 +658,7 @@ if __name__ == "__main__":
                 # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 env.render()
             print("--------------------------------------------------------------------------------------")
-    elif train == TrainEnum.RLDEPLOY:
+    elif train==TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
         device = torch.device("cpu")
         model = PPO.load("highway_attention_ppo/model", device=device)
