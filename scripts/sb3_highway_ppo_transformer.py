@@ -457,7 +457,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.EXPERT_DATA_COLLECTION
+    train = TrainEnum.IRLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -567,7 +567,7 @@ if __name__ == "__main__":
         exp_obs = FloatTensor(exp_obs)
         exp_acts = FloatTensor(exp_acts)
 
-        def train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs):
+        def train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, gail_agent_path = None, **env_kwargs):
             env= make_configure_env(**env_kwargs).unwrapped
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             action_dim = env.action_space.n
@@ -580,6 +580,8 @@ if __name__ == "__main__":
                                 # **policy_kwargs, 
                                 observation_space= env.observation_space
                              ).to(device=device)
+            if gail_agent_path is not None:
+                gail_agent.load_state_dict(torch.load(gail_agent_path))
             rewards, optimal_agent = gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
             return rewards, optimal_agent
 
@@ -590,7 +592,15 @@ if __name__ == "__main__":
                             magic=True,
                            ) as run:
                 run.name = f"sweep_{month}{day}_{timenow()}"
-                rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
+
+                # Download the artifact in case you want to initialize with pre - trained 
+                artifact = wandb.use_artifact("trained_model:v3")
+                artifact_dir = artifact.download()
+                # Load the model from the downloaded artifact
+                gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+                
+
+                rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, gail_agent_path= gail_agent_path, **env_kwargs)
 
                 # Log the reward vector for each epoch
                 for epoch, reward in enumerate(rewards, 1):
