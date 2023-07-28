@@ -474,7 +474,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.RLTRAIN
+    train = TrainEnum.RLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -485,6 +485,7 @@ if __name__ == "__main__":
     month = now.strftime("%m")
     day = now.strftime("%d")
     expert_data='expert_data.h5'
+    n_cpu =  multiprocessing.cpu_count()
 
     def timenow():
         return now.strftime("%H%M")
@@ -504,7 +505,6 @@ if __name__ == "__main__":
                                                                                 **env_kwargs
                                                                             )
     elif train == TrainEnum.RLTRAIN: # training 
-        n_cpu =  multiprocessing.cpu_count()
         append_key_to_dict_of_dict(env_kwargs,'config','duration',400)
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
         total_timesteps=200*1000
@@ -711,14 +711,31 @@ if __name__ == "__main__":
     elif train==TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
         device = torch.device("cpu")
-        model = PPO.load("highway_attention_ppo/model", device=device)
+        model = PPO(
+                    "MlpPolicy", 
+                    env,
+                    n_steps=512 // n_cpu,
+                    batch_size=64,
+                    learning_rate=2e-3,
+                    policy_kwargs=policy_kwargs,
+                    device=device
+                    )
         with open('highway_attention_ppo/network_hierarchy.txt', 'w') as file:
             file.write("-------------------------- Policy network  ---------------------------------\n")
             write_module_hierarchy_to_file(model.policy, file)
             file.write("-------------------------- Value function ----------------------------------\n")
             write_module_hierarchy_to_file(model.policy.value_net, file)
         
+        wandb.init(project="RL", name="inference")
+        # Access the run containing the logged artifact
 
+        # Download the artifact
+        artifact = wandb.use_artifact("trained_model:latest")
+        artifact_dir = artifact.download()
+
+        # Load the model from the downloaded artifact
+        rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
+        model.policy.load_state_dict(torch.load(rl_agent_path))
         
         env.render()
         gamma = 1.0
