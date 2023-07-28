@@ -27,6 +27,7 @@ import h5py
 from models.nets import Expert
 from models.gail import GAIL
 from models.generate_expert_data import collect_expert_data
+import statistics
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -48,14 +49,24 @@ class CustomCheckpointCallback(BaseCallback):
         super(CustomCheckpointCallback, self).__init__()
         self.save_freq = save_freq
         self.save_path = save_path
+        self.v = []
 
     def _init_callback(self) -> None:
         if self.save_freq > 0:
             self.model.save(self.save_path)  # Save the initial model
 
     def _on_step(self) -> bool:
-        if self.n_calls % self.save_freq == 0:
-            self.model.save(self.save_path)  # Save the model at specified intervals
+        # if self.n_calls % self.save_freq == 0:
+        #     self.model.save(self.save_path)  # Save the model at specified intervals
+        self.v.extend(self.training_env.env_method("ego_speed"))
+        return True
+
+    def _on_rollout_end(self) -> bool:
+        # This method is called at the end of each episode
+        v_mean = statistics.mean(self.v)
+        print("End speed for this episode:", statistics.mean(self.training_env.env_method("ego_speed")))
+        print("episode duration:", statistics.mean(self.training_env.env_method("ep_duration")))
+        self.v = []
         return True
 
 class CustomMetricsCallback(BaseCallback):
@@ -74,6 +85,8 @@ class CustomMetricsCallback(BaseCallback):
             # Store the episode length and reward
             self.episode_lengths.append(ep_len)
             self.episode_rewards.append(ep_rew)
+
+
 
 # ==================================
 #        Policy Architecture
@@ -474,7 +487,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.RLDEPLOY
+    train = TrainEnum.RLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -505,11 +518,11 @@ if __name__ == "__main__":
                                                                                 **env_kwargs
                                                                             )
     elif train == TrainEnum.RLTRAIN: # training 
-        append_key_to_dict_of_dict(env_kwargs,'config','duration',400)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',100)
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
         total_timesteps=200*1000
         # Set the checkpoint frequency
-        checkpoint_freq = total_timesteps/10  # Save the model every 10,000 timesteps
+        checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
         model = PPO(
                     "MlpPolicy", 
                     env,
@@ -517,10 +530,9 @@ if __name__ == "__main__":
                     batch_size=64,
                     learning_rate=2e-3,
                     policy_kwargs=policy_kwargs,
-                    verbose=2,
-                    tensorboard_log="highway_attention_ppo/"
+                    verbose=1,
                     )
-        callback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
+        checkptcallback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
         # Train the model
         with wandb.init(
                         project="RL", 
@@ -531,7 +543,7 @@ if __name__ == "__main__":
             metrics_callback = CustomMetricsCallback()
             training_info = model.learn(
                                         total_timesteps=total_timesteps,
-                                        callback=metrics_callback
+                                        callback=checkptcallback
                                         )
             # Log the metrics to wandb
             # wandb.log({"ep_len_mean": sum(metrics_callback.episode_lengths) / len(metrics_callback.episode_lengths)})
@@ -540,12 +552,13 @@ if __name__ == "__main__":
 
             # Log the model as an artifact in wandb
             torch.save(model.policy.state_dict(), 'RL_agent.pth')
-            model.save("highway_attention_ppo/model")
+            
             artifact = wandb.Artifact("trained_model", type="model")
             artifact.add_file("RL_agent.pth")
             run.log_artifact(artifact)
 
         wandb.finish()
+        model.save("highway_attention_ppo/model")
 
         # Save the final model
         # model.save("highway_attention_ppo/model")
@@ -749,5 +762,5 @@ if __name__ == "__main__":
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                env.render()
+                # env.render()
             print("--------------------------------------------------------------------------------------")

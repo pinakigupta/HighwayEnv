@@ -45,7 +45,7 @@ class HighwayEnv(AbstractEnv):
                                        # lower speeds according to config["reward_speed_range"].
             "lane_change_reward": -0.1,   # The reward received at each lane change action.
             "reward_speed_range": [20, 30],
-            "truncate_reward": 2,
+            "travel_reward": 2,
             "normalize_reward": False,
             "offroad_terminal": False
         })
@@ -54,6 +54,7 @@ class HighwayEnv(AbstractEnv):
     def _reset(self) -> None:
         self._create_road()
         self._create_vehicles()
+        self.ego_x0 = self.vehicle.position[0]
 
     def _create_road(self) -> None:
         """Create a road composed of straight adjacent lanes."""
@@ -98,7 +99,7 @@ class HighwayEnv(AbstractEnv):
         if self.config["normalize_reward"]:
             reward = utils.lmap(reward,
                                 [self.config["collision_reward"],
-                                 (self.config["high_speed_reward"] + self.config["right_lane_reward"] + self.config["truncate_reward"])/\
+                                 (self.config["high_speed_reward"] + self.config["right_lane_reward"] + self.config["travel_reward"])/\
                                     (self.config["duration"]*self.config["policy_frequency"])
                                  ],
                                 [0, 1])
@@ -118,7 +119,7 @@ class HighwayEnv(AbstractEnv):
             "high_speed_reward": np.clip(scaled_speed, 0, 1),
             # "on_road_reward": float(self.vehicle.on_road),
             "lane_change_reward": action in [0, 2] ,
-            "truncate_reward": np.clip(float(self._is_truncated()), 0, 1) ,
+            "travel_reward": self.config["duration"]#np.clip(float(self._is_truncated()), 0, 1) ,
         }
 
     def _is_terminated(self) -> bool:
@@ -129,6 +130,19 @@ class HighwayEnv(AbstractEnv):
     def _is_truncated(self) -> bool:
         """The episode is truncated if the time limit is reached."""
         return self.time >= self.config["duration"]
+    
+    def ego_speed(self):
+        return self.vehicle.speed
+    
+    def ep_duration(self):
+        return self.time
+    
+    def travel_reward(self):
+        if self._is_truncated():
+            travel = self.vehicle.position[0] - self.ego_x0
+            print('travel ', travel)
+        return 0
+
 
 
 class HighwayEnvFast(HighwayEnv):
