@@ -43,7 +43,7 @@ class HighwayEnv(AbstractEnv):
                                        # zero for other lanes.
             "high_speed_reward": 0.0,  # The reward received when driving at full speed, linearly mapped to zero for
                                        # lower speeds according to config["reward_speed_range"].
-            "lane_change_reward": -0.1,   # The reward received at each lane change action.
+            "lane_change_reward": -0.05,   # The reward received at each lane change action.
             "reward_speed_range": [20, 30],
             "travel_reward": 2,
             "normalize_reward": False,
@@ -96,14 +96,17 @@ class HighwayEnv(AbstractEnv):
         weighed_reward = [self.config.get(name, 0) * reward for name, reward in rewards.items()]
         reward = sum(weighed_reward)
         # print(" reward ", reward, " weighed_reward ", weighed_reward)
-        if self.config["normalize_reward"]:
-            reward = utils.lmap(reward,
-                                [self.config["collision_reward"],
-                                 (self.config["high_speed_reward"] + self.config["right_lane_reward"] + self.config["travel_reward"])/\
-                                    (self.config["duration"]*self.config["policy_frequency"])
-                                 ],
-                                [0, 1])
+        # if self.config["normalize_reward"]:
+        #     reward = utils.lmap(reward,
+        #                         [
+        #                             self.config["collision_reward"],
+        #                             (self.config["high_speed_reward"] + self.config["right_lane_reward"] + self.config["travel_reward"])/\
+        #                             (self.config["duration"]*self.config["policy_frequency"])
+        #                          ],
+        #                         [0, 1]
+        #                         )
         # reward *= rewards['on_road_reward']
+        
         return reward
 
     def _rewards(self, action: Action) -> Dict[Text, float]:
@@ -113,12 +116,17 @@ class HighwayEnv(AbstractEnv):
         # Use forward speed rather than speed, see https://github.com/eleurent/highway-env/issues/268
         forward_speed = self.vehicle.speed * np.cos(self.vehicle.heading)
         scaled_speed = utils.lmap(forward_speed, self.config["reward_speed_range"], [0, 1])
-        travel_reward = np.clip(float(self.ego_travel - self.config["duration"]*20), 0, 1)  if self._is_truncated() else 0
+        duration = self.config["duration"]
+        travel_reward = 0
+        if self._is_truncated():
+            avg_speed = self.ego_travel/self.time
+            if avg_speed > 20.0:
+                travel_reward = 1.0
         # print(" travel_reward ", travel_reward)
         return {
             "collision_reward": float(self.vehicle.crashed),
-            "right_lane_reward": lane / max(len(neighbours) - 1, 1),
-            "high_speed_reward": np.clip(scaled_speed, 0, 1),
+            "right_lane_reward": 0 , #lane / max(len(neighbours) - 1, 1),
+            "high_speed_reward": 0 , #np.clip(scaled_speed, 0, 1),
             # "on_road_reward": float(self.vehicle.on_road),
             "lane_change_reward": action in [0, 2] ,
             "travel_reward": travel_reward,
@@ -136,7 +144,7 @@ class HighwayEnv(AbstractEnv):
         truncated =  self.time >= self.config["duration"]
         return truncated
     
-    def ego_speed(self):
+    def ego_avg_speed(self):
         return self.vehicle.speed
     
     def ep_duration(self):
@@ -154,6 +162,17 @@ class HighwayEnv(AbstractEnv):
     
     def ego_travel_eval(self):
         return self.vehicle.position[0] - self.ego_x0
+    
+    def set_config(self, config):
+        self.config = config
+
+    def get_config(self):
+        return self.config
+    
+    def get_ep_reward(self):
+        reward = self.ep_rward
+        self.ep_rward = 0
+        return reward
 
 
 class HighwayEnvFast(HighwayEnv):

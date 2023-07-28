@@ -245,13 +245,18 @@ class AbstractEnv(gym.Env):
 
         obs = self.observation_type.observe()
         reward = self._reward(action)
+        if hasattr(self, 'ep_rward'):
+            self.ep_rward += reward
+        else:
+            self.ep_rward = reward
         terminated = self._is_terminated()
         truncated = self._is_truncated()
         info = self._info(obs, action)
         if self.render_mode == 'human':
             self.render()
-
         return obs, reward, terminated, truncated, info
+    
+
 
     def _simulate(self, action: Optional[Action] = None) -> None:
         """Perform several steps of simulation with constant action."""

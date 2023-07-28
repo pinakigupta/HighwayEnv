@@ -61,9 +61,11 @@ class CustomCheckpointCallback(BaseCallback):
 
     def _on_rollout_end(self) -> bool:
         # This method is called at the end of each episode
-        print("Mean End speed for this episode:", statistics.mean(self.training_env.env_method("ego_speed")))
-        print("Mean episode duration:", statistics.mean(self.training_env.env_method("ep_duration")))
-        print("Mean episode ego travel:", statistics.mean(self.training_env.env_method("ego_travel_eval")))
+        ego_travel = statistics.mean(self.training_env.env_method("ego_travel_eval"))
+        ep_duration = statistics.mean(self.training_env.env_method("ep_duration"))
+        print("Mean speed for this episode:", ego_travel/ep_duration)
+        print("Mean episode duration:", ep_duration)
+        print("Mean episode ego travel:", ego_travel)
         return True
 
 class CustomMetricsCallback(BaseCallback):
@@ -83,6 +85,26 @@ class CustomMetricsCallback(BaseCallback):
             self.episode_lengths.append(ep_len)
             self.episode_rewards.append(ep_rew)
 
+class CustomCurriculamCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super(CustomCurriculamCallback, self).__init__(verbose)
+
+    def _on_step(self) -> bool:
+        # Access the current episode reward from the environment
+        return True
+
+    def _on_rollout_end(self) -> bool:
+        # Calculate the average episode reward after training ends
+        ep_rew_mean = statistics.mean(self.training_env.env_method("get_ep_reward"))
+        print("Mean episode ep_rew_mean:", ep_rew_mean)
+        if ep_rew_mean > 0.1:
+            config = self.training_env.env_method("get_config")[0]
+            config['duration'] += 10
+            self.training_env.env_method("set_config", config)
+            print("Updated env duration to ", self.training_env.env_method("get_config")[0]['duration'])
+        print("----------------------------------------------------------------------------------------")
+        # Clear the episode_rewards list for the next epoch
+        return True
 
 
 # ==================================
@@ -515,7 +537,7 @@ if __name__ == "__main__":
                                                                                 **env_kwargs
                                                                             )
     elif train == TrainEnum.RLTRAIN: # training 
-        append_key_to_dict_of_dict(env_kwargs,'config','duration',100)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
         total_timesteps=200*1000
         # Set the checkpoint frequency
@@ -529,6 +551,8 @@ if __name__ == "__main__":
                     policy_kwargs=policy_kwargs,
                     verbose=1,
                     )
+        
+
         checkptcallback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
         # Train the model
         with wandb.init(
@@ -538,9 +562,10 @@ if __name__ == "__main__":
             run.name = f"sweep_{month}{day}_{timenow()}"
             # Create the custom callback
             metrics_callback = CustomMetricsCallback()
+            curriculamcallback = CustomCurriculamCallback()
             training_info = model.learn(
                                         total_timesteps=total_timesteps,
-                                        callback=checkptcallback
+                                        callback=[checkptcallback, curriculamcallback]
                                         )
             # Log the metrics to wandb
             # wandb.log({"ep_len_mean": sum(metrics_callback.episode_lengths) / len(metrics_callback.episode_lengths)})
