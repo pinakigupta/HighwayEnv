@@ -58,6 +58,23 @@ class CustomCheckpointCallback(BaseCallback):
             self.model.save(self.save_path)  # Save the model at specified intervals
         return True
 
+class CustomMetricsCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super(CustomMetricsCallback, self).__init__(verbose)
+        self.episode_lengths = []
+        self.episode_rewards = []
+
+    def _on_step(self) -> bool:
+        # Retrieve the episode length and reward from the environment
+        episode_info = self.locals.get("episode")
+        if episode_info is not None:
+            ep_len = episode_info["length"]
+            ep_rew = episode_info["reward"]
+
+            # Store the episode length and reward
+            self.episode_lengths.append(ep_len)
+            self.episode_rewards.append(ep_rew)
+
 # ==================================
 #        Policy Architecture
 # ==================================
@@ -457,7 +474,7 @@ def write_module_hierarchy_to_file(model, file):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLTRAIN
+    train = TrainEnum.RLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -488,12 +505,14 @@ if __name__ == "__main__":
                                                                             )
     elif train == TrainEnum.RLTRAIN: # training 
         n_cpu =  multiprocessing.cpu_count()
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',400)
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
-        total_timesteps=200*10000
+        total_timesteps=200*1000
         # Set the checkpoint frequency
         checkpoint_freq = total_timesteps/10  # Save the model every 10,000 timesteps
         model = PPO(
-                    "MlpPolicy", env,
+                    "MlpPolicy", 
+                    env,
                     n_steps=512 // n_cpu,
                     batch_size=64,
                     learning_rate=2e-3,
@@ -503,12 +522,33 @@ if __name__ == "__main__":
                     )
         callback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
         # Train the model
-        model.learn(
-                    total_timesteps=total_timesteps,
-                    callback=callback
-                    )
+        with wandb.init(
+                        project="RL", 
+                        magic=True,
+                        ) as run:
+            run.name = f"sweep_{month}{day}_{timenow()}"
+            # Create the custom callback
+            metrics_callback = CustomMetricsCallback()
+            training_info = model.learn(
+                                        total_timesteps=total_timesteps,
+                                        callback=metrics_callback
+                                        )
+            # Log the metrics to wandb
+            # wandb.log({"ep_len_mean": sum(metrics_callback.episode_lengths) / len(metrics_callback.episode_lengths)})
+            # wandb.log({"ep_rew_mean": sum(metrics_callback.episode_rewards) / len(metrics_callback.episode_rewards)})
+
+
+            # Log the model as an artifact in wandb
+            torch.save(model.policy.state_dict(), 'RL_agent.pth')
+            model.save("highway_attention_ppo/model")
+            artifact = wandb.Artifact("trained_model", type="model")
+            artifact.add_file("RL_agent.pth")
+            run.log_artifact(artifact)
+
+        wandb.finish()
+
         # Save the final model
-        model.save("highway_attention_ppo/model")
+        # model.save("highway_attention_ppo/model")
     elif train==TrainEnum.IRLTRAIN:
         
         sweep_config = {
