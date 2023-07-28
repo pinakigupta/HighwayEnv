@@ -113,23 +113,28 @@ class HighwayEnv(AbstractEnv):
         # Use forward speed rather than speed, see https://github.com/eleurent/highway-env/issues/268
         forward_speed = self.vehicle.speed * np.cos(self.vehicle.heading)
         scaled_speed = utils.lmap(forward_speed, self.config["reward_speed_range"], [0, 1])
+        travel_reward = np.clip(float(self.ego_travel - self.config["duration"]*20), 0, 1)  if self._is_truncated() else 0
+        # print(" travel_reward ", travel_reward)
         return {
             "collision_reward": float(self.vehicle.crashed),
             "right_lane_reward": lane / max(len(neighbours) - 1, 1),
             "high_speed_reward": np.clip(scaled_speed, 0, 1),
             # "on_road_reward": float(self.vehicle.on_road),
             "lane_change_reward": action in [0, 2] ,
-            "travel_reward": self.config["duration"]#np.clip(float(self._is_truncated()), 0, 1) ,
+            "travel_reward": travel_reward,
+            #np.clip(float(self._is_truncated()), 0, 1) ,
         }
 
     def _is_terminated(self) -> bool:
         """The episode is over if the ego vehicle crashed."""
-        return (self.vehicle.crashed or
+        terminated = (self.vehicle.crashed or
                 self.config["offroad_terminal"] and not self.vehicle.on_road)
+        return terminated
 
     def _is_truncated(self) -> bool:
         """The episode is truncated if the time limit is reached."""
-        return self.time >= self.config["duration"]
+        truncated =  self.time >= self.config["duration"]
+        return truncated
     
     def ego_speed(self):
         return self.vehicle.speed
@@ -138,11 +143,17 @@ class HighwayEnv(AbstractEnv):
         return self.time
     
     def travel_reward(self):
-        if self._is_truncated():
+        if self._is_truncated() or self.done:
             travel = self.vehicle.position[0] - self.ego_x0
             print('travel ', travel)
         return 0
-
+    
+    def step(self, action: Action):
+        self.ego_travel = self.ego_travel_eval() # sure a step delayed
+        return super().step(action)
+    
+    def ego_travel_eval(self):
+        return self.vehicle.position[0] - self.ego_x0
 
 
 class HighwayEnvFast(HighwayEnv):

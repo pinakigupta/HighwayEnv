@@ -49,7 +49,6 @@ class CustomCheckpointCallback(BaseCallback):
         super(CustomCheckpointCallback, self).__init__()
         self.save_freq = save_freq
         self.save_path = save_path
-        self.v = []
 
     def _init_callback(self) -> None:
         if self.save_freq > 0:
@@ -58,15 +57,13 @@ class CustomCheckpointCallback(BaseCallback):
     def _on_step(self) -> bool:
         # if self.n_calls % self.save_freq == 0:
         #     self.model.save(self.save_path)  # Save the model at specified intervals
-        self.v.extend(self.training_env.env_method("ego_speed"))
         return True
 
     def _on_rollout_end(self) -> bool:
         # This method is called at the end of each episode
-        v_mean = statistics.mean(self.v)
-        print("End speed for this episode:", statistics.mean(self.training_env.env_method("ego_speed")))
-        print("episode duration:", statistics.mean(self.training_env.env_method("ep_duration")))
-        self.v = []
+        print("Mean End speed for this episode:", statistics.mean(self.training_env.env_method("ego_speed")))
+        print("Mean episode duration:", statistics.mean(self.training_env.env_method("ep_duration")))
+        print("Mean episode ego travel:", statistics.mean(self.training_env.env_method("ego_travel_eval")))
         return True
 
 class CustomMetricsCallback(BaseCallback):
@@ -762,5 +759,5 @@ if __name__ == "__main__":
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                # env.render()
+                env.render()
             print("--------------------------------------------------------------------------------------")
