@@ -25,3 +25,20 @@ _build
 # Docs
 docs/_build
 **jupyter_execute
+
+# Model files
+**.pth
+**.zip
+
+# Wandb filles
+wandb/
+
+# Expert data files 
+**.h5
+
+# vscode
+.vscode/
+
+# Certain GAIL specific config files
+config.json
+model_config.json
