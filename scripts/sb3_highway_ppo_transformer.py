@@ -7,7 +7,6 @@ from highway_env.utils import lmap
 from stable_baselines3 import PPO
 from torch.distributions import Categorical
 import torch
-import torch.nn as nn
 import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
@@ -29,6 +28,7 @@ from models.generate_expert_data import collect_expert_data
 
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
+from utils import write_module_hierarchy_to_file
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -171,45 +171,12 @@ def compute_vehicles_attention(env,fe):
         v_attention[vehicle] = attention[:, v_index]
     return v_attention
 
-def write_module_hierarchy_to_file(model, file):
-    def write_module_recursive(module, file=None, indent='', processed_submodules=None):
-        if file is None:
-            file = sys.stdout
-        if processed_submodules is None:
-            processed_submodules = set()
-
-        num_members = [tuple(_.shape) for _ in module.parameters()]
-        # num_members = len(list(module.modules())) - 1
-        module_name = f'{module.__class__.__name__} (ID: {id(module)})'
-        file.write(f'{indent}├─{module_name} '+ ' containing '+ str(len(num_members))  + ' items\n')
-
-        if isinstance(module, nn.Sequential):
-            for submodule in module:
-                write_module_recursive(submodule, file, indent + '    ')
-        elif isinstance(module, nn.ModuleList):
-            for idx, submodule in enumerate(module):
-                file.write(f'{indent}    ├─ModuleList[{idx}]\n')
-                write_module_recursive(submodule, file, indent + '        ')
-        else:
-            for name, submodule in module._modules.items():
-                if submodule not in processed_submodules:
-                    processed_submodules.add(submodule)
-                    write_module_recursive(submodule, file, indent + '    ')
-
-            for name, submodule in module._parameters.items():
-                if submodule is not None:
-                    if submodule not in processed_submodules:
-                        processed_submodules.add(submodule)
-                        file.write(f'{indent}    ├─{name}: {submodule.shape}\n')
-
-    write_module_recursive(model, file, processed_submodules=set())
-
 # ==================================
 #        Main script  20 
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.RLTRAIN
+    train = TrainEnum.RLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
