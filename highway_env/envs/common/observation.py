@@ -215,7 +215,16 @@ class KinematicObservation(ObservationType):
                                                          count=self.vehicles_count - 1,
                                                          see_behind=self.see_behind,
                                                          sort=self.order == "sorted")
+        
+        for v in self.env.road.vehicles:
+            v.color = None
+
         if close_vehicles:
+            if observer_vehicle is self.env.vehicle:
+                for v in close_vehicles:
+                    v.color = (200, 200, 0) # YELLOW
+
+                    # print('id', id(v))
             origin = observer_vehicle if not self.absolute else None
             vehicles_df = pd.DataFrame.from_records(
                 [v.to_dict(origin, observe_intentions=self.observe_intentions)
@@ -326,6 +335,8 @@ class OccupancyGridObservation(ObservationType):
             # Get nearby traffic data
             df = pd.DataFrame.from_records(
                 [v.to_dict(self.observer_vehicle) for v in self.env.road.vehicles])
+            
+
             # Normalize
             df = self.normalize(df)
             # Fill-in features
