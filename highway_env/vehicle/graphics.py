@@ -29,7 +29,8 @@ class VehicleGraphics(object):
                 transparent: bool = False,
                 offscreen: bool = False,
                 label: bool = False,
-                draw_roof: bool = False) -> None:
+                draw_roof: bool = False,
+                color = None) -> None:
         """
         Display a vehicle on a pygame surface.
 
@@ -65,7 +66,10 @@ class VehicleGraphics(object):
                                 surface.pix(length / 2 + (0.6*v.WIDTH) / 5),
                                 surface.pix(headlight_length),
                                 surface.pix(headlight_width))
-        color = cls.get_color(v, transparent)
+        if color is not None:
+            color = color
+        else:
+            color = cls.get_color(v, transparent)
         pygame.draw.rect(vehicle_surface, color, rect, 0)
         pygame.draw.rect(vehicle_surface, cls.lighten(color), rect_headlight_left, 0)
         pygame.draw.rect(vehicle_surface, cls.lighten(color), rect_headlight_right, 0)
