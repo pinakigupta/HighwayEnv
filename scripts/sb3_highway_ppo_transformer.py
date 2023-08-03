@@ -211,7 +211,7 @@ def compute_vehicles_attention(env,fe):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.RLDEPLOY
+    train = TrainEnum.IRLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -224,6 +224,21 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     expert_data='expert_data.h5'
     n_cpu =  50 #multiprocessing.cpu_count()-15
+
+    def deploy_simulation(env, agent):
+        env.render()
+        gamma = 1.0
+        for _ in range(500):
+            obs, info = env.reset()
+            done = truncated = False
+            cumulative_reward = 0
+            while not (done or truncated):
+                action = agent.act(obs)
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                env.render()
+            print("--------------------------------------------------------------------------------------")
 
     def timenow():
         return now.strftime("%H%M")
@@ -456,23 +471,8 @@ if __name__ == "__main__":
         # loaded_gail_agent.eval()
         wandb.finish()
 
-        env.render()
-        gamma = 1.0
-        # env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, 
-        #                                                fe=loaded_gail_agent.features_extractor))
-        for _ in range(500):
-            obs, info = env.reset()
-            done = truncated = False
-            cumulative_reward = 0
-            while not (done or truncated):
-                action = loaded_gail_agent.act(obs)
-                # print("action : " , action)
-                # print("obs : ", obs.flatten())
-                obs, reward, done, truncated, info = env.step(action)
-                cumulative_reward += gamma * reward
-                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                env.render()
-            print("--------------------------------------------------------------------------------------")
+        deploy_simulation(env=env, agent=loaded_gail_agent)
+
     elif train==TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
         device = torch.device("cpu")
@@ -502,10 +502,10 @@ if __name__ == "__main__":
         rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
         model.policy.load_state_dict(torch.load(rl_agent_path))
         wandb.finish()
+        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         
         env.render()
         gamma = 1.0
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         for _ in range(50):
             obs, info = env.reset()
             done = truncated = False
