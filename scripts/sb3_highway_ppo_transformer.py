@@ -177,7 +177,7 @@ def compute_vehicles_attention(env,fe):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.RLDEPLOY
+    train = TrainEnum.IRLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -444,7 +444,7 @@ if __name__ == "__main__":
         model = PPO(
                     "MlpPolicy", 
                     env,
-                    n_steps=512 // n_cpu,
+                    # n_steps=512 // n_cpu,
                     batch_size=64,
                     learning_rate=2e-3,
                     policy_kwargs=policy_kwargs,
@@ -466,6 +466,7 @@ if __name__ == "__main__":
         # Load the model from the downloaded artifact
         rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
         model.policy.load_state_dict(torch.load(rl_agent_path))
+        wandb.finish()
         
         env.render()
         gamma = 1.0
