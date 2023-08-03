@@ -446,11 +446,12 @@ if __name__ == "__main__":
         # Access the run containing the logged artifact
 
         # Download the artifact
-        artifact = wandb.use_artifact("trained_model:latest")
+        artifact = wandb.use_artifact("trained_model_directory:latest")
         artifact_dir = artifact.download()
 
         # Load the model from the downloaded artifact
-        gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+        optimal_gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+        final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
 
 
         env = make_configure_env(**env_kwargs,duration=400)
@@ -467,7 +468,7 @@ if __name__ == "__main__":
                                 #  **policy_kwargs, 
                                  observation_space= env.observation_space
                                  )
-        loaded_gail_agent.load_state_dict(torch.load(gail_agent_path))
+        loaded_gail_agent.load_state_dict(torch.load(optimal_gail_agent_path))
         # loaded_gail_agent.eval()
         wandb.finish()
 
@@ -502,9 +503,9 @@ if __name__ == "__main__":
         rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
         model.policy.load_state_dict(torch.load(rl_agent_path))
         wandb.finish()
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         
         env.render()
+        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         gamma = 1.0
         for _ in range(50):
             obs, info = env.reset()
