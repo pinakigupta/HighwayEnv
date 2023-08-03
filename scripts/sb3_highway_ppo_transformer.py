@@ -17,21 +17,17 @@ import multiprocessing
 from enum import Enum
 import json
 import copy
-import pandas as pd
 import wandb
 from datetime import datetime
 from torch import FloatTensor
 from torch import nn
-import h5py
 import shutil
 from models.nets import Expert
 from models.gail import GAIL
 from models.generate_expert_data import collect_expert_data
-
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
-from utils import extract_expert_data
-
+from utilities import extract_expert_data, write_module_hierarchy_to_file
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -54,38 +50,6 @@ attention_network_kwargs = dict(
     # num_layers = 3,
 )
 
-def write_module_hierarchy_to_file(model, file):
-    def write_module_recursive(module, file=None, indent='', processed_submodules=None):
-        if file is None:
-            file = sys.stdout
-        if processed_submodules is None:
-            processed_submodules = set()
-
-        num_members = [tuple(_.shape) for _ in module.parameters()]
-        # num_members = len(list(module.modules())) - 1
-        module_name = f'{module.__class__.__name__} (ID: {id(module)})'
-        file.write(f'{indent}├─{module_name} '+ ' containing '+ str(len(num_members))  + ' items\n')
-
-        if isinstance(module, nn.Sequential):
-            for submodule in module:
-                write_module_recursive(submodule, file, indent + '    ')
-        elif isinstance(module, nn.ModuleList):
-            for idx, submodule in enumerate(module):
-                file.write(f'{indent}    ├─ModuleList[{idx}]\n')
-                write_module_recursive(submodule, file, indent + '        ')
-        else:
-            for name, submodule in module._modules.items():
-                if submodule not in processed_submodules:
-                    processed_submodules.add(submodule)
-                    write_module_recursive(submodule, file, indent + '    ')
-
-            for name, submodule in module._parameters.items():
-                if submodule is not None:
-                    if submodule not in processed_submodules:
-                        processed_submodules.add(submodule)
-                        file.write(f'{indent}    ├─{name}: {submodule.shape}\n')
-
-    write_module_recursive(model, file, processed_submodules=set())
 
 
 class CustomExtractor(BaseFeaturesExtractor):
@@ -210,8 +174,41 @@ def compute_vehicles_attention(env,fe):
 #        Main script  20 
 # ==================================
 
+def retrieve_gail_agents(env):
+    state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
+    action_dim = env.action_space.n
+    observation_space = env.observation_space
+    # Initialize wandb
+    wandb.init(project="random_env_gail", name="inference")
+    # Access the run containing the logged artifact
+
+    # Download the artifact
+    artifact = wandb.use_artifact("trained_model_directory:latest")
+    artifact_dir = artifact.download()
+    wandb.finish()
+
+    # Load the model from the downloaded artifact
+    optimal_gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+    final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
+
+    with open("config.json") as f:
+        config = copy.deepcopy(json.load(f))
+    # Load the GAIL model
+    final_gail_agent = GAIL(
+                                state_dim, 
+                                action_dim, 
+                                discrete=True, device=torch.device("cpu"), 
+                                **config, 
+                            #  **policy_kwargs, 
+                                observation_space= observation_space 
+                                )
+    optimal_gail_agent = copy.deepcopy(final_gail_agent)
+    final_gail_agent.load_state_dict(torch.load(final_gail_agent_path))
+    optimal_gail_agent.load_state_dict(torch.load(optimal_gail_agent_path))
+    return optimal_gail_agent, final_gail_agent
+
 if __name__ == "__main__":
-    train = TrainEnum.IRLTRAIN
+    train = TrainEnum.IRLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -315,7 +312,7 @@ if __name__ == "__main__":
 
         # Save the final model
         # model.save("highway_attention_ppo/model")
-    elif train==TrainEnum.IRLTRAIN:
+    elif train == TrainEnum.IRLTRAIN:
         
         sweep_config = {
             "method": "grid",
@@ -417,43 +414,11 @@ if __name__ == "__main__":
                      function=lambda: train_sweep(exp_obs, exp_acts)
                    )
         wandb.finish()
-    elif train==TrainEnum.IRLDEPLOY:
-        # Set the WANDB_MODE environment variable
-        # os.environ["WANDB_MODE"] = "offline"
-        # Initialize wandb
-        wandb.init(project="random_env_gail", name="inference")
-        # Access the run containing the logged artifact
-
-        # Download the artifact
-        artifact = wandb.use_artifact("trained_model_directory:latest")
-        artifact_dir = artifact.download()
+    elif train == TrainEnum.IRLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
-
-        # Load the model from the downloaded artifact
-        optimal_gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
-        final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
-
-
-        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-        action_dim = env.action_space.n
-        with open("config.json") as f:
-            config = copy.deepcopy(json.load(f))
-        # Load the GAIL model
-        loaded_gail_agent = GAIL(
-                                 state_dim, 
-                                 action_dim, 
-                                 discrete=True, device=torch.device("cpu"), 
-                                 **config, 
-                                #  **policy_kwargs, 
-                                 observation_space= env.observation_space
-                                 )
-        loaded_gail_agent.load_state_dict(torch.load(final_gail_agent_path))
-        # loaded_gail_agent.eval()
-        wandb.finish()
-
-        simulate_with_model(env=env, agent=loaded_gail_agent)
-
-    elif train==TrainEnum.RLDEPLOY:
+        optimal_gail_agent, final_gail_agent = retrieve_gail_agents(env=env)
+        simulate_with_model(env=env, agent=final_gail_agent)
+    elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
         device = torch.device("cpu")
         model = PPO(
