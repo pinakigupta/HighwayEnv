@@ -211,7 +211,7 @@ def compute_vehicles_attention(env,fe):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.RLDEPLOY
+    train = TrainEnum.RLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     month = now.strftime("%m")
     day = now.strftime("%d")
     expert_data='expert_data.h5'
-    n_cpu =  50 #multiprocessing.cpu_count()-15
+    n_cpu =  multiprocessing.cpu_count()
 
     def timenow():
         return now.strftime("%H%M")
