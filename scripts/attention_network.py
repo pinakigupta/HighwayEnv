@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import numpy as np
-
+from torch.distributions import Categorical
 
 # ==================================
 #        Policy Architecture

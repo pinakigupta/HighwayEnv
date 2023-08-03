@@ -11,7 +11,8 @@ from highway_env.vehicle.controller import ControlledVehicle
 from highway_env.vehicle.kinematics import Vehicle
 
 Observation = np.ndarray
-
+speed_reward_spd = [5, 10, 15, 20, 25, 30]
+speed_reward_rwd = [0.0 , 0.0, 0.0, 0.8, 1.0, 1.0]
 
 class HighwayEnv(AbstractEnv):
     """
@@ -122,8 +123,9 @@ class HighwayEnv(AbstractEnv):
         travel_reward = 0
         if self._is_truncated():
             avg_speed = self.ego_travel/self.time
-            if avg_speed > 20.0:
-                travel_reward = 1.0
+            travel_reward = np.interp(avg_speed, speed_reward_spd, speed_reward_rwd)
+            # print("travel_reward ", travel_reward)
+        
         # print(" travel_reward ", travel_reward)
         return {
             "collision_reward": float(self.vehicle.crashed),

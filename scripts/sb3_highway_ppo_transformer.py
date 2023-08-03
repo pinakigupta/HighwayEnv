@@ -22,6 +22,7 @@ import wandb
 from datetime import datetime
 from torch import FloatTensor
 import h5py
+import shutil
 from models.nets import Expert
 from models.gail import GAIL
 from models.generate_expert_data import collect_expert_data
@@ -182,12 +183,13 @@ if __name__ == "__main__":
             features_extractor_kwargs=attention_network_kwargs,
         )
     
+    WARM_START = False
     # Get the current date and time
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
     expert_data='expert_data.h5'
-    n_cpu =  multiprocessing.cpu_count()
+    n_cpu =  50 #multiprocessing.cpu_count()-15
 
     def timenow():
         return now.strftime("%H%M")
@@ -207,7 +209,7 @@ if __name__ == "__main__":
                                                                                 **env_kwargs
                                                                             )
     elif train == TrainEnum.RLTRAIN: # training 
-        append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
         env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
         total_timesteps=200*1000
         # Set the checkpoint frequency
@@ -233,15 +235,25 @@ if __name__ == "__main__":
             # Create the custom callback
             metrics_callback = CustomMetricsCallback()
             curriculamcallback = CustomCurriculamCallback()
+
+            if WARM_START:
+                # Download the artifact in case you want to initialize with pre - trained 
+                artifact = wandb.use_artifact("trained_model:v6")
+                artifact_dir = artifact.download()
+
+                # Load the model from the downloaded artifact
+                rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
+                # if rl_agent_path in locals():
+                model.policy.load_state_dict(torch.load(rl_agent_path))
+
             training_info = model.learn(
                                         total_timesteps=total_timesteps,
-                                        callback=[checkptcallback, curriculamcallback]
+                                        callback=[
+                                                    checkptcallback, 
+                                                    curriculamcallback,
+                                                 ]
                                         )
-            # Log the metrics to wandb
-            # wandb.log({"ep_len_mean": sum(metrics_callback.episode_lengths) / len(metrics_callback.episode_lengths)})
-            # wandb.log({"ep_rew_mean": sum(metrics_callback.episode_rewards) / len(metrics_callback.episode_rewards)})
-
-
+            
             # Log the model as an artifact in wandb
             torch.save(model.policy.state_dict(), 'RL_agent.pth')
             
@@ -250,7 +262,7 @@ if __name__ == "__main__":
             run.log_artifact(artifact)
 
         wandb.finish()
-        model.save("highway_attention_ppo/model")
+        model.save("highway_attention_ppo/model_new")
 
         # Save the final model
         # model.save("highway_attention_ppo/model")
@@ -338,22 +350,35 @@ if __name__ == "__main__":
                            ) as run:
                 run.name = f"sweep_{month}{day}_{timenow()}"
 
-                # Download the artifact in case you want to initialize with pre - trained 
-                artifact = wandb.use_artifact("trained_model:v3")
-                artifact_dir = artifact.download()
-                # Load the model from the downloaded artifact
-                gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
-                
+                gail_agent_path = None
+                if WARM_START:
+                    # Download the artifact in case you want to initialize with pre - trained 
+                    artifact = wandb.use_artifact("trained_model:v7")
+                    artifact_dir = artifact.download()
+                    # Load the model from the downloaded artifact
+                    gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+                    
 
-                rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, gail_agent_path= gail_agent_path, **env_kwargs)
+                rewards, optimal_agent = train_gail_agent(
+                                                            exp_obs=exp_obs, 
+                                                            exp_acts=exp_acts, 
+                                                            gail_agent_path= gail_agent_path, 
+                                                            **env_kwargs
+                                                         )
 
                 # Log the reward vector for each epoch
                 for epoch, reward in enumerate(rewards, 1):
                     run.log({f"epoch_{epoch}_rewards": reward})
                 
+                # Create a directory for the models
+                os.makedirs("models_archive", exist_ok=True)
+
+                shutil.move("optimal_gail_agent.pth", "models_archive/optimal_gail_agent.pth")
+                shutil.move("final_gail_agent.pth", "models_archive/final_gail_agent.pth")
+
                 # Log the model as an artifact in wandb
-                artifact = wandb.Artifact("trained_model", type="model")
-                artifact.add_file("optimal_gail_agent.pth")
+                artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+                artifact.add_dir("models_archive")
                 run.log_artifact(artifact)
 
                     
