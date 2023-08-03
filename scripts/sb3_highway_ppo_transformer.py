@@ -223,7 +223,7 @@ if __name__ == "__main__":
     month = now.strftime("%m")
     day = now.strftime("%d")
     expert_data='expert_data.h5'
-    n_cpu =  50 #multiprocessing.cpu_count()-15
+    n_cpu =  multiprocessing.cpu_count()
 
     def deploy_simulation(env, agent):
         env.render()
