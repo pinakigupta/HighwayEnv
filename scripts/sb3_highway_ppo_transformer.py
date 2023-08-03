@@ -30,7 +30,7 @@ from models.generate_expert_data import collect_expert_data
 
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
-# from utils import write_module_hierarchy_to_file
+from utils import extract_expert_data
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -211,7 +211,7 @@ def compute_vehicles_attention(env,fe):
 # ==================================
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLDEPLOY
+    train = TrainEnum.IRLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -225,7 +225,7 @@ if __name__ == "__main__":
     expert_data='expert_data.h5'
     n_cpu =  multiprocessing.cpu_count()
 
-    def deploy_simulation(env, agent):
+    def simulate_with_model(env, agent):
         env.render()
         gamma = 1.0
         for _ in range(500):
@@ -236,7 +236,7 @@ if __name__ == "__main__":
                 action = agent.act(obs)
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
-                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 env.render()
             print("--------------------------------------------------------------------------------------")
 
@@ -330,7 +330,6 @@ if __name__ == "__main__":
             }
         }
         project_name = f"random_env_gail"
-        sweep_id = wandb.sweep(sweep_config, project=project_name)
         device = torch.device("cpu")
         
         # IDM + MOBIL is treated as expert.
@@ -340,40 +339,19 @@ if __name__ == "__main__":
         config_defaults = {
             "duration": 400  # Default value for the "duration" field
         }
-        # Customize the project name with the current date and time
-        exp_obs  = []
-        exp_acts = []
-        with h5py.File('expert_data.h5', 'r') as hf:
-            # List all the episode groups in the HDF5 file
-            episode_groups = list(hf.keys())
 
-            # Iterate through each episode group
-            for episode_name in episode_groups:
-                episode = hf[episode_name]
+        exp_obs, exp_acts = extract_expert_data('expert_data.h5')
 
-                # List all datasets (exp_obs and exp_acts) in the episode group
-                datasets = list(episode.keys())
-
-                # Iterate through each dataset in the episode group
-                for dataset_name in datasets:
-                    dataset = episode[dataset_name]
-
-                    # Append the data to the corresponding list
-                    if dataset_name.startswith('exp_obs'):
-                        exp_obs.append(dataset[:])
-                    elif dataset_name.startswith('exp_acts'):
-                        exp_acts.append(dataset[()])
-
-            # for i in range(len(hf.keys()) // 2):
-            #     exp_obs.append(hf[f'exp_obs{i}'][:])
-            #     exp_acts.append(hf[f'exp_acts{i}'][()])
-
-        import random
-        # exp_obs, exp_acts = list(zip(*random.sample(list(zip(exp_obs, exp_acts)), len(exp_acts))))
+        
         exp_obs = FloatTensor(exp_obs)
         exp_acts = FloatTensor(exp_acts)
 
-        def train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, gail_agent_path = None, **env_kwargs):
+        def train_gail_agent(
+                                exp_obs=exp_obs, 
+                                exp_acts=exp_acts, 
+                                gail_agent_path = None, 
+                                **env_kwargs
+                            ):
             env= make_configure_env(**env_kwargs).unwrapped
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             action_dim = env.action_space.n
@@ -390,7 +368,8 @@ if __name__ == "__main__":
                 gail_agent.load_state_dict(torch.load(gail_agent_path))
             rewards, optimal_agent = gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
             return rewards, optimal_agent
-
+        
+        sweep_id = wandb.sweep(sweep_config, project=project_name)
         def train_sweep(exp_obs, exp_acts):
             with wandb.init(
                             project=project_name, 
@@ -448,13 +427,13 @@ if __name__ == "__main__":
         # Download the artifact
         artifact = wandb.use_artifact("trained_model_directory:latest")
         artifact_dir = artifact.download()
+        env = make_configure_env(**env_kwargs,duration=400)
 
         # Load the model from the downloaded artifact
         optimal_gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
         final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
 
 
-        env = make_configure_env(**env_kwargs,duration=400)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         with open("config.json") as f:
@@ -468,11 +447,11 @@ if __name__ == "__main__":
                                 #  **policy_kwargs, 
                                  observation_space= env.observation_space
                                  )
-        loaded_gail_agent.load_state_dict(torch.load(optimal_gail_agent_path))
+        loaded_gail_agent.load_state_dict(torch.load(final_gail_agent_path))
         # loaded_gail_agent.eval()
         wandb.finish()
 
-        deploy_simulation(env=env, agent=loaded_gail_agent)
+        simulate_with_model(env=env, agent=loaded_gail_agent)
 
     elif train==TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
