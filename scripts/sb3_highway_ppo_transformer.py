@@ -471,7 +471,7 @@ if __name__ == "__main__":
         env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         gamma = 1.0
-        for _ in range(50):
+        for _ in range(500):
             obs, info = env.reset()
             done = truncated = False
             cumulative_reward = 0
@@ -479,6 +479,8 @@ if __name__ == "__main__":
                 action, _ = model.predict(obs)
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                xs = [(v.position[0],v.speed) for v in env.road.vehicles]
+                print(" ego x " , env.vehicle.position[0], "xs ", xs)
+                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 env.render()
             print("--------------------------------------------------------------------------------------")
