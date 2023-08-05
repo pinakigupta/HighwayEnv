@@ -213,7 +213,7 @@ def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest")
     return optimal_gail_agent, final_gail_agent
 
 if __name__ == "__main__":
-    train = TrainEnum.RLDEPLOY
+    train = TrainEnum.IRLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -286,7 +286,7 @@ if __name__ == "__main__":
                     batch_size=64,
                     learning_rate=2e-3,
                     policy_kwargs=policy_kwargs,
-                    verbose=1,
+                    verbose=0,
                     )
         
 
@@ -465,7 +465,7 @@ if __name__ == "__main__":
 
         # Load the model from the downloaded artifact
         rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
-        model.policy.load_state_dict(torch.load(rl_agent_path))
+        model.policy.load_state_dict(torch.load(rl_agent_path, map_location=device))
         wandb.finish()
         
         env.render()
