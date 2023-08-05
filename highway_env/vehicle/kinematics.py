@@ -51,6 +51,7 @@ class Vehicle(RoadObject):
                       lane_to: Optional[str] = None,
                       lane_id: Optional[int] = None,
                       spacing: float = 1,
+                      x0:Optional[float] = None,
                       seed:Optional[int] = None) \
             -> "Vehicle":
         """
@@ -80,9 +81,13 @@ class Vehicle(RoadObject):
                 speed = road.np_random.uniform(Vehicle.DEFAULT_INITIAL_SPEEDS[0], Vehicle.DEFAULT_INITIAL_SPEEDS[1])
         default_spacing = 12+1.0*speed
         offset = spacing * default_spacing * np.exp(-5 / 40 * len(road.network.graph[_from][_to]))
-        x0 = np.max([lane.local_coordinates(v.position)[0] for v in road.vehicles]) \
-            if len(road.vehicles) else 3*offset
-        x0 += offset * road.np_random.uniform(0.9, 1.1)
+        if x0 is None:
+            if np.random.randint(2):
+                x0 = np.min([lane.local_coordinates(v.position)[0] for v in road.vehicles]) 
+                x0 -= offset * road.np_random.uniform(0.9, 1.1)
+            else:
+                x0 = np.max([lane.local_coordinates(v.position)[0] for v in road.vehicles]) 
+                x0 += offset * road.np_random.uniform(0.9, 1.1)                
         v = cls(road, lane.position(x0, 0), lane.heading_at(x0), speed)
         return v
 

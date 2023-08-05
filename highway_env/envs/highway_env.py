@@ -72,7 +72,7 @@ class HighwayEnv(AbstractEnv):
         if self.config["vehicles_count"] == 'random':
             self.config["vehicles_count"] = self.np_random.integers(30,60)
         if self.config["vehicles_density"] == 'random':
-            self.config["vehicles_density"] = self.np_random.uniform(low=0.25, high=2.0)
+            self.config["vehicles_density"] = self.np_random.uniform(low=0.5, high=1.5)
         other_per_controlled = near_split(self.config["vehicles_count"], num_bins=self.config["controlled_vehicles"])
 
         self.controlled_vehicles = []
@@ -82,7 +82,8 @@ class HighwayEnv(AbstractEnv):
                 self.road,
                 speed=speed,
                 lane_id=self.config["initial_lane_id"],
-                spacing=self.config["ego_spacing"]
+                spacing=self.config["ego_spacing"],
+                x0=100
             )
             vehicle = self.action_type.vehicle_class(self.road, vehicle.position, vehicle.heading, vehicle.speed)
             self.controlled_vehicles.append(vehicle)
