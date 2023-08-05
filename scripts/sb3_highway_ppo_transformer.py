@@ -71,7 +71,12 @@ class CustomExtractor(BaseFeaturesExtractor):
 # ==================================
 
 def make_configure_env(**kwargs):
-    env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"], config=kwargs["config"])
+    env = gym.make(
+                    # kwargs["id"], 
+                    # render_mode=kwargs["render_mode"], 
+                    # config=kwargs["config"],
+                    **kwargs
+                  )
     # env.configure(kwargs["config"])
     env.reset()
     return env
@@ -174,7 +179,7 @@ def compute_vehicles_attention(env,fe):
 #        Main script  20 
 # ==================================
 
-def retrieve_gail_agents(env):
+def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest"):
     state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
     action_dim = env.action_space.n
     observation_space = env.observation_space
@@ -183,7 +188,7 @@ def retrieve_gail_agents(env):
     # Access the run containing the logged artifact
 
     # Download the artifact
-    artifact = wandb.use_artifact("trained_model_directory:latest")
+    artifact = wandb.use_artifact(artifact_version)
     artifact_dir = artifact.download()
     wandb.finish()
 
@@ -208,12 +213,20 @@ def retrieve_gail_agents(env):
     return optimal_gail_agent, final_gail_agent
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLDEPLOY
+    train = TrainEnum.RLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
         )
-    
+
+    if True:
+        optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
+                                                                    env= make_configure_env(**env_kwargs).unwrapped, # need only certain parameters
+                                                                    artifact_version='trained_model_directory:v2'
+                                                                    )
+        reward_oracle = final_gail_agent.d
+        env_kwargs.update({'reward_oracle':reward_oracle})
+
     WARM_START = False
     # Get the current date and time
     now = datetime.now()
@@ -256,7 +269,13 @@ if __name__ == "__main__":
                                                                             )
     elif train == TrainEnum.RLTRAIN: # training 
         append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
-        env = make_vec_env(make_configure_env, n_envs=n_cpu, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
+        env = make_vec_env(
+                            make_configure_env, 
+                            n_envs=n_cpu, 
+                            vec_env_cls=SubprocVecEnv, 
+                            env_kwargs=env_kwargs
+                          )
+
         total_timesteps=200*1000
         # Set the checkpoint frequency
         checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
@@ -313,7 +332,7 @@ if __name__ == "__main__":
         # Save the final model
         # model.save("highway_attention_ppo/model")
     elif train == TrainEnum.IRLTRAIN:
-        
+        env_kwargs.update({'reward_oracle':None})
         sweep_config = {
             "method": "grid",
             "metric": {
@@ -415,8 +434,9 @@ if __name__ == "__main__":
                    )
         wandb.finish()
     elif train == TrainEnum.IRLDEPLOY:
+        env_kwargs.update({'reward_oracle':None})
         env = make_configure_env(**env_kwargs,duration=400)
-        optimal_gail_agent, final_gail_agent = retrieve_gail_agents(env=env)
+        optimal_gail_agent, final_gail_agent = retrieve_gail_agents(env=env, artifact_version='trained_model_directory:latest')
         simulate_with_model(env=env, agent=final_gail_agent)
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)

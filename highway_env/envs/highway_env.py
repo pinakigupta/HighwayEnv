@@ -1,7 +1,7 @@
 from typing import Dict, Text
 
 import numpy as np
-
+from typing import Optional
 from highway_env import utils
 from highway_env.envs.common.abstract import AbstractEnv
 from highway_env.envs.common.action import Action
@@ -52,6 +52,10 @@ class HighwayEnv(AbstractEnv):
         })
         return config
 
+    def __init__(self, config: dict = None, render_mode: Optional[str] = None, **kwargs) -> None:
+        super().__init__(config, render_mode)
+        self.reward_oracle = kwargs["reward_oracle"] if "reward_oracle" in kwargs else None
+
     def _reset(self) -> None:
         self._create_road()
         self._create_vehicles()
@@ -98,7 +102,20 @@ class HighwayEnv(AbstractEnv):
         rewards = self._rewards(action)
         weighed_reward = [self.config.get(name, 0) * reward for name, reward in rewards.items()]
         reward = sum(weighed_reward)
-        # print(" reward ", reward, " weighed_reward ", weighed_reward)
+        obs = self.observation_type.observe()
+        if self.reward_oracle is not None:
+            import torch
+            from torch import FloatTensor, squeeze, zeros
+            obs = FloatTensor(obs)
+            obs = obs.view(1, -1) 
+            action = torch.tensor(action, dtype=torch.int64) 
+            action = action.view(1)
+            # print(self.reward_oracle, "obs.shape ",obs.shape, " action.shape ", action.shape)
+            expert_reward = self.reward_oracle(obs , action )
+            expert_reward = expert_reward[0].item()
+            print(" expert_reward ", expert_reward)
+            if expert_reward < 0.2:
+                reward += 0.1
         # if self.config["normalize_reward"]:
         #     reward = utils.lmap(reward,
         #                         [
@@ -119,7 +136,6 @@ class HighwayEnv(AbstractEnv):
         # Use forward speed rather than speed, see https://github.com/eleurent/highway-env/issues/268
         forward_speed = self.vehicle.speed * np.cos(self.vehicle.heading)
         scaled_speed = utils.lmap(forward_speed, self.config["reward_speed_range"], [0, 1])
-        duration = self.config["duration"]
         travel_reward = 0
         if self._is_truncated():
             avg_speed = self.ego_travel/self.time
