@@ -213,13 +213,13 @@ def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest")
     return optimal_gail_agent, final_gail_agent
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLDEPLOY
+    train = TrainEnum.IRLTRAIN
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
         )
 
-    if True:
+    if False:
         optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
                                                                     env= make_configure_env(**env_kwargs).unwrapped, # need only certain parameters
                                                                     artifact_version='trained_model_directory:v2'
@@ -345,7 +345,7 @@ if __name__ == "__main__":
                 }
             }
         }
-        project_name = f"random_env_gail"
+        project_name = f"random_env_gail_1"
         device = torch.device("cpu")
         
         # IDM + MOBIL is treated as expert.
@@ -382,8 +382,7 @@ if __name__ == "__main__":
                              ).to(device=device)
             if gail_agent_path is not None:
                 gail_agent.load_state_dict(torch.load(gail_agent_path))
-            rewards, optimal_agent = gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
-            return rewards, optimal_agent
+            return gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
         
         sweep_id = wandb.sweep(sweep_config, project=project_name)
         def train_sweep(exp_obs, exp_acts):
@@ -403,16 +402,28 @@ if __name__ == "__main__":
                     gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
                     
 
-                rewards, optimal_agent = train_gail_agent(
-                                                            exp_obs=exp_obs, 
-                                                            exp_acts=exp_acts, 
-                                                            gail_agent_path= gail_agent_path, 
-                                                            **env_kwargs
-                                                         )
+                rewards, disc_losses, advs, episode_count =       train_gail_agent(
+                                                                                    exp_obs=exp_obs, 
+                                                                                    exp_acts=exp_acts, 
+                                                                                    gail_agent_path=gail_agent_path, 
+                                                                                    **env_kwargs
+                                                                                  )
 
-                # Log the reward vector for each epoch
-                for epoch, reward in enumerate(rewards, 1):
-                    run.log({f"epoch_{epoch}_rewards": reward})
+                # # Log the reward vector for each epoch
+                # for epoch, reward in enumerate(rewards, 1):
+                #     run.log({f"epoch_{epoch}_rewards": reward}) 
+
+
+                disc_losses = [ float(l.item()) for l in disc_losses]
+                advs = [ float(a.item()) for a in advs]
+                rewards = [float(r) for r in rewards]
+                # Log rewards against epochs as a single plot
+                xs=list(range(len(rewards)))
+                run.log({"rewards_vs_epochs": wandb.plot.line_series(xs=xs, ys=[rewards])})
+                run.log({"disc losses_vs_epochs": wandb.plot.line_series(xs=xs, ys=[disc_losses])})
+                run.log({"Mean advantages_vs_epochs": wandb.plot.line_series(xs=xs, ys=[advs])})
+                run.log({"Episode_count_vs_epochs": wandb.plot.line_series(xs=xs, ys=[episode_count])})
+
                 
                 # Create a directory for the models
                 os.makedirs("models_archive", exist_ok=True)
