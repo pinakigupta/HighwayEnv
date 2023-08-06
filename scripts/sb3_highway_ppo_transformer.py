@@ -355,15 +355,19 @@ if __name__ == "__main__":
             # Load the model from the downloaded artifact
             gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
 
+        run_name = f"sweep_{month}{day}_{timenow()}"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
+
         def train_sweep(exp_obs, exp_acts, config=None):
             with wandb.init(
-                            project=project_name, 
+                            project=project_name,
                             config=config,
-                            magic=True,
                            ) as run:
                 config = run.config
-                run.name = f"sweep_{month}{day}_{timenow()}"
+                name = ""
+                for key, value in config.items():
+                    name += f"{key}_{value}_"
+                run.name = run_name
                 print(" config.duration ", config['duration'])
                 append_key_to_dict_of_dict(env_kwargs,'config','duration',config.duration)
                     
@@ -380,10 +384,10 @@ if __name__ == "__main__":
                 rewards = [float(r) for r in rewards]
                 # Log rewards against epochs as a single plot
                 xs=list(range(len(rewards)))
-                run.log({"rewards": wandb.plot.line_series(xs=xs, ys=[rewards] ,title="rewards_vs_epochs")})
-                run.log({"disc losses": wandb.plot.line_series(xs=xs, ys=[disc_losses], title="rewards_vs_epochs")})
-                run.log({"Mean advantages": wandb.plot.line_series(xs=xs, ys=[advs], title="Mean advantages_vs_epochs")})
-                run.log({"Episode_count": wandb.plot.line_series(xs=xs, ys=[episode_count], title="Episode_count_vs_epochs")})
+                run.log({"rewards": wandb.plot.line_series(xs=xs, ys=[rewards] ,title="rewards_vs_epochs",keys = [name])})
+                run.log({"disc losses": wandb.plot.line_series(xs=xs, ys=[disc_losses], title="rewards_vs_epochs",keys = [name])})
+                run.log({"Mean advantages": wandb.plot.line_series(xs=xs, ys=[advs], title="Mean advantages_vs_epochs",keys = [name])})
+                run.log({"Episode_count": wandb.plot.line_series(xs=xs, ys=[episode_count], title="Episode_count_vs_epochs",keys = [name])})
 
                 
                 # Create a directory for the models
