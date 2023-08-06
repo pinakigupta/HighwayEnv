@@ -29,6 +29,8 @@ from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, Custo
 from attention_network import EgoAttentionNetwork
 from utilities import extract_expert_data, write_module_hierarchy_to_file
 import warnings
+from python_config import sweep_config, env_kwargs
+
 warnings.filterwarnings("ignore")
 
 class TrainEnum(Enum):
@@ -82,35 +84,7 @@ def make_configure_env(**kwargs):
     return env
 
 
-env_kwargs = {
-    'id': 'highway-v0',
-    'render_mode': 'rgb_array',
-    'config': {
-        "lanes_count": 4,
-        "vehicles_count": 'random',
-        "action": {
-                "type": "DiscreteMetaAction",
-            },
-        "observation": {
-            "type": "Kinematics",
-            "vehicles_count": 10,
-            "features": [
-                "presence",
-                "x",
-                "y",
-                "vx",
-                "vy",
-                "cos_h",
-                "sin_h"
-            ],
-            "absolute": False
-        },
-        "policy_frequency": 2,
-        "duration": 40,
-        "screen_width": 960,
-        "screen_height": 180,
-    }
-}
+
 
 
 # ==================================
@@ -333,18 +307,7 @@ if __name__ == "__main__":
         # model.save("highway_attention_ppo/model")
     elif train == TrainEnum.IRLTRAIN:
         env_kwargs.update({'reward_oracle':None})
-        sweep_config = {
-            "method": "grid",
-            "metric": {
-                "name": "episode_reward",
-                "goal": "maximize"
-            },
-            "parameters": {
-                "duration": {
-                    "values": [500]  # Values for the "duration" field to be swept
-                }
-            }
-        }
+
         project_name = f"random_env_gail_1"
         device = torch.device("cpu")
         
@@ -353,7 +316,7 @@ if __name__ == "__main__":
             config = json.load(f)
 
         config_defaults = {
-            "duration": 400  # Default value for the "duration" field
+            "duration": 40  # Default value for the "duration" field
         }
 
         exp_obs, exp_acts = extract_expert_data('expert_data.h5')
@@ -384,22 +347,25 @@ if __name__ == "__main__":
                 gail_agent.load_state_dict(torch.load(gail_agent_path))
             return gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
         
+        gail_agent_path = None
+        if WARM_START:
+            # Download the artifact in case you want to initialize with pre - trained 
+            artifact = wandb.use_artifact("trained_model:v7")
+            artifact_dir = artifact.download()
+            # Load the model from the downloaded artifact
+            gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+
         sweep_id = wandb.sweep(sweep_config, project=project_name)
-        def train_sweep(exp_obs, exp_acts):
+        def train_sweep(exp_obs, exp_acts, config=None):
             with wandb.init(
                             project=project_name, 
-                            config=config_defaults,
+                            config=config,
                             magic=True,
                            ) as run:
+                config = run.config
                 run.name = f"sweep_{month}{day}_{timenow()}"
-
-                gail_agent_path = None
-                if WARM_START:
-                    # Download the artifact in case you want to initialize with pre - trained 
-                    artifact = wandb.use_artifact("trained_model:v7")
-                    artifact_dir = artifact.download()
-                    # Load the model from the downloaded artifact
-                    gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+                print(" config.duration ", config['duration'])
+                append_key_to_dict_of_dict(env_kwargs,'config','duration',config.duration)
                     
 
                 rewards, disc_losses, advs, episode_count =       train_gail_agent(
@@ -409,20 +375,15 @@ if __name__ == "__main__":
                                                                                     **env_kwargs
                                                                                   )
 
-                # # Log the reward vector for each epoch
-                # for epoch, reward in enumerate(rewards, 1):
-                #     run.log({f"epoch_{epoch}_rewards": reward}) 
-
-
                 disc_losses = [ float(l.item()) for l in disc_losses]
                 advs = [ float(a.item()) for a in advs]
                 rewards = [float(r) for r in rewards]
                 # Log rewards against epochs as a single plot
                 xs=list(range(len(rewards)))
-                run.log({"rewards_vs_epochs": wandb.plot.line_series(xs=xs, ys=[rewards])})
-                run.log({"disc losses_vs_epochs": wandb.plot.line_series(xs=xs, ys=[disc_losses])})
-                run.log({"Mean advantages_vs_epochs": wandb.plot.line_series(xs=xs, ys=[advs])})
-                run.log({"Episode_count_vs_epochs": wandb.plot.line_series(xs=xs, ys=[episode_count])})
+                run.log({"rewards": wandb.plot.line_series(xs=xs, ys=[rewards] ,title="rewards_vs_epochs")})
+                run.log({"disc losses": wandb.plot.line_series(xs=xs, ys=[disc_losses], title="rewards_vs_epochs")})
+                run.log({"Mean advantages": wandb.plot.line_series(xs=xs, ys=[advs], title="Mean advantages_vs_epochs")})
+                run.log({"Episode_count": wandb.plot.line_series(xs=xs, ys=[episode_count], title="Episode_count_vs_epochs")})
 
                 
                 # Create a directory for the models
