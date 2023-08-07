@@ -313,11 +313,7 @@ if __name__ == "__main__":
         
         # IDM + MOBIL is treated as expert.
         with open("config.json") as f:
-            config = json.load(f)
-
-        config_defaults = {
-            "duration": 40  # Default value for the "duration" field
-        }
+            train_config = json.load(f)
 
         exp_obs, exp_acts = extract_expert_data('expert_data.h5')
 
@@ -329,7 +325,8 @@ if __name__ == "__main__":
                                 exp_obs=exp_obs, 
                                 exp_acts=exp_acts, 
                                 gail_agent_path = None, 
-                                **env_kwargs
+                                env_kwargs = None,
+                                train_config = None
                             ):
             env= make_configure_env(**env_kwargs).unwrapped
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
@@ -339,7 +336,7 @@ if __name__ == "__main__":
                                 action_dim , 
                                 discrete=True, 
                                 device=torch.device("cpu"), 
-                                **config, 
+                                **train_config, 
                                 # **policy_kwargs, 
                                 observation_space= env.observation_space
                              ).to(device=device)
@@ -368,15 +365,18 @@ if __name__ == "__main__":
                 for key, value in config.items():
                     name += f"{key}_{value}_"
                 run.name = run_name
-                print(" config.duration ", config['duration'])
                 append_key_to_dict_of_dict(env_kwargs,'config','duration',config.duration)
+                train_config.update({'gae_gamma':config.gae_gamma})
+                train_config.update({'discrm_lr':config.discrm_lr})
+                print(" config.duration ", env_kwargs['config']['duration'], " config.gae_gamma ", train_config['gae_gamma'])
                     
 
                 rewards, disc_losses, advs, episode_count =       train_gail_agent(
                                                                                     exp_obs=exp_obs, 
                                                                                     exp_acts=exp_acts, 
                                                                                     gail_agent_path=gail_agent_path, 
-                                                                                    **env_kwargs
+                                                                                    env_kwargs = env_kwargs,
+                                                                                    train_config = train_config
                                                                                   )
 
                 disc_losses = [ float(l.item()) for l in disc_losses]
@@ -385,7 +385,7 @@ if __name__ == "__main__":
                 # Log rewards against epochs as a single plot
                 xs=list(range(len(rewards)))
                 run.log({"rewards": wandb.plot.line_series(xs=xs, ys=[rewards] ,title="rewards_vs_epochs",keys = [name])})
-                run.log({"disc losses": wandb.plot.line_series(xs=xs, ys=[disc_losses], title="rewards_vs_epochs",keys = [name])})
+                run.log({"disc losses": wandb.plot.line_series(xs=xs, ys=[disc_losses], title="disc losses",keys = [name])})
                 run.log({"Mean advantages": wandb.plot.line_series(xs=xs, ys=[advs], title="Mean advantages_vs_epochs",keys = [name])})
                 run.log({"Episode_count": wandb.plot.line_series(xs=xs, ys=[episode_count], title="Episode_count_vs_epochs",keys = [name])})
 

@@ -37,7 +37,13 @@ sweep_config = {
     },
     "parameters": {
         "duration": {
-            "values": [20,40]  # Values for the "duration" field to be swept
+            "values": [40]  # Values for the "duration" field to be swept
         },
+        "gae_gamma": {
+            "values": [0.95, 0.99]  # Values for the "duration" field to be swept
+        }, 
+        "discrm_lr": {
+            "values": [0.0005, 0.001, None]  # Values for the "duration" field to be swept
+        },                  
     }
 }

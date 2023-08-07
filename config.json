@@ -1,0 +1,14 @@
+{
+        "num_iters": 2,
+        "num_expert_steps": 150000,
+        "num_steps_per_iter": 1000,
+        "horizon": null,
+        "lambda": 1e-3,
+        "gae_gamma": 0.99,
+        "gae_lambda": 0.99,
+        "epsilon": 0.01,
+        "max_kl": 0.01,
+        "cg_damping": 0.1,
+        "normalize_advantage": true,
+        "discrm_lr": 0.001
+}

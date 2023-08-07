@@ -40,5 +40,5 @@ wandb/
 .vscode/
 
 # Certain GAIL specific config files
-config.json
+# config.json
 model_config.json
