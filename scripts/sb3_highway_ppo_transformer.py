@@ -217,9 +217,15 @@ if __name__ == "__main__":
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
-                action = agent.act(obs)
+                try:    
+                    action = agent.act(obs)
+                except:
+                    action = agent.predict(obs)
+                    action = action[0]
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
+                xs = [(v.position[0],v.speed) for v in env.road.vehicles]
+                print(" ego x " , env.vehicle.position[0], "xs ", xs)
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 env.render()
             print("--------------------------------------------------------------------------------------")
@@ -421,7 +427,7 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs,duration=400)
         optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
                                                                     env=env,
-                                                                    artifact_version='trained_model_directory:v4',
+                                                                    artifact_version='trained_model_directory:latest',
                                                                     project="random_env_gail_1"
                                                                     )
         simulate_with_model(env=env, agent=final_gail_agent)
@@ -458,16 +464,5 @@ if __name__ == "__main__":
         env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         gamma = 1.0
-        for _ in range(500):
-            obs, info = env.reset()
-            done = truncated = False
-            cumulative_reward = 0
-            while not (done or truncated):
-                action, _ = model.predict(obs)
-                obs, reward, done, truncated, info = env.step(action)
-                cumulative_reward += gamma * reward
-                xs = [(v.position[0],v.speed) for v in env.road.vehicles]
-                print(" ego x " , env.vehicle.position[0], "xs ", xs)
-                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                env.render()
-            print("--------------------------------------------------------------------------------------")
+        simulate_with_model(env, model)
+
