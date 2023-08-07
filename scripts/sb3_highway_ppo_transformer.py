@@ -363,7 +363,14 @@ if __name__ == "__main__":
                 config = run.config
                 name = ""
                 for key, value in config.items():
-                    name += f"{key}_{value}_"
+                    # Discard first 3 letters from the key
+                    key = key[3:]
+
+                    # Format the float value
+                    value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
+
+                    # Append the formatted key-value pair to the name
+                    name += f"{key}_{value_str}_"
                 run.name = run_name
                 append_key_to_dict_of_dict(env_kwargs,'config','duration',config.duration)
                 train_config.update({'gae_gamma':config.gae_gamma})
