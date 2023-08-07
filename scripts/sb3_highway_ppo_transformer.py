@@ -153,12 +153,12 @@ def compute_vehicles_attention(env,fe):
 #        Main script  20 
 # ==================================
 
-def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest"):
+def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest", project = None):
     state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
     action_dim = env.action_space.n
     observation_space = env.observation_space
     # Initialize wandb
-    wandb.init(project="random_env_gail", name="inference")
+    wandb.init(project=project, name="inference")
     # Access the run containing the logged artifact
 
     # Download the artifact
@@ -419,7 +419,11 @@ if __name__ == "__main__":
     elif train == TrainEnum.IRLDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env = make_configure_env(**env_kwargs,duration=400)
-        optimal_gail_agent, final_gail_agent = retrieve_gail_agents(env=env, artifact_version='trained_model_directory:latest')
+        optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
+                                                                    env=env,
+                                                                    artifact_version='trained_model_directory:v4',
+                                                                    project="random_env_gail_1"
+                                                                    )
         simulate_with_model(env=env, agent=final_gail_agent)
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
