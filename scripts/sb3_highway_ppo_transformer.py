@@ -190,7 +190,10 @@ def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest",
     optimal_gail_agent.load_state_dict(torch.load(optimal_gail_agent_path))
     return optimal_gail_agent, final_gail_agent
 
+total_count_lock = multiprocessing.Lock()
+total_count = multiprocessing.Value("i", 0)
 def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_rollouts=50, num_workers =4):
+    global total_count
     rollouts_per_worker = num_rollouts // num_workers
     extra_rollouts = num_rollouts % num_workers
     # print("rollouts_per_worker ", rollouts_per_worker, "extra_rollouts ", extra_rollouts)
@@ -221,21 +224,36 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
             # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
             # env.render(render_mode=render_mode)
         total_rewards.append(cumulative_reward)
-        print(worker_id," : ",len(total_rewards),"--------------------------------------------------------------------------------------")
+        with total_count_lock:
+            total_count.value += 1
+            # print("total_episodes_count ", total_count.value)
+        # print(worker_id," : ",len(total_rewards),"--------------------------------------------------------------------------------------")
     return total_rewards
 
 def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollouts=50, num_workers = 4):
     # progress_bar = tqdm(total=num_rollouts , desc="Episodes", unit="episodes")
+    all_rewards = []
+    work_queue = list(range(num_rollouts))  # Create a work queue with rollout IDs
+    completed_rollouts = 0  # Counter for completed rollouts
+    
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-        rollout_results = [
-            executor.submit(worker_rollout, worker_id,  agent, render_mode= render_mode, 
-                                            env_kwargs=env_kwargs, num_workers=num_workers, num_rollouts=num_rollouts )
-                                            for worker_id in range(num_workers)
-        ]
-        all_rewards = []
-        for future in rollout_results:
-            rewards = future.result()
-            all_rewards.extend(rewards)
+            future_to_rollout = {executor.submit(worker_rollout, worker_id, agent, render_mode=render_mode,
+                                                env_kwargs=env_kwargs, num_workers=num_workers, num_rollouts=num_rollouts):
+                                worker_id for worker_id in range(num_workers)}
+
+            while completed_rollouts < num_rollouts:
+                # Wait for the next completed rollout and get its result
+                for future in concurrent.futures.as_completed(future_to_rollout):
+                    worker_id = future_to_rollout[future]
+                    rewards = future.result()
+                    all_rewards.extend(rewards)
+                    completed_rollouts += 1
+
+                    if work_queue:
+                        next_rollout = work_queue.pop(0)
+                        future_to_rollout[executor.submit(worker_rollout, worker_id, agent, render_mode=render_mode,
+                                                        env_kwargs=env_kwargs, num_workers=num_workers,
+                                                        num_rollouts=num_rollouts)] = worker_id
 
     mean_rewards = statistics.mean(all_rewards)
     return mean_rewards
