@@ -1,7 +1,8 @@
 
 env_kwargs = {
     'id': 'highway-v0',
-    'render_mode': 'rgb_array',
+    'render_mode': 'human',
+    'simulation_frequency': 10,
     'config': {
         "lanes_count": 4,
         "vehicles_count": 'random',

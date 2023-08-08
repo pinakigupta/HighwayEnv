@@ -11,8 +11,9 @@ import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.evaluation import evaluate_policy
 from tensorboard import program
-import os, sys
+import os, statistics
 import multiprocessing
 from enum import Enum
 import json
@@ -29,6 +30,8 @@ from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, Custo
 from attention_network import EgoAttentionNetwork
 from utilities import extract_expert_data, write_module_hierarchy_to_file
 import warnings
+import concurrent.futures
+from tqdm import tqdm
 from python_config import sweep_config, env_kwargs
 
 warnings.filterwarnings("ignore")
@@ -39,6 +42,7 @@ class TrainEnum(Enum):
     IRLTRAIN = 2
     IRLDEPLOY = 3
     EXPERT_DATA_COLLECTION =4
+    BC = 5
 
 
 
@@ -186,8 +190,59 @@ def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest",
     optimal_gail_agent.load_state_dict(torch.load(optimal_gail_agent_path))
     return optimal_gail_agent, final_gail_agent
 
+def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_rollouts=50, num_workers =4):
+    rollouts_per_worker = num_rollouts // num_workers
+    extra_rollouts = num_rollouts % num_workers
+    # print("rollouts_per_worker ", rollouts_per_worker, "extra_rollouts ", extra_rollouts)
+
+    total_rewards = []
+
+    if worker_id != 0:
+        env_kwargs.update({'render_mode': 'rgb_array'})
+    else:
+        env_kwargs.update({'render_mode': render_mode})
+    
+    env = make_configure_env(**env_kwargs)
+    for _ in range(rollouts_per_worker):
+        obs, info = env.reset()
+        done = truncated = False
+        cumulative_reward = 0
+        while not (done or truncated):
+            with torch.no_grad():
+                try:    
+                    action = agent.act(obs)
+                except:
+                    action = agent.predict(obs)
+                    action = action[0]
+            obs, reward, done, truncated, info = env.step(action)
+            cumulative_reward += gamma * reward
+            # xs = [(v.position[0],v.speed) for v in env.road.vehicles]
+            # print(" ego x " , env.vehicle.position[0], "xs ", xs)
+            # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+            # env.render(render_mode=render_mode)
+        total_rewards.append(cumulative_reward)
+        print(worker_id," : ",len(total_rewards),"--------------------------------------------------------------------------------------")
+    return total_rewards
+
+def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollouts=50, num_workers = 4):
+    # progress_bar = tqdm(total=num_rollouts , desc="Episodes", unit="episodes")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+        rollout_results = [
+            executor.submit(worker_rollout, worker_id,  agent, render_mode= render_mode, 
+                                            env_kwargs=env_kwargs, num_workers=num_workers, num_rollouts=num_rollouts )
+                                            for worker_id in range(num_workers)
+        ]
+        all_rewards = []
+        for future in rollout_results:
+            rewards = future.result()
+            all_rewards.extend(rewards)
+
+    mean_rewards = statistics.mean(all_rewards)
+    return mean_rewards
+
+
 if __name__ == "__main__":
-    train = TrainEnum.IRLTRAIN
+    train = TrainEnum.IRLDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -209,26 +264,6 @@ if __name__ == "__main__":
     expert_data='expert_data.h5'
     n_cpu =  multiprocessing.cpu_count()
 
-    def simulate_with_model(env, agent):
-        env.render()
-        gamma = 1.0
-        for _ in range(500):
-            obs, info = env.reset()
-            done = truncated = False
-            cumulative_reward = 0
-            while not (done or truncated):
-                try:    
-                    action = agent.act(obs)
-                except:
-                    action = agent.predict(obs)
-                    action = action[0]
-                obs, reward, done, truncated, info = env.step(action)
-                cumulative_reward += gamma * reward
-                xs = [(v.position[0],v.speed) for v in env.road.vehicles]
-                print(" ego x " , env.vehicle.position[0], "xs ", xs)
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                env.render()
-            print("--------------------------------------------------------------------------------------")
 
     def timenow():
         return now.strftime("%H%M")
@@ -424,13 +459,15 @@ if __name__ == "__main__":
         wandb.finish()
     elif train == TrainEnum.IRLDEPLOY:
         env_kwargs.update({'reward_oracle':None})
-        env = make_configure_env(**env_kwargs,duration=400)
+        # env_kwargs.update({'render_mode': None})
+        env = make_configure_env(**env_kwargs)
         optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
                                                                     env=env,
-                                                                    artifact_version='trained_model_directory:latest',
+                                                                    artifact_version='trained_model_directory:v8',
                                                                     project="random_env_gail_1"
                                                                     )
-        simulate_with_model(env=env, agent=final_gail_agent)
+        reward = simulate_with_model(agent=final_gail_agent, env_kwargs=env_kwargs, render_mode=None, num_workers= n_cpu, num_rollouts=500)
+        print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
         device = torch.device("cpu")
@@ -464,5 +501,16 @@ if __name__ == "__main__":
         env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         gamma = 1.0
-        simulate_with_model(env, model)
+        # simulate_with_model(env, model)
+
+    elif train == TrainEnum.BC:
+        from stable_baselines3.common.evaluation import evaluate_policy
+        from stable_baselines3.common.vec_env import DummyVecEnv
+        from stable_baselines3.ppo import MlpPolicy
+
+        from imitation.algorithms import bc
+        from imitation.data import rollout
+        from imitation.data.wrappers import RolloutInfoWrapper
+        env = make_configure_env(**env_kwargs)
+        exp_obs, exp_acts = extract_expert_data('expert_data.h5')
 
