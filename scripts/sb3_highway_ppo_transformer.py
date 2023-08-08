@@ -254,15 +254,18 @@ def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollou
                 # Wait for the next completed rollout and get its result
                 for future in concurrent.futures.as_completed(future_to_rollout):
                     worker_id = future_to_rollout[future]
-                    rewards = future.result()
-                    all_rewards.extend(rewards)
-                    completed_rollouts += 1
+                    try:
+                        rewards = future.result()
+                        all_rewards.extend(rewards)
+                        completed_rollouts += 1
 
-                    if work_queue:
-                        next_rollout = work_queue.pop(0)
-                        future_to_rollout[executor.submit(worker_rollout, worker_id, agent, render_mode=render_mode,
-                                                        env_kwargs=env_kwargs, num_workers=num_workers,
-                                                        num_rollouts=num_rollouts)] = worker_id
+                        if work_queue:
+                            next_rollout = work_queue.pop(0)
+                            future_to_rollout[executor.submit(worker_rollout, worker_id, agent, render_mode=render_mode,
+                                                            env_kwargs=env_kwargs, num_workers=num_workers,
+                                                            num_rollouts=num_rollouts)] = worker_id
+                    except concurrent.futures.process.BrokenProcessPool as e:
+                        print("BrokenProcessPool Exception:", e)
 
     mean_rewards = statistics.mean(all_rewards)
     return mean_rewards
@@ -493,7 +496,13 @@ if __name__ == "__main__":
                                                                     artifact_version='trained_model_directory:v8',
                                                                     project="random_env_gail_1"
                                                                     )
-        reward = simulate_with_model(agent=final_gail_agent, env_kwargs=env_kwargs, render_mode='human', num_workers= n_cpu, num_rollouts=20)
+        reward = simulate_with_model(
+                                            agent=final_gail_agent, 
+                                            env_kwargs=env_kwargs, 
+                                            render_mode='human', 
+                                            num_workers= n_cpu, 
+                                            num_rollouts=20
+                                    )
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
