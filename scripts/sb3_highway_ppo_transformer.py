@@ -31,7 +31,7 @@ from attention_network import EgoAttentionNetwork
 from utilities import extract_expert_data, write_module_hierarchy_to_file
 import warnings
 import concurrent.futures
-from tqdm import tqdm
+import time
 from python_config import sweep_config, env_kwargs
 
 warnings.filterwarnings("ignore")
@@ -192,6 +192,13 @@ def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest",
 
 total_count_lock = multiprocessing.Lock()
 total_count = multiprocessing.Value("i", 0)
+
+def print_overwrite(text, count_length):
+    prefix_length = len(text) - count_length
+    print(text, end="\r")  # Use "\r" to move cursor to the beginning of the line
+    time.sleep(0.5)  # Introduce a short delay before clearing the count
+    print("\033[{}G".format(count_length + 1) + "\033[K", end="\r")  # Clear the count portion
+
 def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_rollouts=50, num_workers =4):
     global total_count
     rollouts_per_worker = num_rollouts // num_workers
@@ -224,9 +231,11 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
             # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
             # env.render(render_mode=render_mode)
         total_rewards.append(cumulative_reward)
+        count_length = len("Total Episodes Count: ")  # Length of the text before the count
         with total_count_lock:
             total_count.value += 1
-            # print("total_episodes_count ", total_count.value)
+            count_text = f"Total Episodes Count: {total_count.value}"
+            print_overwrite(count_text, count_length)
         # print(worker_id," : ",len(total_rewards),"--------------------------------------------------------------------------------------")
     return total_rewards
 
@@ -484,7 +493,7 @@ if __name__ == "__main__":
                                                                     artifact_version='trained_model_directory:v8',
                                                                     project="random_env_gail_1"
                                                                     )
-        reward = simulate_with_model(agent=final_gail_agent, env_kwargs=env_kwargs, render_mode=None, num_workers= n_cpu, num_rollouts=500)
+        reward = simulate_with_model(agent=final_gail_agent, env_kwargs=env_kwargs, render_mode='human', num_workers= n_cpu, num_rollouts=20)
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=400)
