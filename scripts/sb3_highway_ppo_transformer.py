@@ -194,10 +194,8 @@ total_count_lock = multiprocessing.Lock()
 total_count = multiprocessing.Value("i", 0)
 
 def print_overwrite(text, count_length):
-    prefix_length = len(text) - count_length
-    print(text, end="\r")  # Use "\r" to move cursor to the beginning of the line
-    time.sleep(0.5)  # Introduce a short delay before clearing the count
     print("\033[{}G".format(count_length + 1) + "\033[K", end="\r")  # Clear the count portion
+    print(text, end="\r")  # Use "\r" to move cursor to the beginning of the line
 
 def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_rollouts=50, num_workers =4):
     global total_count
@@ -499,7 +497,7 @@ if __name__ == "__main__":
         reward = simulate_with_model(
                                             agent=final_gail_agent, 
                                             env_kwargs=env_kwargs, 
-                                            render_mode='human', 
+                                            render_mode=None, 
                                             num_workers= n_cpu, 
                                             num_rollouts=20
                                     )
