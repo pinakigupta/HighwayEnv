@@ -28,7 +28,7 @@ env_kwargs = {
         "duration": 40,
         "screen_width": 960,
         "screen_height": 180,
-        "real_time_rendering": True
+        "real_time_rendering": False
     }
 }
 

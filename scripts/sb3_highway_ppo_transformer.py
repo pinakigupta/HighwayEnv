@@ -205,6 +205,7 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
         env_kwargs.update({'render_mode': 'rgb_array'})
     else:
         env_kwargs.update({'render_mode': render_mode})
+        append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
     
     env = make_configure_env(**env_kwargs)
     for _ in range(rollouts_per_worker):
@@ -498,8 +499,8 @@ if __name__ == "__main__":
         reward = simulate_with_model(
                                             agent=final_gail_agent, 
                                             env_kwargs=env_kwargs, 
-                                            render_mode='human', 
-                                            num_workers= min(num_rollouts,1), 
+                                            render_mode='rgb_array', 
+                                            num_workers= min(num_rollouts,n_cpu), 
                                             num_rollouts=num_rollouts
                                     )
         print(" Mean reward ", reward)
