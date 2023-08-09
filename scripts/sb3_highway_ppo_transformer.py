@@ -271,7 +271,7 @@ def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollou
 
 
 if __name__ == "__main__":
-    train = TrainEnum.IRLDEPLOY
+    train = TrainEnum.BC
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -546,6 +546,23 @@ if __name__ == "__main__":
         from imitation.algorithms import bc
         from imitation.data import rollout
         from imitation.data.wrappers import RolloutInfoWrapper
+        from imitation.data import types
+
         env = make_configure_env(**env_kwargs)
         exp_obs, exp_acts = extract_expert_data('expert_data.h5')
 
+        trajectories = []
+        for i in range(len(exp_acts)):
+                trajectory_with_rewards = types.Trajectory(
+                                                            obs=[exp_obs[i]], 
+                                                            acts=[exp_acts[i]], 
+                                                            infos=[None],
+                                                            terminal=[False]
+                                                         )
+                trajectories.append(trajectory_with_rewards)
+
+        bc_trainer = bc.BC(
+                            observation_space=env.observation_space,
+                            action_space=env.action_space,
+                            demonstrations=trajectories,
+                        )
