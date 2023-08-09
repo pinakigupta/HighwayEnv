@@ -12,7 +12,6 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
-from tensorboard import program
 import os, statistics
 import multiprocessing
 from enum import Enum
@@ -31,7 +30,6 @@ from attention_network import EgoAttentionNetwork
 from utilities import extract_expert_data, write_module_hierarchy_to_file
 import warnings
 import concurrent.futures
-import time
 from python_config import sweep_config, env_kwargs
 
 warnings.filterwarnings("ignore")
@@ -231,7 +229,7 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
         with total_count_lock:
             total_count.value += 1
             count_text = f"Total Episodes Count: {total_count.value}"
-            # print_overwrite(count_text, count_length)
+            print_overwrite(count_text, count_length)
         # print(worker_id," : ",len(total_rewards),"--------------------------------------------------------------------------------------")
     return total_rewards
 
@@ -540,14 +538,31 @@ if __name__ == "__main__":
         gamma = 1.0
         # simulate_with_model(env, model)
 
-    # elif train == TrainEnum.BC:
-    #     from stable_baselines3.common.evaluation import evaluate_policy
-    #     from stable_baselines3.common.vec_env import DummyVecEnv
-    #     from stable_baselines3.ppo import MlpPolicy
+    elif train == TrainEnum.BC:
+        from stable_baselines3.common.evaluation import evaluate_policy
+        from stable_baselines3.common.vec_env import DummyVecEnv
+        from stable_baselines3.ppo import MlpPolicy
 
-    #     from imitation.algorithms import bc
-    #     from imitation.data import rollout
-    #     from imitation.data.wrappers import RolloutInfoWrapper
-    #     env = make_configure_env(**env_kwargs)
-    #     exp_obs, exp_acts = extract_expert_data('expert_data.h5')
+        from imitation.algorithms import bc
+        from imitation.data import rollout
+        from imitation.data.wrappers import RolloutInfoWrapper
+        from imitation.data import types
 
+        env = make_configure_env(**env_kwargs)
+        exp_obs, exp_acts = extract_expert_data('expert_data.h5')
+
+        trajectories = []
+        for i in range(len(exp_acts)):
+                trajectory_with_rewards = types.Trajectory(
+                                                            obs=[exp_obs[i]], 
+                                                            acts=[exp_acts[i]], 
+                                                            infos=[None],
+                                                            terminal=[False]
+                                                         )
+                trajectories.append(trajectory_with_rewards)
+
+        bc_trainer = bc.BC(
+                            observation_space=env.observation_space,
+                            action_space=env.action_space,
+                            demonstrations=trajectories,
+                        )
