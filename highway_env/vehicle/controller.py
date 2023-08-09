@@ -227,6 +227,7 @@ class MDPVehicle(ControlledVehicle):
         :param target_speeds: the discrete list of speeds the vehicle is able to track, through faster/slower actions
         :param route: the planned route of the vehicle, to handle intersections
         """
+        self.discrete_action = "Reset"
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route)
         self.target_speeds = np.array(target_speeds) if target_speeds is not None else self.DEFAULT_TARGET_SPEEDS
         self.speed_index = self.speed_to_index(self.target_speed)
@@ -241,6 +242,12 @@ class MDPVehicle(ControlledVehicle):
 
         :param action: a high-level action
         """
+        # if action is None:   # Need to resolve this in a proper way
+        #     action = self.discrete_action
+        # else:
+
+        self.discrete_action = action
+        # print("self.discrete_action ", self.discrete_action, id(self), " action ", action)
         if action == "FASTER":
             self.speed_index = self.speed_to_index(self.speed) + 1
         elif action == "SLOWER":

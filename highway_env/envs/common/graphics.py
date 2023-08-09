@@ -6,6 +6,7 @@ import pygame
 from highway_env.envs.common.action import ActionType, DiscreteMetaAction, ContinuousAction
 from highway_env.road.graphics import WorldSurface, RoadGraphics
 from highway_env.vehicle.graphics import VehicleGraphics
+from highway_env.utils import  print_overwrite
 
 if TYPE_CHECKING:
     from highway_env.envs import AbstractEnv
@@ -98,7 +99,11 @@ class EnvViewer(object):
         """Display the road and vehicles on a pygame window."""
         if not self.enabled:
             return
-
+        pygame.display.set_caption(
+                                   "Highway-env, ego v: "
+                                   + f"{self.env.vehicle.speed:.2f}" 
+                                    " ACTION: " +   str(self.env.vehicle.discrete_action)
+                                   )
         self.sim_surface.move_display_window_to(self.window_position())
         RoadGraphics.display(self.env.road, self.sim_surface)
 

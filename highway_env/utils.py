@@ -372,3 +372,7 @@ def solve_trinom(a, b, c):
         return (-b - np.sqrt(delta)) / (2 * a), (-b + np.sqrt(delta)) / (2 * a)
     else:
         return None, None
+    
+def print_overwrite(text, count_length):
+    print("\033[{}G".format(count_length + 1) + "\033[K", end="\r")  # Clear the count portion
+    print(text, end="\r")  # Use "\r" to move cursor to the beginning of the line

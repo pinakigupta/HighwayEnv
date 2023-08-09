@@ -3,7 +3,7 @@ import gymnasium as gym
 import pygame
 import seaborn as sns
 import torch as th
-from highway_env.utils import lmap
+from highway_env.utils import lmap, print_overwrite
 from stable_baselines3 import PPO
 from torch.distributions import Categorical
 import torch
@@ -193,9 +193,7 @@ def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest",
 total_count_lock = multiprocessing.Lock()
 total_count = multiprocessing.Value("i", 0)
 
-def print_overwrite(text, count_length):
-    print("\033[{}G".format(count_length + 1) + "\033[K", end="\r")  # Clear the count portion
-    print(text, end="\r")  # Use "\r" to move cursor to the beginning of the line
+
 
 def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_rollouts=50, num_workers =4):
     global total_count
@@ -233,7 +231,7 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
         with total_count_lock:
             total_count.value += 1
             count_text = f"Total Episodes Count: {total_count.value}"
-            print_overwrite(count_text, count_length)
+            # print_overwrite(count_text, count_length)
         # print(worker_id," : ",len(total_rewards),"--------------------------------------------------------------------------------------")
     return total_rewards
 
@@ -256,6 +254,9 @@ def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollou
                         rewards = future.result()
                         all_rewards.extend(rewards)
                         completed_rollouts += 1
+
+                        if completed_rollouts > num_rollouts:
+                            break
 
                         if work_queue:
                             next_rollout = work_queue.pop(0)
@@ -486,20 +487,22 @@ if __name__ == "__main__":
                    )
         wandb.finish()
     elif train == TrainEnum.IRLDEPLOY:
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
         optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
                                                                     env=env,
-                                                                    artifact_version='trained_model_directory:v8',
+                                                                    artifact_version='trained_model_directory:v11',
                                                                     project="random_env_gail_1"
                                                                     )
+        num_rollouts = 10
         reward = simulate_with_model(
                                             agent=final_gail_agent, 
                                             env_kwargs=env_kwargs, 
-                                            render_mode=None, 
-                                            num_workers= n_cpu, 
-                                            num_rollouts=20
+                                            render_mode='human', 
+                                            num_workers= min(num_rollouts,1), 
+                                            num_rollouts=num_rollouts
                                     )
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
@@ -537,14 +540,14 @@ if __name__ == "__main__":
         gamma = 1.0
         # simulate_with_model(env, model)
 
-    elif train == TrainEnum.BC:
-        from stable_baselines3.common.evaluation import evaluate_policy
-        from stable_baselines3.common.vec_env import DummyVecEnv
-        from stable_baselines3.ppo import MlpPolicy
+    # elif train == TrainEnum.BC:
+    #     from stable_baselines3.common.evaluation import evaluate_policy
+    #     from stable_baselines3.common.vec_env import DummyVecEnv
+    #     from stable_baselines3.ppo import MlpPolicy
 
-        from imitation.algorithms import bc
-        from imitation.data import rollout
-        from imitation.data.wrappers import RolloutInfoWrapper
-        env = make_configure_env(**env_kwargs)
-        exp_obs, exp_acts = extract_expert_data('expert_data.h5')
+    #     from imitation.algorithms import bc
+    #     from imitation.data import rollout
+    #     from imitation.data.wrappers import RolloutInfoWrapper
+    #     env = make_configure_env(**env_kwargs)
+    #     exp_obs, exp_acts = extract_expert_data('expert_data.h5')
 

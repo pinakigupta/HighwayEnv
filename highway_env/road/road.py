@@ -5,6 +5,7 @@ from typing import List, Tuple, Dict, TYPE_CHECKING, Optional
 from highway_env.road.lane import LineType, StraightLane, AbstractLane, lane_from_config
 from highway_env.vehicle.objects import Landmark
 
+
 if TYPE_CHECKING:
     from highway_env.vehicle import kinematics, objects
 
@@ -323,9 +324,11 @@ class Road(object):
         return vehicles
 
     def act(self) -> None:
+        from highway_env.vehicle.controller import MDPVehicle
         """Decide the actions of each entity on the road."""
         for vehicle in self.vehicles:
-            vehicle.act()
+            if not isinstance(vehicle, MDPVehicle):
+                vehicle.act()
 
     def step(self, dt: float) -> None:
         """
