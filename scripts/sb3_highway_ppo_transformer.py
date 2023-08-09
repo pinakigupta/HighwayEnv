@@ -12,7 +12,6 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
-from tensorboard import program
 import os, statistics
 import multiprocessing
 from enum import Enum
@@ -31,7 +30,6 @@ from attention_network import EgoAttentionNetwork
 from utilities import extract_expert_data, write_module_hierarchy_to_file
 import warnings
 import concurrent.futures
-import time
 from python_config import sweep_config, env_kwargs
 
 warnings.filterwarnings("ignore")
@@ -256,6 +254,9 @@ def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollou
                         rewards = future.result()
                         all_rewards.extend(rewards)
                         completed_rollouts += 1
+
+                        if completed_rollouts > num_rollouts:
+                            break
 
                         if work_queue:
                             next_rollout = work_queue.pop(0)
@@ -495,10 +496,10 @@ if __name__ == "__main__":
                                                                     project="random_env_gail_1"
                                                                     )
         reward = simulate_with_model(
-                                            agent=final_gail_agent, 
+                                            agent=optimal_gail_agent, 
                                             env_kwargs=env_kwargs, 
-                                            render_mode=None, 
-                                            num_workers= n_cpu, 
+                                            render_mode='human', 
+                                            num_workers= 1, 
                                             num_rollouts=20
                                     )
         print(" Mean reward ", reward)
