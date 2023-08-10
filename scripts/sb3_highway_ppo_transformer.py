@@ -551,18 +551,68 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         exp_obs, exp_acts = extract_expert_data('expert_data.h5')
 
-        trajectories = []
-        for i in range(len(exp_acts)):
-                trajectory_with_rewards = types.Trajectory(
-                                                            obs=[exp_obs[i]], 
-                                                            acts=[exp_acts[i]], 
-                                                            infos=[None],
-                                                            terminal=[False]
-                                                         )
-                trajectories.append(trajectory_with_rewards)
+        # trajectories = []
+        # for i in range(len(exp_acts)):
+        #         trajectory_with_rewards = types.Transitions(
+        #                                                     obs=[exp_obs[i]], 
+        #                                                     acts=[exp_acts[i]], 
+        #                                                     infos=[None],
+        #                                                     terminal=[False]
+        #                                                  )
+        #         trajectories.append(trajectory_with_rewards)
 
+        transitions_list = []
+
+        for obs, act in zip(exp_obs, exp_acts):
+            transition_dict = {
+                "obs": obs,
+                "act": act,
+                "done": False,
+                "info": {}  # You can add more info here if needed
+            }
+            transitions_list.append(transition_dict)
+
+        # Create a Transitions object using your custom function
+        transitions = types.Transitions(
+            obs=[trans['obs'] for trans in transitions_list],
+            acts=[trans['act'] for trans in transitions_list],
+            # rew=[trans['rew'] for trans in transitions_list],
+            dones=[trans['done'] for trans in transitions_list],
+            infos=[trans['info'] for trans in transitions_list],
+            next_obs=[transitions_list[t + 1]['obs'] for t in range(len(transitions_list) - 1)]
+        )
+        # device = torch.device("cpu")
+        # model = PPO(
+        #             "MlpPolicy", 
+        #             env,
+        #             device=device,
+        #             policy_kwargs=policy_kwargs,
+        #             )
+        
+        # wandb.init(project="RL", name="inference")
+        # # Access the run containing the logged artifact
+
+        # # Download the artifact
+        # artifact = wandb.use_artifact("trained_model:latest")
+        # artifact_dir = artifact.download()
+
+        # # Load the model from the downloaded artifact
+        # rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
+        # model.policy.load_state_dict(torch.load(rl_agent_path, map_location=device))
+        # wandb.finish()
+
+        # expert = model.policy
+        # rollouts = rollout.rollout(
+        #     expert,
+        #     env,
+        #     rollout.make_sample_until(min_timesteps=None, min_episodes=5),
+        #     rng=np.random.default_rng(),
+        # )
+        # transitions = rollout.flatten_trajectories(rollouts)
+
+        print("transitions ", transitions)
         bc_trainer = bc.BC(
                             observation_space=env.observation_space,
                             action_space=env.action_space,
-                            demonstrations=trajectories,
-                        )
+                            demonstrations=transitions,
+                          )
