@@ -581,18 +581,6 @@ if __name__ == "__main__":
         # Create transitions
         transitions = [(obs.flatten(), action) for obs, action in zip(exp_obs, exp_acts)]
 
-
-<<<<<<< HEAD
-        # trajectories = []
-        # for i in range(len(exp_acts)):
-        #         trajectory_with_rewards = types.Transitions(
-        #                                                     obs=[exp_obs[i]], 
-        #                                                     acts=[exp_acts[i]], 
-        #                                                     infos=[None],
-        #                                                     terminal=[False]
-        #                                                  )
-        #         trajectories.append(trajectory_with_rewards)
-
         transitions_list = []
 
         for obs, act in zip(exp_obs, exp_acts):
@@ -604,15 +592,36 @@ if __name__ == "__main__":
             }
             transitions_list.append(transition_dict)
 
-        # Create a Transitions object using your custom function
+        obs_array = np.array([trans['obs'] for trans in transitions_list])
+        act_array = np.array([trans['act'] for trans in transitions_list])
+        dones_array = np.array([trans['done'] for trans in transitions_list])
+        infos_array = np.array([trans['info'] for trans in transitions_list])
+        next_obs_array = np.array([transitions_list[t + 1]['obs'] for t in range(len(transitions_list) - 1)])
+
         transitions = types.Transitions(
-            obs=[trans['obs'] for trans in transitions_list],
-            acts=[trans['act'] for trans in transitions_list],
-            # rew=[trans['rew'] for trans in transitions_list],
-            dones=[trans['done'] for trans in transitions_list],
-            infos=[trans['info'] for trans in transitions_list],
-            next_obs=[transitions_list[t + 1]['obs'] for t in range(len(transitions_list) - 1)]
-        )
+                                            obs=obs_array[:-1],
+                                            acts=act_array[:-1],
+                                            dones=dones_array[:-1],
+                                            infos=infos_array[:-1],
+                                            next_obs=next_obs_array
+                                        )
+
+        # print("transitions ", transitions)
+        rng=np.random.default_rng()
+        bc_trainer = bc.BC(
+                            observation_space=env.observation_space,
+                            action_space=env.action_space,
+                            demonstrations=transitions,
+                            rng=rng,
+                            batch_size=8,
+                          )
+
+        reward_before_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
+        print(f"Reward before training: {reward_before_training}")
+
+        bc_trainer.train(n_epochs=1)
+        reward_after_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
+        print(f"Reward after training: {reward_after_training}")        
         # device = torch.device("cpu")
         # model = PPO(
         #             "MlpPolicy", 
@@ -641,33 +650,3 @@ if __name__ == "__main__":
         #     rng=np.random.default_rng(),
         # )
         # transitions = rollout.flatten_trajectories(rollouts)
-
-        print("transitions ", transitions)
-=======
-        trajectories = []
-        trajectories = types.Trajectory(
-                                            obs=exp_obs, 
-                                            acts=exp_acts[:-1], 
-                                            infos=[None]*(len(exp_acts)-1),
-                                            terminal=[False]*(len(exp_acts)-1)
-                                        )
-
-
->>>>>>> 5fac713ef2148b1063bd841f95d702ad7b7dd122
-        bc_trainer = bc.BC(
-                            observation_space=env.observation_space,
-                            action_space=env.action_space,
-                            demonstrations=transitions,
-<<<<<<< HEAD
-                          )
-=======
-                            rng=np.random.default_rng()
-                        )
-        reward_before_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward before training: {reward_before_training}")   
-
-        bc_trainer.train( n_batches = 2)
-        reward_after_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward after training: {reward_after_training}")
-
->>>>>>> 5fac713ef2148b1063bd841f95d702ad7b7dd122
