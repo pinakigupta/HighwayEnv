@@ -1,7 +1,7 @@
 
 env_kwargs = {
     'id': 'highway-v0',
-    'render_mode': 'human',
+    'render_mode': 'rgb_array',
 
     'config': {
         'simulation_frequency': 10,

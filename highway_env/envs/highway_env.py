@@ -27,7 +27,8 @@ class HighwayEnv(AbstractEnv):
         config = super().default_config()
         config.update({
             "observation": {
-                "type": "Kinematics"
+                "type": "Kinematics",
+                "relative_features": ['x'],
             },
             "action": {
                 "type": "DiscreteMetaAction",
@@ -140,10 +141,9 @@ class HighwayEnv(AbstractEnv):
         travel_reward = 0
         if self._is_truncated():
             avg_speed = self.ego_travel/self.time
-            travel_reward = np.interp(avg_speed, speed_reward_spd, speed_reward_rwd)
+            travel_reward = np.clip(np.interp(avg_speed, speed_reward_spd, speed_reward_rwd),0,1)
             # print("travel_reward ", travel_reward)
         
-        # print(" travel_reward ", travel_reward)
         return {
             "collision_reward": float(self.vehicle.crashed),
             "right_lane_reward": 0 , #lane / max(len(neighbours) - 1, 1),

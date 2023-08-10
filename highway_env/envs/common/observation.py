@@ -143,6 +143,7 @@ class KinematicObservation(ObservationType):
 
     def __init__(self, env: 'AbstractEnv',
                  features: List[str] = None,
+                 relative_features: List[str] = None,
                  vehicles_count: int = 5,
                  features_range: Dict[str, List[float]] = None,
                  absolute: bool = False,
@@ -166,7 +167,8 @@ class KinematicObservation(ObservationType):
         :param observe_intentions: Observe the destinations of other vehicles
         """
         super().__init__(env)
-        self.features = features or self.FEATURES       
+        self.features = features or self.FEATURES
+        self.relative_features = relative_features or self.FEATURES       
         self.vehicles_count = vehicles_count
         self.features_range = features_range
         self.absolute = absolute
@@ -227,14 +229,14 @@ class KinematicObservation(ObservationType):
                     # print('id', id(v))
             origin = observer_vehicle if not self.absolute else None
             vehicles_df = pd.DataFrame.from_records(
-                [v.to_dict(origin, observe_intentions=self.observe_intentions)
+                [v.to_dict(origin, observe_intentions=self.observe_intentions, relative_features=self.relative_features)
                  for v in close_vehicles[-self.vehicles_count + 1:]])
             df = pd.concat([df, vehicles_df], ignore_index=True)
 
         if self.include_obstacles:
             origin = observer_vehicle if not self.absolute else None
             obstacles_df = pd.DataFrame.from_records(
-                [obstacle.to_dict(origin) for obstacle in self.env.road.objects if obstacle.solid])
+                [obstacle.to_dict(origin, relative_features=self.relative_features) for obstacle in self.env.road.objects if obstacle.solid])
             obstacles_df = obstacles_df.iloc[:(self.vehicles_count - df.shape[0])]
             df = pd.concat([df, obstacles_df], ignore_index=True)
 

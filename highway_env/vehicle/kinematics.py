@@ -207,7 +207,7 @@ class Vehicle(RoadObject):
         else:
             return np.zeros((3,))
 
-    def to_dict(self, origin_vehicle: "Vehicle" = None, observe_intentions: bool = True) -> dict:
+    def to_dict(self, origin_vehicle: "Vehicle" = None, observe_intentions: bool = True, relative_features=[]) -> dict:
         d = {
             'presence': 1,
             'x': self.position[0],
@@ -227,7 +227,7 @@ class Vehicle(RoadObject):
             d["cos_d"] = d["sin_d"] = 0
         if origin_vehicle:
             origin_dict = origin_vehicle.to_dict()
-            for key in ['x', 'y', 'vx', 'vy']:
+            for key in relative_features: #['x', 'y', 'vx', 'vy']:
                 d[key] -= origin_dict[key]
         return d
 
