@@ -3,7 +3,7 @@ import gymnasium as gym
 import pygame
 import seaborn as sns
 import torch as th
-from highway_env.utils import lmap
+from highway_env.utils import lmap, print_overwrite
 from stable_baselines3 import PPO
 from torch.distributions import Categorical
 import torch
@@ -191,9 +191,7 @@ def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest",
 total_count_lock = multiprocessing.Lock()
 total_count = multiprocessing.Value("i", 0)
 
-def print_overwrite(text, count_length):
-    print("\033[{}G".format(count_length + 1) + "\033[K", end="\r")  # Clear the count portion
-    print(text, end="\r")  # Use "\r" to move cursor to the beginning of the line
+
 
 def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_rollouts=50, num_workers =4):
     global total_count
@@ -207,6 +205,7 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
         env_kwargs.update({'render_mode': 'rgb_array'})
     else:
         env_kwargs.update({'render_mode': render_mode})
+        append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
     
     env = make_configure_env(**env_kwargs)
     for _ in range(rollouts_per_worker):
@@ -290,7 +289,7 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    expert_data='expert_data.h5'
+    expert_data_file='expert_data_relative.h5'
     n_cpu =  multiprocessing.cpu_count()
 
 
@@ -303,12 +302,30 @@ if __name__ == "__main__":
         with open("config.json") as f:
             config = json.load(f)
         device = torch.device("cpu")
-        expert = PPO.load("highway_attention_ppo/model", device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
+        model = PPO(
+                    "MlpPolicy", 
+                    gym.make(**env_kwargs),
+                    policy_kwargs=policy_kwargs,
+                    device=device
+                    )
+        # expert = PPO.load("highway_attention_ppo/model", env=gym.make(**env_kwargs), device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
+        wandb.init(project="RL", name="inference")
+        # Access the run containing the logged artifact
+
+        # Download the artifact
+        artifact = wandb.use_artifact("trained_model:latest")
+        artifact_dir = artifact.download()
+
+        # Load the model from the downloaded artifact
+        rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
+        model.policy.load_state_dict(torch.load(rl_agent_path, map_location=device))
+        wandb.finish()        
+        
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
         exp_rwd_iter, exp_obs, exp_acts   =           collect_expert_data  (
-                                                                                expert,
+                                                                                model,
                                                                                 config["num_expert_steps"],
-                                                                                filename=expert_data,
+                                                                                filename=expert_data_file,
                                                                                 **env_kwargs
                                                                             )
     elif train == TrainEnum.RLTRAIN: # training 
@@ -385,7 +402,7 @@ if __name__ == "__main__":
         with open("config.json") as f:
             train_config = json.load(f)
 
-        exp_obs, exp_acts = extract_expert_data('expert_data.h5')
+        exp_obs, exp_acts = extract_expert_data(expert_data_file)
 
         
         exp_obs = FloatTensor(exp_obs)
@@ -487,31 +504,31 @@ if __name__ == "__main__":
                    )
         wandb.finish()
     elif train == TrainEnum.IRLDEPLOY:
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
         optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
                                                                     env=env,
-                                                                    artifact_version='trained_model_directory:v8',
+                                                                    artifact_version='trained_model_directory:v11',
                                                                     project="random_env_gail_1"
                                                                     )
+        num_rollouts = 10
         reward = simulate_with_model(
-                                            agent=optimal_gail_agent, 
+                                            agent=final_gail_agent, 
                                             env_kwargs=env_kwargs, 
                                             render_mode='human', 
-                                            num_workers= 1, 
-                                            num_rollouts=20
+                                            num_workers= min(num_rollouts,n_cpu), 
+                                            num_rollouts=num_rollouts
                                     )
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
-        env = make_configure_env(**env_kwargs,duration=400)
+        env = make_configure_env(**env_kwargs,duration=40)
+        env_kwargs.update({'reward_oracle':None})
         device = torch.device("cpu")
         model = PPO(
                     "MlpPolicy", 
-                    env,
-                    # n_steps=512 // n_cpu,
-                    batch_size=64,
-                    learning_rate=2e-3,
+                    env.unwrapped,
                     policy_kwargs=policy_kwargs,
                     device=device
                     )
@@ -536,8 +553,18 @@ if __name__ == "__main__":
         env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         gamma = 1.0
-        # simulate_with_model(env, model)
-
+        num_rollouts = 10
+        for _ in range(50):
+            obs, info = env.reset()
+            done = truncated = False
+            cumulative_reward = 0
+            while not (done or truncated):
+                action, _ = model.predict(obs)
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                env.render()
+            print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.BC:
         from stable_baselines3.common.evaluation import evaluate_policy
         from stable_baselines3.common.vec_env import DummyVecEnv
@@ -549,8 +576,13 @@ if __name__ == "__main__":
         from imitation.data import types
 
         env = make_configure_env(**env_kwargs)
-        exp_obs, exp_acts = extract_expert_data('expert_data.h5')
+        exp_obs, exp_acts = extract_expert_data(expert_data_file)
 
+        # Create transitions
+        transitions = [(obs.flatten(), action) for obs, action in zip(exp_obs, exp_acts)]
+
+
+<<<<<<< HEAD
         # trajectories = []
         # for i in range(len(exp_acts)):
         #         trajectory_with_rewards = types.Transitions(
@@ -611,8 +643,31 @@ if __name__ == "__main__":
         # transitions = rollout.flatten_trajectories(rollouts)
 
         print("transitions ", transitions)
+=======
+        trajectories = []
+        trajectories = types.Trajectory(
+                                            obs=exp_obs, 
+                                            acts=exp_acts[:-1], 
+                                            infos=[None]*(len(exp_acts)-1),
+                                            terminal=[False]*(len(exp_acts)-1)
+                                        )
+
+
+>>>>>>> 5fac713ef2148b1063bd841f95d702ad7b7dd122
         bc_trainer = bc.BC(
                             observation_space=env.observation_space,
                             action_space=env.action_space,
                             demonstrations=transitions,
+<<<<<<< HEAD
                           )
+=======
+                            rng=np.random.default_rng()
+                        )
+        reward_before_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
+        print(f"Reward before training: {reward_before_training}")   
+
+        bc_trainer.train( n_batches = 2)
+        reward_after_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
+        print(f"Reward after training: {reward_after_training}")
+
+>>>>>>> 5fac713ef2148b1063bd841f95d702ad7b7dd122

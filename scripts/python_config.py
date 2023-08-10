@@ -2,8 +2,9 @@
 env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
-    'simulation_frequency': 10,
+
     'config': {
+        'simulation_frequency': 10,
         "lanes_count": 4,
         "vehicles_count": 'random',
         "action": {
@@ -27,7 +28,7 @@ env_kwargs = {
         "duration": 40,
         "screen_width": 960,
         "screen_height": 180,
-        "real_time_rendering": True
+        "real_time_rendering": False
     }
 }
 
@@ -42,10 +43,10 @@ sweep_config = {
             "values": [40]  # Values for the "duration" field to be swept
         },
         "gae_gamma": {
-            "values": [0.95]  # Values for the "duration" field to be swept
+            "values": [0.95, 0.99]  # Values for the "duration" field to be swept
         }, 
         "discrm_lr": {
-            "values": [ 0.001]  # Values for the "duration" field to be swept
+            "values": [0.0005, 0.001,  None]  # Values for the "duration" field to be swept
         },                  
     }
 }

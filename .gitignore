@@ -42,3 +42,5 @@ wandb/
 # Certain GAIL specific config files
 # config.json
 model_config.json
+
+**/*.orig

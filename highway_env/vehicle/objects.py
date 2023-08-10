@@ -106,7 +106,7 @@ class RoadObject(ABC):
         return utils.are_polygons_intersecting(self.polygon(), other.polygon(), self.velocity * dt, other.velocity * dt)
 
     # Just added for sake of compatibility
-    def to_dict(self, origin_vehicle=None, observe_intentions=True):
+    def to_dict(self, origin_vehicle=None, observe_intentions=True, relative_features=[]):
         d = {
             'presence': 1,
             'x': self.position[0],
@@ -122,7 +122,7 @@ class RoadObject(ABC):
             d["cos_d"] = d["sin_d"] = 0
         if origin_vehicle:
             origin_dict = origin_vehicle.to_dict()
-            for key in ['x', 'y', 'vx', 'vy']:
+            for key in relative_features: # ['x', 'y', 'vx', 'vy']:
                 d[key] -= origin_dict[key]
         return d
 

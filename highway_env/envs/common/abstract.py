@@ -261,12 +261,18 @@ class AbstractEnv(gym.Env):
     def _simulate(self, action: Optional[Action] = None) -> None:
         """Perform several steps of simulation with constant action."""
         frames = int(self.config["simulation_frequency"] // self.config["policy_frequency"])
+        # action_loop = self.steps % int(self.config["simulation_frequency"] // self.config["policy_frequency"]) == 0
+        # ^^^ You still need to simulate with the policy (slower freq) the dynamics (faster) of the ego. Hence need to keep the steps/
+        action_loop = True
         for frame in range(frames):
             # Forward action to the vehicle
-            if action is not None \
-                    and not self.config["manual_control"] \
-                    and self.steps % int(self.config["simulation_frequency"] // self.config["policy_frequency"]) == 0:
-                self.action_type.act(action)
+            # print("_simulate action inside ", action)
+            if (action is not None)  and \
+               action_loop and \
+               (not self.config["manual_control"]):
+                    self.action_type.act(action)
+            else:
+                print("_simulate action inside ", action)
 
             self.road.act()
             self.road.step(1 / self.config["simulation_frequency"])
