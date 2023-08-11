@@ -35,6 +35,18 @@ from imitation.algorithms import bc
 from imitation.data import types
 from python_config import sweep_config, env_kwargs
 
+from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.ppo import MlpPolicy
+
+from imitation.algorithms import bc
+from imitation.data import rollout
+from imitation.data.wrappers import RolloutInfoWrapper
+from imitation.data import types
+
+from ray import tune
+from ray.tune.trainable import trainable
+
 warnings.filterwarnings("ignore")
 
 class TrainEnum(Enum):
@@ -273,6 +285,7 @@ def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollou
     return mean_rewards
 
 
+
 if __name__ == "__main__":
     train = TrainEnum.BCDEPLOY
     policy_kwargs = dict(
@@ -295,6 +308,7 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     expert_data_file='expert_data_relative.h5'
     n_cpu =  multiprocessing.cpu_count()
+    device = torch.device("cpu")
 
 
     def timenow():
@@ -529,7 +543,6 @@ if __name__ == "__main__":
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=40)
         env_kwargs.update({'reward_oracle':None})
-        device = torch.device("cpu")
         model = PPO(
                     "MlpPolicy", 
                     env.unwrapped,
