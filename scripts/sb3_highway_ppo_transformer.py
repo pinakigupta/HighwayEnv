@@ -32,6 +32,18 @@ import warnings
 import concurrent.futures
 from python_config import sweep_config, env_kwargs
 
+from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.ppo import MlpPolicy
+
+from imitation.algorithms import bc
+from imitation.data import rollout
+from imitation.data.wrappers import RolloutInfoWrapper
+from imitation.data import types
+
+from ray import tune
+from ray.tune.trainable import trainable
+
 warnings.filterwarnings("ignore")
 
 class TrainEnum(Enum):
@@ -269,6 +281,7 @@ def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollou
     return mean_rewards
 
 
+
 if __name__ == "__main__":
     train = TrainEnum.BC
     policy_kwargs = dict(
@@ -291,6 +304,7 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     expert_data_file='expert_data_relative.h5'
     n_cpu =  multiprocessing.cpu_count()
+    device = torch.device("cpu")
 
 
     def timenow():
@@ -525,7 +539,6 @@ if __name__ == "__main__":
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=40)
         env_kwargs.update({'reward_oracle':None})
-        device = torch.device("cpu")
         model = PPO(
                     "MlpPolicy", 
                     env.unwrapped,
@@ -566,15 +579,6 @@ if __name__ == "__main__":
                 env.render()
             print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.BC:
-        from stable_baselines3.common.evaluation import evaluate_policy
-        from stable_baselines3.common.vec_env import DummyVecEnv
-        from stable_baselines3.ppo import MlpPolicy
-
-        from imitation.algorithms import bc
-        from imitation.data import rollout
-        from imitation.data.wrappers import RolloutInfoWrapper
-        from imitation.data import types
-
         env = make_configure_env(**env_kwargs)
         exp_obs, exp_acts = extract_expert_data(expert_data_file)
 
@@ -607,46 +611,61 @@ if __name__ == "__main__":
                                         )
 
         # print("transitions ", transitions)
-        rng=np.random.default_rng()
-        bc_trainer = bc.BC(
-                            observation_space=env.observation_space,
-                            action_space=env.action_space,
-                            demonstrations=transitions,
-                            rng=rng,
-                            batch_size=8,
-                          )
+        from ray.tune.trainable import Trainable
+        from stable_baselines3.common.logger import HumanOutputFormat
+        import stable_baselines3.common.logger as sb_logger
 
-        reward_before_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward before training: {reward_before_training}")
+        from ray._private.utils import Unbuffered
+        import logging
 
-        bc_trainer.train(n_epochs=1)
-        reward_after_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward after training: {reward_after_training}")        
-        # device = torch.device("cpu")
-        # model = PPO(
-        #             "MlpPolicy", 
-        #             env,
-        #             device=device,
-        #             policy_kwargs=policy_kwargs,
-        #             )
-        
-        # wandb.init(project="RL", name="inference")
-        # # Access the run containing the logged artifact
+        # Disable all logging from SB3
+        logging.getLogger('stable_baselines3').setLevel(logging.CRITICAL + 1)
+        def train_func(config):
+            rng=np.random.default_rng()
+            bc_trainer = bc.BC(
+                                observation_space=env.observation_space,
+                                action_space=env.action_space,
+                                demonstrations=transitions,
+                                rng=rng,
+                                batch_size=8,
+                                device=device
+                            )
+            # # Create an Unbuffered object.
+            # unbuffered_output = Unbuffered()
 
-        # # Download the artifact
-        # artifact = wandb.use_artifact("trained_model:latest")
-        # artifact_dir = artifact.download()
+            # # Write some data to the Unbuffered object.
+            # for i in range(10):
 
-        # # Load the model from the downloaded artifact
-        # rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
-        # model.policy.load_state_dict(torch.load(rl_agent_path, map_location=device))
-        # wandb.finish()
+            #     unbuffered_output.write(f"This is line {i}\n")
 
-        # expert = model.policy
-        # rollouts = rollout.rollout(
-        #     expert,
-        #     env,
-        #     rollout.make_sample_until(min_timesteps=None, min_episodes=5),
-        #     rng=np.random.default_rng(),
-        # )
-        # transitions = rollout.flatten_trajectories(rollouts)
+            # # Create a HumanOutputFormat object and pass the Unbuffered object to the constructor.
+            # output_format = sb_logger.HumanOutputFormat(unbuffered_output.getvalue())
+
+            # Suppress stdout buffering
+            from contextlib import redirect_stdout
+            with open(os.devnull, 'w') as null_file:
+                with redirect_stdout(null_file):
+                    bc_trainer.train(transitions)
+            return bc_trainer
+
+        # reward_before_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
+        # print(f"Reward before training: {reward_before_training}")
+
+        # bc_trainer.train(n_epochs=1)
+        # Train the BC trainer using Ray Tune.
+        experiment = tune.Experiment(
+            name="BC_experiment",
+            run=train_func,
+            num_samples=1,
+            config={
+                "batch_size": tune.choice([8]),
+                "metric": "accuracy",
+                "mode": "max",
+                "max_failures": 1
+            },
+            resources_per_trial={"cpu": 2},
+        )
+
+        tune.run(experiment)
+        # reward_after_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
+        # print(f"Reward after training: {reward_after_training}")        
