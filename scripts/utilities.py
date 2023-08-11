@@ -7,6 +7,7 @@ import sys
 def extract_expert_data(filename):
     exp_obs  = []
     exp_acts = []
+    exp_done = []
     with h5py.File(filename, 'r') as hf:
         # List all the episode groups in the HDF5 file
         episode_groups = list(hf.keys())
@@ -27,8 +28,10 @@ def extract_expert_data(filename):
                     exp_obs.append(dataset[:])
                 elif dataset_name.startswith('exp_acts'):
                     exp_acts.append(dataset[()]) 
+                elif dataset_name.startswith('exp_done'):
+                    exp_done.append(dataset[()]) 
 
-    return  exp_obs, exp_acts
+    return  exp_obs, exp_acts, exp_done
 
 
 def write_module_hierarchy_to_file(model, file):

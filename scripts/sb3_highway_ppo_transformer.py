@@ -24,12 +24,15 @@ from torch import nn
 import shutil
 from models.nets import Expert
 from models.gail import GAIL
-from models.generate_expert_data import collect_expert_data
+from generate_expert_data import collect_expert_data
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
 from utilities import extract_expert_data, write_module_hierarchy_to_file
 import warnings
 import concurrent.futures
+from stable_baselines3.common.evaluation import evaluate_policy
+from imitation.algorithms import bc
+from imitation.data import types
 from python_config import sweep_config, env_kwargs
 
 warnings.filterwarnings("ignore")
@@ -41,6 +44,7 @@ class TrainEnum(Enum):
     IRLDEPLOY = 3
     EXPERT_DATA_COLLECTION =4
     BC = 5
+    BCDEPLOY = 6
 
 
 
@@ -270,7 +274,7 @@ def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollou
 
 
 if __name__ == "__main__":
-    train = TrainEnum.BC
+    train = TrainEnum.BCDEPLOY
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -322,7 +326,7 @@ if __name__ == "__main__":
         wandb.finish()        
         
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
-        exp_rwd_iter, exp_obs, exp_acts   =           collect_expert_data  (
+        exp_obs, exp_acts , exp_done  =           collect_expert_data  (
                                                                                 model,
                                                                                 config["num_expert_steps"],
                                                                                 filename=expert_data_file,
@@ -402,7 +406,7 @@ if __name__ == "__main__":
         with open("config.json") as f:
             train_config = json.load(f)
 
-        exp_obs, exp_acts = extract_expert_data(expert_data_file)
+        exp_obs, exp_acts, _ = extract_expert_data(expert_data_file)
 
         
         exp_obs = FloatTensor(exp_obs)
@@ -554,7 +558,7 @@ if __name__ == "__main__":
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
         gamma = 1.0
         num_rollouts = 10
-        for _ in range(50):
+        for _ in range(num_rollouts):
             obs, info = env.reset()
             done = truncated = False
             cumulative_reward = 0
@@ -566,28 +570,19 @@ if __name__ == "__main__":
                 env.render()
             print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.BC:
-        from stable_baselines3.common.evaluation import evaluate_policy
-        from stable_baselines3.common.vec_env import DummyVecEnv
-        from stable_baselines3.ppo import MlpPolicy
-
-        from imitation.algorithms import bc
-        from imitation.data import rollout
-        from imitation.data.wrappers import RolloutInfoWrapper
-        from imitation.data import types
-
         env = make_configure_env(**env_kwargs)
-        exp_obs, exp_acts = extract_expert_data(expert_data_file)
+        exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
 
         # Create transitions
         transitions = [(obs.flatten(), action) for obs, action in zip(exp_obs, exp_acts)]
 
         transitions_list = []
 
-        for obs, act in zip(exp_obs, exp_acts):
+        for obs, act, done in zip(exp_obs, exp_acts, exp_dones):
             transition_dict = {
                 "obs": obs,
                 "act": act,
-                "done": False,
+                "done": done,
                 "info": {}  # You can add more info here if needed
             }
             transitions_list.append(transition_dict)
@@ -614,6 +609,7 @@ if __name__ == "__main__":
                             demonstrations=transitions,
                             rng=rng,
                             batch_size=8,
+                            device = torch.device("cuda")
                           )
 
         reward_before_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
@@ -622,31 +618,55 @@ if __name__ == "__main__":
         bc_trainer.train(n_epochs=1)
         reward_after_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward after training: {reward_after_training}")        
-        # device = torch.device("cpu")
-        # model = PPO(
-        #             "MlpPolicy", 
-        #             env,
-        #             device=device,
-        #             policy_kwargs=policy_kwargs,
-        #             )
-        
-        # wandb.init(project="RL", name="inference")
-        # # Access the run containing the logged artifact
 
-        # # Download the artifact
-        # artifact = wandb.use_artifact("trained_model:latest")
-        # artifact_dir = artifact.download()
+        with wandb.init(
+                            project="BC", 
+                            magic=True,
+                        ) as run:
+                        run.name = f"sweep_{month}{day}_{timenow()}"
+                        # Log the model as an artifact in wandb
+                        torch.save(bc_trainer.policy.state_dict(), 'BC_agent.pth')
+            
+                        artifact = wandb.Artifact("trained_model", type="model")
+                        artifact.add_file("BC_agent.pth")
+                        run.log_artifact(artifact)
+        wandb.finish()
+    elif train == TrainEnum.BCDEPLOY:
+        env_kwargs.update({'reward_oracle':None})
+        env_kwargs.update({'render_mode': 'human'})
+        append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
+        env = make_configure_env(**env_kwargs)
+        rng=np.random.default_rng()
+        device = torch.device("cpu")
+        bc_trainer = bc.BC(
+                            observation_space=env.observation_space,
+                            action_space=env.action_space,
+                            rng=rng,
+                            device = device
+                          )
+        policy = bc_trainer.policy
+        wandb.init(project="BC", name="inference")
+        # Access the run containing the logged artifact
 
-        # # Load the model from the downloaded artifact
-        # rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
-        # model.policy.load_state_dict(torch.load(rl_agent_path, map_location=device))
-        # wandb.finish()
+        # Download the artifact
+        artifact = wandb.use_artifact("trained_model:latest")
+        artifact_dir = artifact.download()
 
-        # expert = model.policy
-        # rollouts = rollout.rollout(
-        #     expert,
-        #     env,
-        #     rollout.make_sample_until(min_timesteps=None, min_episodes=5),
-        #     rng=np.random.default_rng(),
-        # )
-        # transitions = rollout.flatten_trajectories(rollouts)
+        # Load the model from the downloaded artifact
+        rl_agent_path = os.path.join(artifact_dir, "BC_agent.pth")
+        policy.load_state_dict(torch.load(rl_agent_path, map_location=device))
+        wandb.finish()
+        num_rollouts = 10
+        gamma = 1.0
+        for _ in range(num_rollouts):
+            obs, info = env.reset()
+            done = truncated = False
+            cumulative_reward = 0
+            while not (done or truncated):
+                action, _ = policy.predict(obs)
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,action: ",action)
+                env.render()
+            print("--------------------------------------------------------------------------------------")
+        # print(" Mean reward ", reward)
