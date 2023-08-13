@@ -165,7 +165,7 @@ def collect_expert_data(
 
     with h5py.File(filename, 'a') as hf:
         # Save the data list as an HDF5 file
-        
+
         while len(exp_acts) < 0.9*num_steps_per_iter:
             ob, act, done = exp_data_queue.get()
             # print('act, done ', act, done, len(act))
@@ -211,6 +211,45 @@ def collect_expert_data(
 
     return exp_obs, exp_acts, exp_done
 
+from collections import Counter
+def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones):
+    # Calculate the distribution of classes
+    class_distribution = Counter(exp_acts)
+    most_common_class, most_common_count = class_distribution.most_common(1)[0]
+    second_most_common_class, second_most_common_count = class_distribution.most_common(2)[1]
+    print("class_distribution ", class_distribution)
+    print(
+            "most_common_class ", most_common_class,
+            "most_common_count ", most_common_count, 
+            " second_most_common_class ", second_most_common_class, 
+            " second_most_common_count ", second_most_common_count
+         )
 
+    # Determine whether downsampling is needed
+    if most_common_count > 2 * second_most_common_count:
+        # Calculate the desired number of samples for downsampling
+        desired_samples = 2 * second_most_common_count
 
+        # Perform downsampling on the most common class
+        downsampled_exp_obs = []
+        downsampled_exp_acts = []
+        downsampled_exp_dones = []
+
+        for ob, act, done in zip(exp_obs, exp_acts, exp_dones):
+            # print(class_distribution, desired_samples)
+            if act == most_common_class and class_distribution[act] > desired_samples:
+                class_distribution[act] -= 1
+                continue
+                downsampled_exp_obs.append(ob)
+                downsampled_exp_acts.append(second_most_common_class)
+                downsampled_exp_dones.append(done)
+            else:
+                downsampled_exp_obs.append(ob)
+                downsampled_exp_acts.append(act)
+                downsampled_exp_dones.append(done)
+        print(" downsampled_exp_acts count ", len(downsampled_exp_acts))
+        return downsampled_exp_obs, downsampled_exp_acts, downsampled_exp_dones
+    else:
+        # No downsampling needed, return original data
+        return exp_obs, exp_acts, exp_dones
 

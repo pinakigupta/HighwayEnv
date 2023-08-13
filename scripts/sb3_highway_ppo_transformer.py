@@ -24,7 +24,7 @@ from torch import nn
 import shutil
 from models.nets import Expert
 from models.gail import GAIL
-from generate_expert_data import collect_expert_data
+from generate_expert_data import collect_expert_data, downsample_most_dominant_class
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
 from utilities import extract_expert_data, write_module_hierarchy_to_file
@@ -60,7 +60,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.BC
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -594,10 +594,11 @@ if __name__ == "__main__":
     elif train == TrainEnum.BC:
         env = make_configure_env(**env_kwargs)
         exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
-
+        raw_len = len(exp_acts)
+        exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones)
+        filtered_len = len(exp_acts)
+        print(' Expert data length before and aftrer filter ', raw_len, filtered_len)
         # Create transitions
-        transitions = [(obs.flatten(), action) for obs, action in zip(exp_obs, exp_acts)]
-
         transitions_list = []
 
         for obs, act, done in zip(exp_obs, exp_acts, exp_dones):
