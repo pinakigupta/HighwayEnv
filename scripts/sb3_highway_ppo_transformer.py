@@ -34,7 +34,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from imitation.algorithms import bc
 from imitation.data import types
 from python_config import sweep_config, env_kwargs
-
+import matplotlib.pyplot as plt
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.ppo import MlpPolicy
@@ -47,6 +47,8 @@ from imitation.data import types
 from ray import tune
 from ray.tune.trainable import trainable
 
+from sklearn.model_selection import train_test_split
+
 warnings.filterwarnings("ignore")
 
 class TrainEnum(Enum):
@@ -58,7 +60,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-
+train = TrainEnum.BC
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -287,7 +289,7 @@ def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollou
 
 
 if __name__ == "__main__":
-    train = TrainEnum.BCDEPLOY
+    
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -600,37 +602,81 @@ if __name__ == "__main__":
             }
             transitions_list.append(transition_dict)
 
-        obs_array = np.array([trans['obs'] for trans in transitions_list])
-        act_array = np.array([trans['act'] for trans in transitions_list])
-        dones_array = np.array([trans['done'] for trans in transitions_list])
-        infos_array = np.array([trans['info'] for trans in transitions_list])
-        next_obs_array = np.array([transitions_list[t + 1]['obs'] for t in range(len(transitions_list) - 1)])
 
-        transitions = types.Transitions(
-                                            obs=obs_array[:-1],
-                                            acts=act_array[:-1],
-                                            dones=dones_array[:-1],
-                                            infos=infos_array[:-1],
-                                            next_obs=next_obs_array
-                                        )
+        # Split the data into training and validation sets
+        train_data, val_data = train_test_split(transitions_list, test_size=0.2, random_state=42)
+
+        def transitions(_data):
+            obs_array = np.array([trans['obs'] for trans in _data])
+            act_array = np.array([trans['act'] for trans in _data])
+            dones_array = np.array([trans['done'] for trans  in _data])
+            infos_array = np.array([trans['info'] for trans in _data])
+            next_obs_array = np.array([_data[t + 1]['obs'] for t in range(len(_data) - 1)])
+
+            transitions = types.Transitions(
+                                                obs=obs_array[:-1],
+                                                acts=act_array[:-1],
+                                                dones=dones_array[:-1],
+                                                infos=infos_array[:-1],
+                                                next_obs=next_obs_array
+                                            )
+            return transitions
+        
+        training_transitions = transitions(train_data)
+        # val_transitions = transitions(val_data)
 
         # print("transitions ", transitions)
         rng=np.random.default_rng()
         bc_trainer = bc.BC(
                             observation_space=env.observation_space,
                             action_space=env.action_space,
-                            demonstrations=transitions,
+                            demonstrations=training_transitions,
                             rng=rng,
-                            batch_size=8,
+                            batch_size=64,
                             device = torch.device("cuda")
                           )
-
-        reward_before_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward before training: {reward_before_training}")
+        
+        from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+        reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
+        print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
         bc_trainer.train(n_epochs=1)
-        reward_after_training, _ = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward after training: {reward_after_training}")        
+        reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
+        print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
+
+
+
+        # Iterate through the validation data and make predictions
+        with torch.no_grad():
+            inputs = [data['obs'] for data in val_data]
+            predicted_labels = np.array(bc_trainer.policy.predict(inputs))
+            predicted_labels = predicted_labels[:,0]
+            true_labels = [data['act'] for data in val_data]
+
+        # Calculate evaluation metrics
+        accuracy = accuracy_score(true_labels, predicted_labels)
+        precision = precision_score(true_labels, predicted_labels, average='weighted')
+        recall = recall_score(true_labels, predicted_labels, average='weighted')
+        f1 = f1_score(true_labels, predicted_labels, average='weighted')
+        conf_matrix = confusion_matrix(true_labels, predicted_labels)
+
+        # Print the metrics
+        print("Accuracy:", accuracy)
+        print("Precision:", precision)
+        print("Recall:", recall)
+        print("F1 Score:", f1)
+
+        # Create a heatmap for visualization
+        from highway_env.envs.common.action import DiscreteMetaAction
+        ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
+        plt.figure(figsize=(8, 6))
+        class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
+        sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
+        plt.xlabel("Predicted Labels")
+        plt.ylabel("True Labels")
+        plt.title("Confusion Matrix")
+        plt.show()
+
 
         with wandb.init(
                             project="BC", 
@@ -671,15 +717,12 @@ if __name__ == "__main__":
         wandb.finish()
         num_rollouts = 10
         gamma = 1.0
-        for _ in range(num_rollouts):
-            obs, info = env.reset()
-            done = truncated = False
-            cumulative_reward = 0
-            while not (done or truncated):
-                action, _ = policy.predict(obs)
-                obs, reward, done, truncated, info = env.step(action)
-                cumulative_reward += gamma * reward
-                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,action: ",action)
-                env.render()
-            print("--------------------------------------------------------------------------------------")
-        # print(" Mean reward ", reward)
+        reward = simulate_with_model(
+                                            agent=policy, 
+                                            env_kwargs=env_kwargs, 
+                                            render_mode='human', 
+                                            num_workers= min(num_rollouts,n_cpu), 
+                                            num_rollouts=num_rollouts
+                                    )
+        print(" Mean reward ", reward)
+

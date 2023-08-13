@@ -157,7 +157,7 @@ def collect_expert_data(
 
     # Collect expert data from the queue
     ep_collected = 0
-    while len(exp_acts) < num_steps_per_iter:
+    while len(exp_acts) < 0.9*num_steps_per_iter:
         ob, act, done = exp_data_queue.get()
         exp_obs.extend(ob)
         exp_acts.extend(act)
