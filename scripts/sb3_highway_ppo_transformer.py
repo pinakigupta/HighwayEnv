@@ -60,7 +60,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -259,8 +259,15 @@ def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollou
     completed_rollouts = 0  # Counter for completed rollouts
     
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-            future_to_rollout = {executor.submit(worker_rollout, worker_id, agent, render_mode=render_mode,
-                                                env_kwargs=env_kwargs, num_workers=num_workers, num_rollouts=num_rollouts):
+            future_to_rollout = {executor.submit(
+                                                    worker_rollout, 
+                                                    worker_id, 
+                                                    agent, 
+                                                    render_mode=render_mode,
+                                                    env_kwargs=env_kwargs, 
+                                                    num_workers=num_workers, 
+                                                    num_rollouts=num_rollouts
+                                                ):
                                 worker_id for worker_id in range(num_workers)}
 
             while completed_rollouts < num_rollouts:
@@ -632,7 +639,7 @@ if __name__ == "__main__":
                             action_space=env.action_space,
                             demonstrations=training_transitions,
                             rng=rng,
-                            batch_size=64,
+                            batch_size=32,
                             device = torch.device("cuda")
                           )
         
@@ -645,12 +652,23 @@ if __name__ == "__main__":
         print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
 
 
+        with wandb.init(
+                            project="BC", 
+                            magic=True,
+                        ) as run:
+                        run.name = f"sweep_{month}{day}_{timenow()}"
+                        # Log the model as an artifact in wandb
+                        torch.save(bc_trainer.policy.state_dict(), 'BC_agent.pth')
+            
+                        artifact = wandb.Artifact("trained_model", type="model")
+                        artifact.add_file("BC_agent.pth")
+                        run.log_artifact(artifact)
+        wandb.finish()
 
         # Iterate through the validation data and make predictions
         with torch.no_grad():
-            inputs = [data['obs'] for data in val_data]
-            predicted_labels = np.array(bc_trainer.policy.predict(inputs))
-            predicted_labels = predicted_labels[:,0]
+            predicted_labels = [bc_trainer.policy.predict(data['obs'])[0] for data in val_data]
+            # predicted_labels = np.array(bc_trainer.policy.predict(inputs))
             true_labels = [data['act'] for data in val_data]
 
         # Calculate evaluation metrics
@@ -678,18 +696,6 @@ if __name__ == "__main__":
         plt.show()
 
 
-        with wandb.init(
-                            project="BC", 
-                            magic=True,
-                        ) as run:
-                        run.name = f"sweep_{month}{day}_{timenow()}"
-                        # Log the model as an artifact in wandb
-                        torch.save(bc_trainer.policy.state_dict(), 'BC_agent.pth')
-            
-                        artifact = wandb.Artifact("trained_model", type="model")
-                        artifact.add_file("BC_agent.pth")
-                        run.log_artifact(artifact)
-        wandb.finish()
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
@@ -717,12 +723,23 @@ if __name__ == "__main__":
         wandb.finish()
         num_rollouts = 10
         gamma = 1.0
-        reward = simulate_with_model(
-                                            agent=policy, 
-                                            env_kwargs=env_kwargs, 
-                                            render_mode='human', 
-                                            num_workers= min(num_rollouts,n_cpu), 
-                                            num_rollouts=num_rollouts
-                                    )
-        print(" Mean reward ", reward)
+        # reward = simulate_with_model(
+        #                                 agent=policy, 
+        #                                 env_kwargs=env_kwargs, 
+        #                                 render_mode='human', 
+        #                                 num_workers= min(num_rollouts, 1), 
+        #                                 num_rollouts=num_rollouts
+        #                             )
+        # print(" Mean reward ", reward)
+        for _ in range(num_rollouts):
+            obs, info = env.reset()
+            done = truncated = False
+            cumulative_reward = 0
+            while not (done or truncated):
+                action, _ = policy.predict(obs)
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                env.render()
+            print("--------------------------------------------------------------------------------------")
 

@@ -1,4 +1,4 @@
-
+from copy import deepcopy as dcp
 import torch.nn as nn
 import h5py
 import sys
@@ -16,6 +16,10 @@ def extract_expert_data(filename):
         for episode_name in episode_groups:
             episode = hf[episode_name]
 
+            # ep_obs  = []
+            # ep_acts = []
+            # ep_done = []
+
             # List all datasets (exp_obs and exp_acts) in the episode group
             datasets = list(episode.keys())
 
@@ -25,11 +29,12 @@ def extract_expert_data(filename):
 
                 # Append the data to the corresponding list
                 if dataset_name.startswith('exp_obs'):
-                    exp_obs.append(dataset[:])
+                    exp_obs.extend([dataset[:]])
                 elif dataset_name.startswith('exp_acts'):
-                    exp_acts.append(dataset[()]) 
+                    exp_acts.extend([dataset[()]])
                 elif dataset_name.startswith('exp_done'):
-                    exp_done.append(dataset[()]) 
+                    exp_done.extend([dataset[()]]) 
+           
 
     return  exp_obs, exp_acts, exp_done
 

@@ -100,6 +100,10 @@ def collect_expert_data(
                         filename,
                         **env_kwargs,
                         ):
+    
+    with h5py.File(filename, 'w') as hf:
+            pass  # This just opens and immediately closes the file, effectively clearing it
+
     exp_rwd_iter = []
     exp_obs = []
     exp_acts = []
@@ -108,6 +112,7 @@ def collect_expert_data(
     # Create the shared Manager object
     manager = torch.multiprocessing.Manager()
     # env_value = manager.Value(type(None), None)
+
 
     # Create a lock for workers
     lock = mp.Lock()
@@ -157,20 +162,23 @@ def collect_expert_data(
 
     # Collect expert data from the queue
     ep_collected = 0
-    while len(exp_acts) < 0.9*num_steps_per_iter:
-        ob, act, done = exp_data_queue.get()
-        exp_obs.extend(ob)
-        exp_acts.extend(act)
-        exp_done.extend(done)
-        ep_collected+=1
+
+    with h5py.File(filename, 'a') as hf:
         # Save the data list as an HDF5 file
-        with h5py.File(filename, 'w') as hf:
+        
+        while len(exp_acts) < 0.9*num_steps_per_iter:
+            ob, act, done = exp_data_queue.get()
+            # print('act, done ', act, done, len(act))
+            exp_obs.extend(ob)
+            exp_acts.extend(act)
+            exp_done.extend(done)
+            ep_collected +=1
             episode_group = hf.create_group(f'episode_{ep_collected}')
             for i, (arr1, arr2, arr3) in enumerate(zip(ob, act, done)):
                 episode_group.create_dataset(f'exp_obs{i}',  data=arr1)
                 episode_group.create_dataset(f'exp_acts{i}', data=arr2)
                 episode_group.create_dataset(f'exp_done{i}', data=arr3)
-        pbar_outer.update(len(exp_acts) - pbar_outer.n)
+            pbar_outer.update(len(exp_acts) - pbar_outer.n)
     
     print(" joining worker processes ", [worker.pid for worker in worker_processes], flush=True)
 
