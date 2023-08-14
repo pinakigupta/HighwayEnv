@@ -64,7 +64,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
+train = TrainEnum.BC
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -602,43 +602,44 @@ if __name__ == "__main__":
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
-        raw_len = len(exp_acts)
-        exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones)
-        filtered_len = len(exp_acts)
-        print(' Expert data length before and aftrer filter ', raw_len, filtered_len)
+        # raw_len = len(exp_acts)
+        # exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones)
+        # filtered_len = len(exp_acts)
+        # print(' Expert data length before and aftrer filter ', raw_len, filtered_len)
         # Create transitions
-        transitions_list = []
+        # transitions_list = []
 
-        for obs, act, done in zip(exp_obs, exp_acts, exp_dones):
-            transition_dict = {
-                "obs": obs,
-                "act": act,
-                "done": done,
-                "info": {}  # You can add more info here if needed
-            }
-            transitions_list.append(transition_dict)
+        # for obs, act, done in zip(exp_obs, exp_acts, exp_dones):
+        #     transition_dict = {
+        #         "obs": obs,
+        #         "act": act,
+        #         "done": done,
+        #         "info": {}  # You can add more info here if needed
+        #     }
+        #     transitions_list.append(transition_dict)
 
 
         # Split the data into training and validation sets
-        train_data, val_data = train_test_split(transitions_list, test_size=0.2, random_state=42)
+        train_obs, val_obs , train_acts, val_acts, train_dones, val_dones= \
+                            train_test_split(
+                                                exp_obs, 
+                                                exp_acts,
+                                                exp_dones,
+                                                test_size=0.2, 
+                                                random_state=42
+                                            )
 
-        def transitions(_data):
-            obs_array = np.array([trans['obs'] for trans in _data])
-            act_array = np.array([trans['act'] for trans in _data])
-            dones_array = np.array([trans['done'] for trans  in _data])
-            infos_array = np.array([trans['info'] for trans in _data])
-            next_obs_array = np.array([_data[t + 1]['obs'] for t in range(len(_data) - 1)])
-
+        def transitions(train_obs, train_acts, train_dones):
             transitions = types.Transitions(
-                                                obs=obs_array[:-1],
-                                                acts=act_array[:-1],
-                                                dones=dones_array[:-1],
-                                                infos=infos_array[:-1],
-                                                next_obs=next_obs_array
+                                                obs=np.array(train_obs[:-1]),
+                                                acts=np.array(train_acts[:-1]),
+                                                dones=np.array(train_dones[:-1]),
+                                                infos=np.array(len(train_dones[:-1])*[{}]),
+                                                next_obs=np.array(train_obs[1:])
                                             )
             return transitions
         
-        training_transitions = transitions(train_data)
+        training_transitions = transitions(train_obs, train_acts, train_dones)
         rng=np.random.default_rng()
         device = torch.device("cuda")
         policy = DefaultActorCriticPolicy(env, device)
@@ -656,7 +657,7 @@ if __name__ == "__main__":
         reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
-        bc_trainer.train(n_epochs=200)
+        bc_trainer.train(n_epochs=100)
         reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
 
@@ -675,9 +676,8 @@ if __name__ == "__main__":
 
         # Iterate through the validation data and make predictions
         with torch.no_grad():
-            predicted_labels = [bc_trainer.policy.predict(data['obs'])[0] for data in val_data]
-            # predicted_labels = np.array(bc_trainer.policy.predict(inputs))
-            true_labels = [data['act'] for data in val_data]
+            predicted_labels = [bc_trainer.policy.predict(obs)[0] for obs in val_obs]
+            true_labels = val_acts
 
         # Calculate evaluation metrics
         accuracy = accuracy_score(true_labels, predicted_labels)
