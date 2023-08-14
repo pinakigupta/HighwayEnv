@@ -2,7 +2,8 @@ from copy import deepcopy as dcp
 import torch.nn as nn
 import h5py
 import sys
-
+from stable_baselines3.common.policies import ActorCriticPolicy
+from models.nets import PolicyNetwork
     
 def extract_expert_data(filename):
     exp_obs  = []
@@ -71,3 +72,30 @@ def write_module_hierarchy_to_file(model, file):
                         file.write(f'{indent}    ├─{name}: {submodule.shape}\n')
 
     write_module_recursive(model, file, processed_submodules=set())
+
+def DefaultActorCriticPolicy(env, device):
+        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
+        action_dim = env.action_space.n
+        def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
+            progress = step_num / decay_steps
+            learning_rate = initial_learning_rate * (1 - progress) + end_learning_rate * progress
+            return learning_rate
+        
+        # Create a callable learning rate schedule
+        lr_schedule = lambda step_num: linear_decay_lr_schedule(
+                                                                step_num, 
+                                                                initial_learning_rate=0.001, 
+                                                                decay_steps=100000, 
+                                                                end_learning_rate=0.0001
+                                                               )
+        policy = ActorCriticPolicy(
+                                    observation_space=env.observation_space,
+                                    action_space=env.action_space,
+                                    lr_schedule=lr_schedule
+                                  )
+        policy.net_arch =     PolicyNetwork(
+                                            state_dim=state_dim, 
+                                            action_dim=action_dim, 
+                                            discrete=True, 
+                                            device=device, 
+                                           )    

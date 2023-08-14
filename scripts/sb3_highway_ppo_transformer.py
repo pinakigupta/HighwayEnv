@@ -12,6 +12,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
+
 import os, statistics
 import multiprocessing
 from enum import Enum
@@ -27,7 +28,7 @@ from models.gail import GAIL
 from generate_expert_data import collect_expert_data, downsample_most_dominant_class
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
-from utilities import extract_expert_data, write_module_hierarchy_to_file
+from utilities import extract_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy
 import warnings
 import concurrent.futures
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -50,6 +51,9 @@ from ray.tune.trainable import trainable
 from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings("ignore")
+
+
+
 
 class TrainEnum(Enum):
     RLTRAIN = 0
@@ -196,7 +200,8 @@ def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest",
     final_gail_agent = GAIL(
                                 state_dim, 
                                 action_dim, 
-                                discrete=True, device=torch.device("cpu"), 
+                                discrete=True, 
+                                device=torch.device("cpu"), 
                                 **config, 
                             #  **policy_kwargs, 
                                 observation_space= observation_space 
@@ -593,6 +598,8 @@ if __name__ == "__main__":
             print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.BC:
         env = make_configure_env(**env_kwargs)
+        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
+        action_dim = env.action_space.n
         exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
         raw_len = len(exp_acts)
         exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones)
@@ -631,24 +638,24 @@ if __name__ == "__main__":
             return transitions
         
         training_transitions = transitions(train_data)
-        # val_transitions = transitions(val_data)
-
-        # print("transitions ", transitions)
         rng=np.random.default_rng()
+        device = torch.device("cuda")
+        policy = DefaultActorCriticPolicy(env, device)
         bc_trainer = bc.BC(
                             observation_space=env.observation_space,
                             action_space=env.action_space,
                             demonstrations=training_transitions,
                             rng=rng,
-                            batch_size=32,
-                            device = torch.device("cuda")
+                            batch_size=64,
+                            device = device,
+                            policy=policy
                           )
         
         from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
         reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
-        bc_trainer.train(n_epochs=1)
+        bc_trainer.train(n_epochs=200)
         reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
 
@@ -659,8 +666,7 @@ if __name__ == "__main__":
                         ) as run:
                         run.name = f"sweep_{month}{day}_{timenow()}"
                         # Log the model as an artifact in wandb
-                        torch.save(bc_trainer.policy.state_dict(), 'BC_agent.pth')
-            
+                        torch.save(bc_trainer.policy.state_dict(), 'BC_agent.pth')            
                         artifact = wandb.Artifact("trained_model", type="model")
                         artifact.add_file("BC_agent.pth")
                         run.log_artifact(artifact)
@@ -695,8 +701,6 @@ if __name__ == "__main__":
         plt.ylabel("True Labels")
         plt.title("Confusion Matrix")
         plt.show()
-
-
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
@@ -704,11 +708,13 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         rng=np.random.default_rng()
         device = torch.device("cpu")
+        policy = DefaultActorCriticPolicy(env, device)
         bc_trainer = bc.BC(
                             observation_space=env.observation_space,
                             action_space=env.action_space,
                             rng=rng,
-                            device = device
+                            device = device,
+                            policy=policy
                           )
         policy = bc_trainer.policy
         wandb.init(project="BC", name="inference")

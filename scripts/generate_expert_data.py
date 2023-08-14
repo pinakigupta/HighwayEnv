@@ -7,6 +7,7 @@ import copy
 from torch import multiprocessing as mp
 import h5py
 import gymnasium as gym
+from collections import Counter
 
 
 torch.set_default_tensor_type(torch.FloatTensor)
@@ -211,7 +212,6 @@ def collect_expert_data(
 
     return exp_obs, exp_acts, exp_done
 
-from collections import Counter
 def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones):
     # Calculate the distribution of classes
     class_distribution = Counter(exp_acts)
