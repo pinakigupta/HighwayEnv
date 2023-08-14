@@ -163,34 +163,35 @@ def collect_expert_data(
     steps_count = 0
     exp_acts = []
     
-    with h5py.File(filename, 'a') as hf:
+
+
+    while steps_count < 0.9*num_steps_per_iter:
+        ob, act, done = exp_data_queue.get()
+
+
+        exp_acts_temp =copy.deepcopy(exp_acts)
+        exp_acts_temp.extend(act)
+
+        if is_skewed(
+                        exp_acts_temp,
+                        threshold=0.5
+                    ):
+            # print("discarding episode as it is making the data skewed")
+            continue
+
+        exp_acts = exp_acts_temp
+        steps_count += len(act)
+        ep_collected +=1
+                # Stop collecting data
+        with h5py.File(filename, 'w') as hf:
         # Save the data list as an HDF5 file
-
-        while steps_count < 0.9*num_steps_per_iter:
-            ob, act, done = exp_data_queue.get()
-
-    
-            exp_acts_temp =copy.deepcopy(exp_acts)
-            exp_acts_temp.extend(act)
-
-            if is_skewed(
-                            exp_acts_temp,
-                            threshold=0.5
-                        ):
-                # print("discarding episode as it is making the data skewed")
-                continue
-
-            exp_acts = exp_acts_temp
-            steps_count += len(act)
-            ep_collected +=1
-                    # Stop collecting data
             episode_group = hf.create_group(f'episode_{ep_collected}')
             for i, (arr1, arr2, arr3) in enumerate(zip(ob, act, done)):
                 episode_group.create_dataset(f'exp_obs{i}',  data=arr1)
                 episode_group.create_dataset(f'exp_acts{i}', data=arr2)
                 episode_group.create_dataset(f'exp_done{i}', data=arr3)
-            pbar_outer.update(steps_count - pbar_outer.n)
-    
+        pbar_outer.update(steps_count - pbar_outer.n)
+
     print(" joining worker processes ", [worker.pid for worker in worker_processes], flush=True)
 
 
@@ -202,8 +203,11 @@ def collect_expert_data(
 
     # Close and join the queue
     exp_data_queue.close()
+    print(" End of data queue")
     exp_data_queue.join_thread()
     pbar_outer.close()
+
+    print(" End of data collection")
     # Accumulate episode rewards where episodes are done
     # for rwd in episode_rewards:
     #     exp_rwd_iter.append(rwd)

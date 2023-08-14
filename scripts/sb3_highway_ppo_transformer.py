@@ -354,12 +354,13 @@ if __name__ == "__main__":
         wandb.finish()        
         
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
-        exp_obs, exp_acts , exp_done  =           collect_expert_data  (
-                                                                                model,
-                                                                                config["num_expert_steps"],
-                                                                                filename=expert_data_file,
-                                                                                **env_kwargs
-                                                                            )
+        collect_expert_data  (
+                                    model,
+                                    config["num_expert_steps"],
+                                    filename=expert_data_file,
+                                    **env_kwargs
+                                )
+        print("collect data complete")
     elif train == TrainEnum.RLTRAIN: # training 
         append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
         env = make_vec_env(
