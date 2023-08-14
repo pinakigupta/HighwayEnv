@@ -93,9 +93,10 @@ def DefaultActorCriticPolicy(env, device):
                                     action_space=env.action_space,
                                     lr_schedule=lr_schedule
                                   )
+        import torch
         policy.net_arch =     PolicyNetwork(
                                             state_dim=state_dim, 
                                             action_dim=action_dim, 
                                             discrete=True, 
-                                            device=device, 
+                                            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
                                            )    
