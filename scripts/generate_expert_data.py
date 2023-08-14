@@ -8,7 +8,7 @@ from torch import multiprocessing as mp
 import h5py
 import gymnasium as gym
 from collections import Counter
-
+from scipy.stats import entropy
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
@@ -34,7 +34,7 @@ def worker(
     steps_collected = 0
     # expert = env.controlled_vehicles[0]
 
-    while steps_collected < steps_per_worker:
+    while True:
         ob = env.reset()
         ob=ob[0]
         done = False
@@ -44,7 +44,7 @@ def worker(
         all_done = {}
 
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
-        while steps_collected < steps_per_worker:
+        while True:
             # Extract features from observations using the feature extractor
             # features_extractor, policy_net, action_net = expert
             ob_tensor = copy.deepcopy(torch.Tensor(ob).to(torch.device('cpu')))
@@ -105,10 +105,7 @@ def collect_expert_data(
     with h5py.File(filename, 'w') as hf:
             pass  # This just opens and immediately closes the file, effectively clearing it
 
-    exp_rwd_iter = []
-    exp_obs = []
-    exp_acts = []
-    exp_done = []
+
     torch.set_num_threads(1)
     # Create the shared Manager object
     manager = torch.multiprocessing.Manager()
@@ -163,23 +160,36 @@ def collect_expert_data(
 
     # Collect expert data from the queue
     ep_collected = 0
-
+    steps_count = 0
+    exp_acts = []
+    
     with h5py.File(filename, 'a') as hf:
         # Save the data list as an HDF5 file
 
-        while len(exp_acts) < 0.9*num_steps_per_iter:
+        while steps_count < 0.9*num_steps_per_iter:
             ob, act, done = exp_data_queue.get()
-            # print('act, done ', act, done, len(act))
-            exp_obs.extend(ob)
-            exp_acts.extend(act)
-            exp_done.extend(done)
+
+    
+            exp_acts_temp =copy.deepcopy(exp_acts)
+            exp_acts_temp.extend(act)
+
+            if is_skewed(
+                            exp_acts_temp,
+                            threshold=0.5
+                        ):
+                # print("discarding episode as it is making the data skewed")
+                continue
+
+            exp_acts = exp_acts_temp
+            steps_count += len(act)
             ep_collected +=1
+                    # Stop collecting data
             episode_group = hf.create_group(f'episode_{ep_collected}')
             for i, (arr1, arr2, arr3) in enumerate(zip(ob, act, done)):
                 episode_group.create_dataset(f'exp_obs{i}',  data=arr1)
                 episode_group.create_dataset(f'exp_acts{i}', data=arr2)
                 episode_group.create_dataset(f'exp_done{i}', data=arr3)
-            pbar_outer.update(len(exp_acts) - pbar_outer.n)
+            pbar_outer.update(steps_count - pbar_outer.n)
     
     print(" joining worker processes ", [worker.pid for worker in worker_processes], flush=True)
 
@@ -195,22 +205,19 @@ def collect_expert_data(
     exp_data_queue.join_thread()
     pbar_outer.close()
     # Accumulate episode rewards where episodes are done
-    for rwd in episode_rewards:
-        exp_rwd_iter.append(rwd)
+    # for rwd in episode_rewards:
+    #     exp_rwd_iter.append(rwd)
 
     
-    exp_rwd_mean = np.mean(exp_rwd_iter)
-    print(
-        "Expert Reward Mean: {}".format(exp_rwd_mean)
-    )
+    # exp_rwd_mean = np.mean(exp_rwd_iter)
+    # print(
+    #     "Expert Reward Mean: {}".format(exp_rwd_mean)
+    # )
 
-    exp_obs = np.array(exp_obs)
-    exp_acts = np.array(exp_acts)
-    exp_done = np.array(exp_done)
-
-
-
-    return exp_obs, exp_acts, exp_done
+    # exp_obs = np.array(exp_obs)
+    # exp_acts = np.array(exp_acts)
+    # exp_done = np.array(exp_done)
+    # return exp_obs, exp_acts, exp_done
 
 def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones):
     # Calculate the distribution of classes
@@ -253,3 +260,21 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones):
         # No downsampling needed, return original data
         return exp_obs, exp_acts, exp_dones
 
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
+
+def normalize_distribution(distribution, num_action_types):
+    total_samples = sum(distribution.values())
+    normalized_distribution = {action: count / total_samples for action, count in distribution.items()}
+    # Ensure that the normalized distribution includes all possible action types
+    for action in range(num_action_types):
+        if action not in normalized_distribution:
+            normalized_distribution[action] = 0.0
+    return normalized_distribution
+
+def is_skewed(actual_distribution, threshold, num_action_types=5):
+    uniform_normalized_distribution = [1 / num_action_types] * num_action_types
+    actual_normalized_distribution = normalize_distribution(Counter(actual_distribution), num_action_types)
+    kl_divergence = entropy(list(actual_normalized_distribution.values()), uniform_normalized_distribution)
+    return kl_divergence > threshold
