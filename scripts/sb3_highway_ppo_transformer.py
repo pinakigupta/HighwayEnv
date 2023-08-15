@@ -175,10 +175,10 @@ def compute_vehicles_attention(env,fe):
 #        Main script  20 
 # ==================================
 
-def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest", project = None):
-    state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-    action_dim = env.action_space.n
-    observation_space = env.observation_space
+def retrieve_gail_agents( artifact_version, project = None):
+    # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
+    # action_dim = env.action_space.n
+    # observation_space = env.observation_space
     # Initialize wandb
     wandb.init(project=project, name="inference")
     # Access the run containing the logged artifact
@@ -192,21 +192,23 @@ def retrieve_gail_agents(env, artifact_version="trained_model_directory:latest",
     optimal_gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
     final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
 
-    with open("config.json") as f:
-        config = copy.deepcopy(json.load(f))
+    # with open("config.json") as f:
+    #     config = copy.deepcopy(json.load(f))
     # Load the GAIL model
-    final_gail_agent = GAIL(
-                                state_dim, 
-                                action_dim, 
-                                discrete=True, 
-                                device=torch.device("cpu"), 
-                                **config, 
-                            #  **policy_kwargs, 
-                                observation_space= observation_space 
-                                )
-    optimal_gail_agent = copy.deepcopy(final_gail_agent)
-    final_gail_agent.load_state_dict(torch.load(final_gail_agent_path))
-    optimal_gail_agent.load_state_dict(torch.load(optimal_gail_agent_path))
+    # final_gail_agent = GAIL(
+    #                             state_dim, 
+    #                             action_dim, 
+    #                             discrete=True, 
+    #                             device=torch.device("cpu"), 
+    #                             **config, 
+    #                         #  **policy_kwargs, 
+    #                             observation_space= observation_space 
+    #                             )
+    # optimal_gail_agent = copy.deepcopy(final_gail_agent)
+    # final_gail_agent.load_state_dict(torch.load(final_gail_agent_path))
+    # optimal_gail_agent.load_state_dict(torch.load(optimal_gail_agent_path))
+    final_gail_agent = torch.load(final_gail_agent_path)
+    optimal_gail_agent = torch.load(optimal_gail_agent_path)
     return optimal_gail_agent, final_gail_agent
 
 total_count_lock = multiprocessing.Lock()
@@ -235,11 +237,15 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
         cumulative_reward = 0
         while not (done or truncated):
             with torch.no_grad():
-                try:    
+                try:  
+                    print(type(agent))  
                     action = agent.act(obs)
                 except:
-                    action = agent.predict(obs)
-                    action = action[0]
+                    try:
+                        action = agent.predict(obs)
+                        action = action[0]
+                    except:
+                        action = agent.pi(obs)
             obs, reward, done, truncated, info = env.step(action)
             cumulative_reward += gamma * reward
             # xs = [(v.position[0],v.speed) for v in env.road.vehicles]
@@ -307,7 +313,7 @@ if __name__ == "__main__":
 
     if False:
         optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
-                                                                    env= make_configure_env(**env_kwargs).unwrapped, # need only certain parameters
+                                                                    # env= make_configure_env(**env_kwargs).unwrapped, # need only certain parameters
                                                                     artifact_version='trained_model_directory:v2'
                                                                     )
         reward_oracle = final_gail_agent.d
@@ -540,8 +546,8 @@ if __name__ == "__main__":
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
         optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
-                                                                    env=env,
-                                                                    artifact_version='trained_model_directory:v11',
+                                                                    # env=env,
+                                                                    artifact_version='trained_model_directory:latest',
                                                                     project="random_env_gail_1"
                                                                     )
         num_rollouts = 10
@@ -649,7 +655,7 @@ if __name__ == "__main__":
         reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
-        bc_trainer.train(n_epochs=100)
+        bc_trainer.train(n_epochs=10)
         reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
 
@@ -660,7 +666,7 @@ if __name__ == "__main__":
                         ) as run:
                         run.name = f"sweep_{month}{day}_{timenow()}"
                         # Log the model as an artifact in wandb
-                        torch.save(bc_trainer.policy.state_dict(), 'BC_agent.pth')            
+                        torch.save(bc_trainer, 'BC_agent.pth')            
                         artifact = wandb.Artifact("trained_model", type="model")
                         artifact.add_file("BC_agent.pth")
                         run.log_artifact(artifact)
@@ -717,16 +723,16 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env = make_configure_env(**env_kwargs)
         rng=np.random.default_rng()
-        device = torch.device("cpu")
-        policy = DefaultActorCriticPolicy(env, device)
-        bc_trainer = bc.BC(
-                            observation_space=env.observation_space,
-                            action_space=env.action_space,
-                            rng=rng,
-                            device = device,
-                            policy=policy
-                          )
-        policy = bc_trainer.policy
+        # device = torch.device("cpu")
+        # policy = DefaultActorCriticPolicy(env, device)
+        # bc_trainer = bc.BC(
+        #                     observation_space=env.observation_space,
+        #                     action_space=env.action_space,
+        #                     rng=rng,
+        #                     device = device,
+        #                     policy=policy
+        #                   )
+        # policy = bc_trainer.policy
         wandb.init(project="BC", name="inference")
         # Access the run containing the logged artifact
 
@@ -736,7 +742,7 @@ if __name__ == "__main__":
 
         # Load the model from the downloaded artifact
         rl_agent_path = os.path.join(artifact_dir, "BC_agent.pth")
-        policy.load_state_dict(torch.load(rl_agent_path, map_location=device))
+        BC_agent = torch.load(rl_agent_path, map_location=device)
         wandb.finish()
         num_rollouts = 10
         gamma = 1.0
@@ -753,7 +759,7 @@ if __name__ == "__main__":
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
-                action, _ = policy.predict(obs)
+                action, _ = BC_agent.policy.predict(obs)
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
