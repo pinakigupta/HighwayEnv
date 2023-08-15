@@ -62,7 +62,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.IRLTRAIN
+train = TrainEnum.BC
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -358,6 +358,7 @@ if __name__ == "__main__":
         wandb.finish()        
         
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',400)
         collect_expert_data  (
                                     model,
                                     config["num_expert_steps"],
@@ -607,7 +608,8 @@ if __name__ == "__main__":
         action_dim = env.action_space.n
         exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
         raw_len = len(exp_acts)
-        exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones)
+        exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
+        exp_obs[:][0][1] = 0.0 # hardcoding for now as this is already taken care of in the observation
         filtered_len = len(exp_acts)
         print(' Expert data length before and after filter ', raw_len, filtered_len)
 
@@ -646,7 +648,7 @@ if __name__ == "__main__":
                             action_space=env.action_space,
                             demonstrations=training_transitions,
                             rng=rng,
-                            batch_size=32,
+                            batch_size=64,
                             device = device,
                             policy=policy
                           )
@@ -655,7 +657,7 @@ if __name__ == "__main__":
         reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
-        bc_trainer.train(n_epochs=10)
+        bc_trainer.train(n_epochs=100)
         reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
 
@@ -679,9 +681,9 @@ if __name__ == "__main__":
 
         # Calculate evaluation metrics
         accuracy = accuracy_score(true_labels, predicted_labels)
-        precision = precision_score(true_labels, predicted_labels, average='weighted')
-        recall = recall_score(true_labels, predicted_labels, average='weighted')
-        f1 = f1_score(true_labels, predicted_labels, average='weighted')
+        precision = precision_score(true_labels, predicted_labels, average='macro')
+        recall = recall_score(true_labels, predicted_labels, average='macro')
+        f1 = f1_score(true_labels, predicted_labels, average='macro')
         conf_matrix = confusion_matrix(true_labels, predicted_labels)
 
         # Print the metrics
@@ -697,11 +699,13 @@ if __name__ == "__main__":
 
         # Calculate evaluation metrics
         accuracy = accuracy_score(true_labels, predicted_labels)
-        precision = precision_score(true_labels, predicted_labels, average='weighted')
-        recall = recall_score(true_labels, predicted_labels, average='weighted')
-        f1 = f1_score(true_labels, predicted_labels, average='weighted')
+        precision = precision_score(true_labels, predicted_labels, average='macro')
+        recall = recall_score(true_labels, predicted_labels, average='macro')
+        f1 = f1_score(true_labels, predicted_labels, average='macro')
 
         # Print the Training metrics
+
+        print("--------  Training data metrics for reference---------------")
         print("Accuracy:", accuracy)
         print("Precision:", precision)
         print("Recall:", recall)

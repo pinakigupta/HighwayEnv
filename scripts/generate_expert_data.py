@@ -225,7 +225,7 @@ def collect_expert_data(
     # exp_done = np.array(exp_done)
     # return exp_obs, exp_acts, exp_done
 
-def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones):
+def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
     # Calculate the distribution of classes
     class_distribution = Counter(exp_acts)
     most_common_class, most_common_count = class_distribution.most_common(1)[0]
@@ -239,9 +239,9 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones):
          )
 
     # Determine whether downsampling is needed
-    if most_common_count > 2 * second_most_common_count:
+    if most_common_count > factor * second_most_common_count:
         # Calculate the desired number of samples for downsampling
-        desired_samples = 2 * second_most_common_count
+        desired_samples = factor * second_most_common_count
 
         # Perform downsampling on the most common class
         downsampled_exp_obs = []

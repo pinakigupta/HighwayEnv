@@ -211,7 +211,7 @@ class KinematicObservation(ObservationType):
         observer_vehicle = ref_vehicle if ref_vehicle is not None else self.observer_vehicle
         # Add ego-vehicle
         df = pd.DataFrame.from_records([observer_vehicle.to_dict(relative_features=self.relative_features)])
-        print(df)
+        # print(df)
         # Add nearby traffic
         close_vehicles = self.env.road.close_vehicles_to(observer_vehicle,
                                                          self.env.PERCEPTION_DISTANCE,
