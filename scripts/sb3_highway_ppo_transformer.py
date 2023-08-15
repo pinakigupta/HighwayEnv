@@ -602,22 +602,10 @@ if __name__ == "__main__":
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
-        # raw_len = len(exp_acts)
-        # exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones)
-        # filtered_len = len(exp_acts)
-        # print(' Expert data length before and aftrer filter ', raw_len, filtered_len)
-        # Create transitions
-        # transitions_list = []
-
-        # for obs, act, done in zip(exp_obs, exp_acts, exp_dones):
-        #     transition_dict = {
-        #         "obs": obs,
-        #         "act": act,
-        #         "done": done,
-        #         "info": {}  # You can add more info here if needed
-        #     }
-        #     transitions_list.append(transition_dict)
-
+        raw_len = len(exp_acts)
+        exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones)
+        filtered_len = len(exp_acts)
+        print(' Expert data length before and after filter ', raw_len, filtered_len)
 
         # Split the data into training and validation sets
         train_obs, val_obs , train_acts, val_acts, train_dones, val_dones= \
@@ -639,7 +627,13 @@ if __name__ == "__main__":
                                             )
             return transitions
         
-        training_transitions = transitions(train_obs, train_acts, train_dones)
+        num_samples = len(train_acts)
+        permuted_indices = np.random.permutation(num_samples)
+    # Shuffle all lists using the same index permutation
+        shuffled_obs = [train_obs[i] for i in permuted_indices]
+        shuffled_acts = [train_acts[i] for i in permuted_indices]
+        shuffled_dones = [train_dones[i] for i in permuted_indices]
+        training_transitions = transitions(shuffled_obs, shuffled_acts, shuffled_dones)
         rng=np.random.default_rng()
         device = torch.device("cuda")
         policy = DefaultActorCriticPolicy(env, device)
@@ -648,7 +642,7 @@ if __name__ == "__main__":
                             action_space=env.action_space,
                             demonstrations=training_transitions,
                             rng=rng,
-                            batch_size=64,
+                            batch_size=32,
                             device = device,
                             policy=policy
                           )
@@ -692,7 +686,24 @@ if __name__ == "__main__":
         print("Recall:", recall)
         print("F1 Score:", f1)
 
-        # Create a heatmap for visualization
+
+        with torch.no_grad():
+            predicted_labels = [bc_trainer.policy.predict(obs)[0] for obs in train_obs]
+            true_labels = train_acts
+
+        # Calculate evaluation metrics
+        accuracy = accuracy_score(true_labels, predicted_labels)
+        precision = precision_score(true_labels, predicted_labels, average='weighted')
+        recall = recall_score(true_labels, predicted_labels, average='weighted')
+        f1 = f1_score(true_labels, predicted_labels, average='weighted')
+
+        # Print the Training metrics
+        print("Accuracy:", accuracy)
+        print("Precision:", precision)
+        print("Recall:", recall)
+        print("F1 Score:", f1)
+
+
         from highway_env.envs.common.action import DiscreteMetaAction
         ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
         plt.figure(figsize=(8, 6))
