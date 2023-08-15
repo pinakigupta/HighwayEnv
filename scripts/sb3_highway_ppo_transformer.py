@@ -5,7 +5,6 @@ import seaborn as sns
 import torch as th
 from highway_env.utils import lmap, print_overwrite
 from stable_baselines3 import PPO
-from torch.distributions import Categorical
 import torch
 import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
@@ -23,7 +22,6 @@ from datetime import datetime
 from torch import FloatTensor
 from torch import nn
 import shutil
-from models.nets import Expert
 from models.gail import GAIL
 from generate_expert_data import collect_expert_data, downsample_most_dominant_class
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
