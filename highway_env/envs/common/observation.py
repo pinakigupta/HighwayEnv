@@ -143,7 +143,7 @@ class KinematicObservation(ObservationType):
 
     def __init__(self, env: 'AbstractEnv',
                  features: List[str] = None,
-                 relative_features: List[str] = None,
+                 relative_features: List[str] = [],
                  vehicles_count: int = 5,
                  features_range: Dict[str, List[float]] = None,
                  absolute: bool = False,
@@ -168,7 +168,7 @@ class KinematicObservation(ObservationType):
         """
         super().__init__(env)
         self.features = features or self.FEATURES
-        self.relative_features = relative_features or self.FEATURES       
+        self.relative_features = relative_features       
         self.vehicles_count = vehicles_count
         self.features_range = features_range
         self.absolute = absolute

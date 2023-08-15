@@ -22,7 +22,8 @@ env_kwargs = {
                 "cos_h",
                 "sin_h"
             ],
-            "absolute": False
+            "absolute": False,
+            "relative_features": ['x']
         },
         "policy_frequency": 2,
         "duration": 40,
