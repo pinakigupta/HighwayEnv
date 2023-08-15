@@ -102,8 +102,10 @@ def collect_expert_data(
                         **env_kwargs,
                         ):
     
-    with h5py.File(filename, 'w') as hf:
-            pass  # This just opens and immediately closes the file, effectively clearing it
+    import os
+    os.remove(filename)
+    # with h5py.File(filename, 'w') as hf:
+    #         pass  # This just opens and immediately closes the file, effectively clearing it
 
 
     torch.set_num_threads(1)
@@ -164,33 +166,33 @@ def collect_expert_data(
     exp_acts = []
     
 
+    with h5py.File(filename, 'a') as hf:
+        while steps_count < 0.9*num_steps_per_iter:
+            ob, act, done = exp_data_queue.get()
 
-    while steps_count < 0.9*num_steps_per_iter:
-        ob, act, done = exp_data_queue.get()
 
+            exp_acts_temp =copy.deepcopy(exp_acts)
+            exp_acts_temp.extend(act)
 
-        exp_acts_temp =copy.deepcopy(exp_acts)
-        exp_acts_temp.extend(act)
+            if is_skewed(
+                            exp_acts_temp,
+                            threshold=0.5
+                        ):
+                # print("discarding episode as it is making the data skewed")
+                continue
 
-        if is_skewed(
-                        exp_acts_temp,
-                        threshold=0.5
-                    ):
-            # print("discarding episode as it is making the data skewed")
-            continue
-
-        exp_acts = exp_acts_temp
-        steps_count += len(act)
-        ep_collected +=1
-                # Stop collecting data
-        with h5py.File(filename, 'w') as hf:
-        # Save the data list as an HDF5 file
+            exp_acts = exp_acts_temp
+            steps_count += len(act)
+            ep_collected +=1
+                    # Stop collecting data
+            
+            # Save the data list as an HDF5 file
             episode_group = hf.create_group(f'episode_{ep_collected}')
             for i, (arr1, arr2, arr3) in enumerate(zip(ob, act, done)):
                 episode_group.create_dataset(f'exp_obs{i}',  data=arr1)
                 episode_group.create_dataset(f'exp_acts{i}', data=arr2)
                 episode_group.create_dataset(f'exp_done{i}', data=arr3)
-        pbar_outer.update(steps_count - pbar_outer.n)
+            pbar_outer.update(steps_count - pbar_outer.n)
 
     print(" joining worker processes ", [worker.pid for worker in worker_processes], flush=True)
 
