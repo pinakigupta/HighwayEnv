@@ -62,7 +62,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -543,6 +543,7 @@ if __name__ == "__main__":
         wandb.finish()
     elif train == TrainEnum.IRLDEPLOY:
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
@@ -562,6 +563,7 @@ if __name__ == "__main__":
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=40)
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         env_kwargs.update({'reward_oracle':None})
         model = PPO(
                     "MlpPolicy", 
@@ -727,6 +729,7 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env = make_configure_env(**env_kwargs)
         rng=np.random.default_rng()
