@@ -51,7 +51,7 @@ def worker(
 
             
             act = expert.predict(ob_tensor)[0]
-            # act = 0 
+            # act = 4
             next_ob, rwd, done, _, _ = env.step(act)
 
 
@@ -174,12 +174,13 @@ def collect_expert_data(
             exp_acts_temp =copy.deepcopy(exp_acts)
             exp_acts_temp.extend(act)
 
-            if is_skewed(
-                            exp_acts_temp,
-                            threshold=0.5
-                        ):
-                # print("discarding episode as it is making the data skewed")
-                continue
+
+            # if is_skewed(
+            #                 act,
+            #                 threshold=0.5
+            #             ):
+            #     # print("discarding episode as it is making the data skewed")
+            #     continue
 
             exp_acts = exp_acts_temp
             steps_count += len(act)
@@ -253,15 +254,31 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
             if act == most_common_class and class_distribution[act] > desired_samples:
                 class_distribution[act] -= 1
                 continue
-                downsampled_exp_obs.append(ob)
-                downsampled_exp_acts.append(second_most_common_class)
-                downsampled_exp_dones.append(done)
+
             else:
                 downsampled_exp_obs.append(ob)
                 downsampled_exp_acts.append(act)
                 downsampled_exp_dones.append(done)
-        print(" downsampled_exp_acts count ", len(downsampled_exp_acts))
-        return downsampled_exp_obs, downsampled_exp_acts, downsampled_exp_dones
+
+      # Upsample less dominant classes by copying their indices
+        upsampled_exp_obs = []
+        upsampled_exp_acts = []
+        upsampled_exp_dones = []
+
+        for act, count in class_distribution.items():
+            if act != most_common_class:
+                num_samples_to_copy = int(desired_samples - count)
+                indices_to_copy = [i for i, a in enumerate(exp_acts) if a == act]
+                for index in indices_to_copy[:num_samples_to_copy]:
+                    upsampled_exp_obs.append(exp_obs[index])
+                    upsampled_exp_acts.append(exp_acts[index])
+                    upsampled_exp_dones.append(exp_dones[index])
+
+        final_exp_obs = downsampled_exp_obs + upsampled_exp_obs
+        final_exp_acts = downsampled_exp_acts + upsampled_exp_acts
+        final_exp_dones = downsampled_exp_dones + upsampled_exp_dones
+
+        return final_exp_obs, final_exp_acts, final_exp_dones
     else:
         # No downsampling needed, return original data
         return exp_obs, exp_acts, exp_dones

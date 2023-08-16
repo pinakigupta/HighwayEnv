@@ -11,7 +11,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
-
+from collections import Counter
 import os, statistics
 import multiprocessing
 from enum import Enum
@@ -358,7 +358,7 @@ if __name__ == "__main__":
         wandb.finish()        
         
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
-        append_key_to_dict_of_dict(env_kwargs,'config','duration',400)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
         collect_expert_data  (
                                     model,
                                     config["num_expert_steps"],
@@ -609,9 +609,9 @@ if __name__ == "__main__":
         exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
         raw_len = len(exp_acts)
         exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
-        exp_obs[:][0][1] = 0.0 # hardcoding for now as this is already taken care of in the observation
+        # exp_obs[:][0][1] = 0.0 # hardcoding for now as this is already taken care of in the observation
         filtered_len = len(exp_acts)
-        print(' Expert data length before and after filter ', raw_len, filtered_len)
+        print("class_distribution post resampling ", Counter(exp_acts))
 
         # Split the data into training and validation sets
         train_obs, val_obs , train_acts, val_acts, train_dones, val_dones= \
@@ -622,7 +622,7 @@ if __name__ == "__main__":
                                                 test_size=0.2, 
                                                 random_state=42
                                             )
-
+        print("Data splitting done ")
         def transitions(train_obs, train_acts, train_dones):
             transitions = types.Transitions(
                                                 obs=np.array(train_obs[:-1]),
@@ -640,9 +640,12 @@ if __name__ == "__main__":
         shuffled_acts = [train_acts[i] for i in permuted_indices]
         shuffled_dones = [train_dones[i] for i in permuted_indices]
         training_transitions = transitions(shuffled_obs, shuffled_acts, shuffled_dones)
+        print("shuffling complete")
+
         rng=np.random.default_rng()
         device = torch.device("cuda")
         policy = DefaultActorCriticPolicy(env, device)
+        
         bc_trainer = bc.BC(
                             observation_space=env.observation_space,
                             action_space=env.action_space,
@@ -681,9 +684,9 @@ if __name__ == "__main__":
 
         # Calculate evaluation metrics
         accuracy = accuracy_score(true_labels, predicted_labels)
-        precision = precision_score(true_labels, predicted_labels, average='macro')
-        recall = recall_score(true_labels, predicted_labels, average='macro')
-        f1 = f1_score(true_labels, predicted_labels, average='macro')
+        precision = precision_score(true_labels, predicted_labels, average=None)
+        recall = recall_score(true_labels, predicted_labels, average=None)
+        f1 = f1_score(true_labels, predicted_labels, average=None)
         conf_matrix = confusion_matrix(true_labels, predicted_labels)
 
         # Print the metrics
@@ -727,16 +730,6 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env = make_configure_env(**env_kwargs)
         rng=np.random.default_rng()
-        # device = torch.device("cpu")
-        # policy = DefaultActorCriticPolicy(env, device)
-        # bc_trainer = bc.BC(
-        #                     observation_space=env.observation_space,
-        #                     action_space=env.action_space,
-        #                     rng=rng,
-        #                     device = device,
-        #                     policy=policy
-        #                   )
-        # policy = bc_trainer.policy
         wandb.init(project="BC", name="inference")
         # Access the run containing the logged artifact
 
