@@ -9,6 +9,7 @@ import h5py
 import gymnasium as gym
 from collections import Counter
 from scipy.stats import entropy
+import random
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
@@ -98,12 +99,17 @@ def worker(
 def collect_expert_data(
                         expert,
                         num_steps_per_iter,
-                        filename,
+                        train_filename,
+                        validation_filename,
+                        train_ratio = 0.8,
                         **env_kwargs,
                         ):
     
     import os
-    os.remove(filename)
+    if os.path.exists(train_filename):
+        os.remove(train_filename)
+    if os.path.exists(validation_filename):
+        os.remove(validation_filename)
     # with h5py.File(filename, 'w') as hf:
     #         pass  # This just opens and immediately closes the file, effectively clearing it
 
@@ -166,7 +172,7 @@ def collect_expert_data(
     exp_acts = []
     
 
-    with h5py.File(filename, 'a') as hf:
+    with h5py.File(train_filename, 'a') as train_hf, h5py.File(validation_filename, 'a') as valid_hf:
         while steps_count < 0.9*num_steps_per_iter:
             ob, act, done = exp_data_queue.get()
 
@@ -188,6 +194,11 @@ def collect_expert_data(
                     # Stop collecting data
             
             # Save the data list as an HDF5 file
+            if random.random() < train_ratio:
+                hf = train_hf
+            else:
+                hf = valid_hf
+
             episode_group = hf.create_group(f'episode_{ep_collected}')
             for i, (arr1, arr2, arr3) in enumerate(zip(ob, act, done)):
                 episode_group.create_dataset(f'exp_obs{i}',  data=arr1)

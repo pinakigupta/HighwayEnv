@@ -5,6 +5,7 @@ import sys
 from stable_baselines3.common.policies import ActorCriticPolicy
 from models.nets import PolicyNetwork
 from torch.utils.data import Dataset, DataLoader
+from torch.nn.utils.rnn import pad_sequence
 import torch
     
 def extract_expert_data(filename):
@@ -103,22 +104,39 @@ def DefaultActorCriticPolicy(env, device):
                                             device=torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
                                            )    
 
-class CustomDataLoader(Dataset):
-    def __init__(self, data_file):
+class CustomDataset(Dataset):
+    def __init__(self, data_file, pad_value=0):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
+        self.exp_obs, self.exp_acts, self.exp_dones = extract_expert_data(data_file)
+        self.pad_value = pad_value
+        print(" data lengths ", len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
         return
 
     def __len__(self):
-        return len(self.data)
+        return len(self.exp_acts)
 
     def __getitem__(self, idx):
         # Return a dictionary with "obs" and "acts" as Tensors
-        observation = torch.tensor(self.data[idx]['observation'], dtype=torch.float32)
-        action = torch.tensor(self.data[idx]['action'], dtype=torch.float32)
+        observation = torch.tensor(self.exp_obs[idx], dtype=torch.float32)
+        action = torch.tensor(self.exp_acts[idx], dtype=torch.float32)
+        done = torch.tensor(self.exp_dones[idx], dtype=torch.float32)
         
         sample = {
             'obs': observation,
-            'acts': action
+            'acts': action,
+            'dones' :done
         }
         return sample
+    
+    # def collate_fn(self, batch):
+    #     observations = [sample['obs'] for sample in batch]
+    #     actions = [sample['acts'] for sample in batch]
+    #     dones = [sample['dones'] for sample in batch]
+        
+    #     # Pad sequences to the maximum length in the batch
+    #     observations_padded = pad_sequence(observations, batch_first=True, padding_value=self.pad_value)
+    #     actions_padded = pad_sequence(actions, batch_first=True, padding_value=self.pad_value)
+    #     dones_padded = pad_sequence(dones, batch_first=True, padding_value=self.pad_value)
+        
+    #     return observations_padded, actions_padded, dones_padded

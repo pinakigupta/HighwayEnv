@@ -21,12 +21,13 @@ import wandb
 from datetime import datetime
 from torch import FloatTensor
 from torch import nn
+from torch.utils.data import Dataset, DataLoader
 import shutil
 from models.gail import GAIL
 from generate_expert_data import collect_expert_data, downsample_most_dominant_class
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
-from utilities import extract_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataLoader
+from utilities import extract_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset
 import warnings
 import concurrent.futures
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -63,7 +64,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BC
+train = TrainEnum.EXPERT_DATA_COLLECTION
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -326,6 +327,7 @@ if __name__ == "__main__":
     month = now.strftime("%m")
     day = now.strftime("%d")
     expert_data_file='expert_data_relative.h5'
+    validation_data_file = 'expert_data_rel_val.h5'
     n_cpu =  multiprocessing.cpu_count()
     device = torch.device("cpu")
 
@@ -363,7 +365,8 @@ if __name__ == "__main__":
         collect_expert_data  (
                                     model,
                                     config["num_expert_steps"],
-                                    filename=expert_data_file,
+                                    train_filename=expert_data_file,
+                                    validation_filename=validation_data_file,
                                     **env_kwargs
                                 )
         print("collect data complete")
@@ -609,40 +612,40 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
-        exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
+        # exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
         # raw_len = len(exp_acts)
         # exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
         # filtered_len = len(exp_acts)
         # print("class_distribution post resampling ", Counter(exp_acts))
 
         # Split the data into training and validation sets
-        train_obs, val_obs , train_acts, val_acts, train_dones, val_dones= \
-                            train_test_split(
-                                                exp_obs, 
-                                                exp_acts,
-                                                exp_dones,
-                                                test_size=0.2, 
-                                                random_state=42
-                                            )
-        print("Data splitting done ")
-        def transitions(train_obs, train_acts, train_dones):
-            transitions = types.Transitions(
-                                                obs=np.array(train_obs[:-1]),
-                                                acts=np.array(train_acts[:-1]),
-                                                dones=np.array(train_dones[:-1]),
-                                                infos=np.array(len(train_dones[:-1])*[{}]),
-                                                next_obs=np.array(train_obs[1:])
-                                            )
-            return transitions
+        # train_obs, val_obs , train_acts, val_acts, train_dones, val_dones= \
+        #                     train_test_split(
+        #                                         exp_obs, 
+        #                                         exp_acts,
+        #                                         exp_dones,
+        #                                         test_size=0.2, 
+        #                                         random_state=42
+        #                                     )
+        # print("Data splitting done ")
+        # def transitions(train_obs, train_acts, train_dones):
+        #     transitions = types.Transitions(
+        #                                         obs=np.array(train_obs[:-1]),
+        #                                         acts=np.array(train_acts[:-1]),
+        #                                         dones=np.array(train_dones[:-1]),
+        #                                         infos=np.array(len(train_dones[:-1])*[{}]),
+        #                                         next_obs=np.array(train_obs[1:])
+        #                                     )
+        #     return transitions
         
-        num_samples = len(train_acts)
-        permuted_indices = np.random.permutation(num_samples)
-    # Shuffle all lists using the same index permutation
-        shuffled_obs = [train_obs[i] for i in permuted_indices]
-        shuffled_acts = [train_acts[i] for i in permuted_indices]
-        shuffled_dones = [train_dones[i] for i in permuted_indices]
-        training_transitions = transitions(shuffled_obs, shuffled_acts, shuffled_dones)
-        print("shuffling complete")
+    #     num_samples = len(train_acts)
+    #     permuted_indices = np.random.permutation(num_samples)
+    # # Shuffle all lists using the same index permutation
+    #     shuffled_obs = [train_obs[i] for i in permuted_indices]
+    #     shuffled_acts = [train_acts[i] for i in permuted_indices]
+    #     shuffled_dones = [train_dones[i] for i in permuted_indices]
+    #     training_transitions = transitions(shuffled_obs, shuffled_acts, shuffled_dones)
+    #     print("shuffling complete")
 
         rng=np.random.default_rng()
         device = torch.device("cuda")
@@ -663,71 +666,79 @@ if __name__ == "__main__":
         reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
-        data_loader = CustomDataLoader(expert_data_file, batch_size=batch_size)
+        custom_dataset = CustomDataset(expert_data_file)
+        data_loader = DataLoader(
+                                    custom_dataset, 
+                                    batch_size=batch_size, 
+                                    shuffle=True,
+                                    drop_last=True,
+                                )
+        
+        bc_trainer.set_demonstrations(data_loader)
         bc_trainer.train(n_epochs=100)
         reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
 
 
-        with wandb.init(
-                            project="BC", 
-                            magic=True,
-                        ) as run:
-                        run.name = f"sweep_{month}{day}_{timenow()}"
-                        # Log the model as an artifact in wandb
-                        torch.save(bc_trainer, 'BC_agent.pth')            
-                        artifact = wandb.Artifact("trained_model", type="model")
-                        artifact.add_file("BC_agent.pth")
-                        run.log_artifact(artifact)
-        wandb.finish()
+        # with wandb.init(
+        #                     project="BC", 
+        #                     magic=True,
+        #                 ) as run:
+        #                 run.name = f"sweep_{month}{day}_{timenow()}"
+        #                 # Log the model as an artifact in wandb
+        #                 torch.save(bc_trainer, 'BC_agent.pth')            
+        #                 artifact = wandb.Artifact("trained_model", type="model")
+        #                 artifact.add_file("BC_agent.pth")
+        #                 run.log_artifact(artifact)
+        # wandb.finish()
 
-        # Iterate through the validation data and make predictions
-        with torch.no_grad():
-            predicted_labels = [bc_trainer.policy.predict(obs)[0] for obs in val_obs]
-            true_labels = val_acts
+        # # Iterate through the validation data and make predictions
+        # with torch.no_grad():
+        #     predicted_labels = [bc_trainer.policy.predict(obs)[0] for obs in val_obs]
+        #     true_labels = val_acts
 
-        # Calculate evaluation metrics
-        accuracy = accuracy_score(true_labels, predicted_labels)
-        precision = precision_score(true_labels, predicted_labels, average=None)
-        recall = recall_score(true_labels, predicted_labels, average=None)
-        f1 = f1_score(true_labels, predicted_labels, average=None)
-        conf_matrix = confusion_matrix(true_labels, predicted_labels)
+        # # Calculate evaluation metrics
+        # accuracy = accuracy_score(true_labels, predicted_labels)
+        # precision = precision_score(true_labels, predicted_labels, average=None)
+        # recall = recall_score(true_labels, predicted_labels, average=None)
+        # f1 = f1_score(true_labels, predicted_labels, average=None)
+        # conf_matrix = confusion_matrix(true_labels, predicted_labels)
 
-        # Print the metrics
-        print("Accuracy:", accuracy, np.mean(accuracy))
-        print("Precision:", precision, np.mean(precision))
-        print("Recall:", recall, np.mean(recall))
-        print("F1 Score:", f1, np.mean(f1))
-
-
-        with torch.no_grad():
-            predicted_labels = [bc_trainer.policy.predict(obs)[0] for obs in train_obs]
-            true_labels = train_acts
-
-        # Calculate evaluation metrics
-        accuracy = accuracy_score(true_labels, predicted_labels)
-        precision = precision_score(true_labels, predicted_labels, average=None)
-        recall = recall_score(true_labels, predicted_labels, average=None)
-        f1 = f1_score(true_labels, predicted_labels, average=None)
-
-        # Print the Training metrics
-
-        print("--------  Training data metrics for reference---------------")
-        print("Accuracy:", accuracy, np.mean(accuracy))
-        print("Precision:", precision,  np.mean(precision))
-        print("Recall:", recall, np.mean(recall))
-        print("F1 Score:", f1, np.mean(recall))
+        # # Print the metrics
+        # print("Accuracy:", accuracy, np.mean(accuracy))
+        # print("Precision:", precision, np.mean(precision))
+        # print("Recall:", recall, np.mean(recall))
+        # print("F1 Score:", f1, np.mean(f1))
 
 
-        from highway_env.envs.common.action import DiscreteMetaAction
-        ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
-        plt.figure(figsize=(8, 6))
-        class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
-        sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
-        plt.xlabel("Predicted Labels")
-        plt.ylabel("True Labels")
-        plt.title("Confusion Matrix")
-        plt.show()
+        # with torch.no_grad():
+        #     predicted_labels = [bc_trainer.policy.predict(obs)[0] for obs in train_obs]
+        #     true_labels = train_acts
+
+        # # Calculate evaluation metrics
+        # accuracy = accuracy_score(true_labels, predicted_labels)
+        # precision = precision_score(true_labels, predicted_labels, average=None)
+        # recall = recall_score(true_labels, predicted_labels, average=None)
+        # f1 = f1_score(true_labels, predicted_labels, average=None)
+
+        # # Print the Training metrics
+
+        # print("--------  Training data metrics for reference---------------")
+        # print("Accuracy:", accuracy, np.mean(accuracy))
+        # print("Precision:", precision,  np.mean(precision))
+        # print("Recall:", recall, np.mean(recall))
+        # print("F1 Score:", f1, np.mean(recall))
+
+
+        # from highway_env.envs.common.action import DiscreteMetaAction
+        # ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
+        # plt.figure(figsize=(8, 6))
+        # class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
+        # sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
+        # plt.xlabel("Predicted Labels")
+        # plt.ylabel("True Labels")
+        # plt.title("Confusion Matrix")
+        # plt.show()
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
