@@ -238,11 +238,11 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
             " second_most_common_class ", second_most_common_class, 
             " second_most_common_count ", second_most_common_count
          )
-
+    desired_samples = factor * second_most_common_count
     # Determine whether downsampling is needed
     if most_common_count > factor * second_most_common_count:
         # Calculate the desired number of samples for downsampling
-        desired_samples = factor * second_most_common_count
+        
 
         # Perform downsampling on the most common class
         downsampled_exp_obs = []
@@ -267,7 +267,7 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
 
         for act, count in class_distribution.items():
             if act != most_common_class:
-                num_samples_to_copy = int(desired_samples - count)
+                num_samples_to_copy = int(second_most_common_count - count)
                 indices_to_copy = [i for i, a in enumerate(exp_acts) if a == act]
                 for index in indices_to_copy[:num_samples_to_copy]:
                     upsampled_exp_obs.append(exp_obs[index])

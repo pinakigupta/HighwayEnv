@@ -544,6 +544,7 @@ if __name__ == "__main__":
         wandb.finish()
     elif train == TrainEnum.IRLDEPLOY:
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
@@ -563,6 +564,7 @@ if __name__ == "__main__":
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=40)
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         env_kwargs.update({'reward_oracle':None})
         model = PPO(
                     "MlpPolicy", 
@@ -692,10 +694,10 @@ if __name__ == "__main__":
         conf_matrix = confusion_matrix(true_labels, predicted_labels)
 
         # Print the metrics
-        print("Accuracy:", accuracy)
-        print("Precision:", precision)
-        print("Recall:", recall)
-        print("F1 Score:", f1)
+        print("Accuracy:", accuracy, np.mean(accuracy))
+        print("Precision:", precision, np.mean(precision))
+        print("Recall:", recall, np.mean(recall))
+        print("F1 Score:", f1, np.mean(f1))
 
 
         with torch.no_grad():
@@ -704,17 +706,17 @@ if __name__ == "__main__":
 
         # Calculate evaluation metrics
         accuracy = accuracy_score(true_labels, predicted_labels)
-        precision = precision_score(true_labels, predicted_labels, average='macro')
-        recall = recall_score(true_labels, predicted_labels, average='macro')
-        f1 = f1_score(true_labels, predicted_labels, average='macro')
+        precision = precision_score(true_labels, predicted_labels, average=None)
+        recall = recall_score(true_labels, predicted_labels, average=None)
+        f1 = f1_score(true_labels, predicted_labels, average=None)
 
         # Print the Training metrics
 
         print("--------  Training data metrics for reference---------------")
-        print("Accuracy:", accuracy)
-        print("Precision:", precision)
-        print("Recall:", recall)
-        print("F1 Score:", f1)
+        print("Accuracy:", accuracy, np.mean(accuracy))
+        print("Precision:", precision,  np.mean(precision))
+        print("Recall:", recall, np.mean(recall))
+        print("F1 Score:", f1, np.mean(recall))
 
 
         from highway_env.envs.common.action import DiscreteMetaAction
@@ -729,6 +731,7 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env = make_configure_env(**env_kwargs)
         rng=np.random.default_rng()
