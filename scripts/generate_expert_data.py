@@ -83,12 +83,12 @@ def worker(
             for (v , ep_obs), (v_, ep_acts), (v_, ep_done) in zip(all_obs.items(), all_acts.items(), all_done.items()):
                 # print(" ep_acts length ", len(ep_acts), id1, id2, " steps_collected ", steps_collected, 
                 #       " obs_collected ", obs_collected, " steps_per_worker ", steps_per_worker, " done ", done)
-                if v.crashed:
-                    pass
-                    # print(" Discarding data as vehicle ", v, " crashed " )
-                else:
-                    data_queue.put((ep_obs, ep_acts, ep_done))
-                    steps_collected += len(ep_acts)
+                # if v.crashed:
+                #     pass
+                #     # print(" Discarding data as vehicle ", v, " crashed " )
+                # else:
+                data_queue.put((ep_obs, ep_acts, ep_done))
+                steps_collected += len(ep_acts)
             lock.release()
             # progress.value += obs_collecected
             # print("worker ", worker_id, " steps_collected ", steps_collected,   flush=True)

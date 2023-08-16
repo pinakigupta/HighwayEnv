@@ -4,6 +4,8 @@ import h5py
 import sys
 from stable_baselines3.common.policies import ActorCriticPolicy
 from models.nets import PolicyNetwork
+from torch.utils.data import Dataset, DataLoader
+import torch
     
 def extract_expert_data(filename):
     exp_obs  = []
@@ -100,3 +102,23 @@ def DefaultActorCriticPolicy(env, device):
                                             discrete=True, 
                                             device=torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
                                            )    
+
+class CustomDataLoader(Dataset):
+    def __init__(self, data_file):
+        # Load your data from the file and prepare it here
+        # self.data = ...  # Load your data into this variable
+        return
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        # Return a dictionary with "obs" and "acts" as Tensors
+        observation = torch.tensor(self.data[idx]['observation'], dtype=torch.float32)
+        action = torch.tensor(self.data[idx]['action'], dtype=torch.float32)
+        
+        sample = {
+            'obs': observation,
+            'acts': action
+        }
+        return sample

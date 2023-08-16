@@ -26,7 +26,7 @@ from models.gail import GAIL
 from generate_expert_data import collect_expert_data, downsample_most_dominant_class
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
-from utilities import extract_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy
+from utilities import extract_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataLoader
 import warnings
 import concurrent.futures
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -47,6 +47,7 @@ from ray import tune
 from ray.tune.trainable import trainable
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
 warnings.filterwarnings("ignore")
 
@@ -607,11 +608,10 @@ if __name__ == "__main__":
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
-        raw_len = len(exp_acts)
-        exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
-        # exp_obs[:][0][1] = 0.0 # hardcoding for now as this is already taken care of in the observation
-        filtered_len = len(exp_acts)
-        print("class_distribution post resampling ", Counter(exp_acts))
+        # raw_len = len(exp_acts)
+        # exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
+        # filtered_len = len(exp_acts)
+        # print("class_distribution post resampling ", Counter(exp_acts))
 
         # Split the data into training and validation sets
         train_obs, val_obs , train_acts, val_acts, train_dones, val_dones= \
@@ -646,20 +646,22 @@ if __name__ == "__main__":
         device = torch.device("cuda")
         policy = DefaultActorCriticPolicy(env, device)
         
+        batch_size= 64
         bc_trainer = bc.BC(
                             observation_space=env.observation_space,
                             action_space=env.action_space,
-                            demonstrations=training_transitions,
+                            demonstrations=None, #training_transitions,
                             rng=rng,
-                            batch_size=64,
+                            batch_size=batch_size,
                             device = device,
                             policy=policy
                           )
+
         
-        from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
         reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
+        data_loader = CustomDataLoader(expert_data_file, batch_size=batch_size)
         bc_trainer.train(n_epochs=100)
         reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
         print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
