@@ -105,11 +105,12 @@ def DefaultActorCriticPolicy(env, device):
                                            )    
 
 class CustomDataset(Dataset):
-    def __init__(self, data_file, pad_value=0):
+    def __init__(self, data_file, device, pad_value=0):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
         self.exp_obs, self.exp_acts, self.exp_dones = extract_expert_data(data_file)
         self.pad_value = pad_value
+        self.device = device
         print(" data lengths ", len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
         return
 
