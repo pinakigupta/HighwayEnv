@@ -1,0 +1,9 @@
+[core]
+    autostage = true
+    remote = lremote
+['remote "gremote"']
+    url = https://drive.google.com/drive/folders/1ZP24k1ql0XXzgXe6D84mBpvcGbIT7rUb
+['remote "default"']
+    url = ../local
+['remote "lremote"']
+    url = /tmp/dvcstore

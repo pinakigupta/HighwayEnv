@@ -44,3 +44,4 @@ wandb/
 model_config.json
 
 **/*.orig
+/test
