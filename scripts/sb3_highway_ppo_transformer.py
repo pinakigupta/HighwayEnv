@@ -64,7 +64,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.BC
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -611,44 +611,12 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
-        # exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
-        # raw_len = len(exp_acts)
-        # exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
-        # filtered_len = len(exp_acts)
-        # print("class_distribution post resampling ", Counter(exp_acts))
 
-        # Split the data into training and validation sets
-        # train_obs, val_obs , train_acts, val_acts, train_dones, val_dones= \
-        #                     train_test_split(
-        #                                         exp_obs, 
-        #                                         exp_acts,
-        #                                         exp_dones,
-        #                                         test_size=0.2, 
-        #                                         random_state=42
-        #                                     )
-        # print("Data splitting done ")
-        # def transitions(train_obs, train_acts, train_dones):
-        #     transitions = types.Transitions(
-        #                                         obs=np.array(train_obs[:-1]),
-        #                                         acts=np.array(train_acts[:-1]),
-        #                                         dones=np.array(train_dones[:-1]),
-        #                                         infos=np.array(len(train_dones[:-1])*[{}]),
-        #                                         next_obs=np.array(train_obs[1:])
-        #                                     )
-        #     return transitions
-        
-    #     num_samples = len(train_acts)
-    #     permuted_indices = np.random.permutation(num_samples)
-    # # Shuffle all lists using the same index permutation
-    #     shuffled_obs = [train_obs[i] for i in permuted_indices]
-    #     shuffled_acts = [train_acts[i] for i in permuted_indices]
-    #     shuffled_dones = [train_dones[i] for i in permuted_indices]
-    #     training_transitions = transitions(shuffled_obs, shuffled_acts, shuffled_dones)
-    #     print("shuffling complete")
 
         rng=np.random.default_rng()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         policy = DefaultActorCriticPolicy(env, device)
+        print("Default policy initialized ")
         
         batch_size= 64
         bc_trainer = bc.BC(
@@ -660,10 +628,10 @@ if __name__ == "__main__":
                             device = device,
                             policy=policy
                           )
-
+        print("BC trainer created ")
         
-        reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
+        # reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
+        # print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
         
         custom_dataset = CustomDataset(expert_data_file, device=device)
@@ -678,8 +646,8 @@ if __name__ == "__main__":
         
         bc_trainer.set_demonstrations(data_loader)
         bc_trainer.train(n_epochs=10)
-        reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
+        # reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
+        # print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
 
 
         with wandb.init(

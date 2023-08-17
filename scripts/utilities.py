@@ -8,39 +8,42 @@ from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 import torch
     
-def extract_expert_data(filename):
-    exp_obs  = []
-    exp_acts = []
-    exp_done = []
+def extract_expert_data(filename, exp_obs = [], exp_acts = [], exp_dones = [], episode_index=None):
+    if not exp_obs:
+        exp_obs  = []
+    if not exp_acts:
+        exp_acts = []
+    if not exp_dones:
+        exp_dones = []
     with h5py.File(filename, 'r') as hf:
         # List all the episode groups in the HDF5 file
         episode_groups = list(hf.keys())
 
-        # Iterate through each episode group
-        for episode_name in episode_groups:
+        if episode_index is not None:
+            episode_name = episode_groups[episode_index]
             episode = hf[episode_name]
 
-            # ep_obs  = []
-            # ep_acts = []
-            # ep_done = []
-
-            # List all datasets (exp_obs and exp_acts) in the episode group
-            datasets = list(episode.keys())
-
-            # Iterate through each dataset in the episode group
-            for dataset_name in datasets:
-                dataset = episode[dataset_name]
-
-                # Append the data to the corresponding list
+            for dataset_name, dataset in episode.items():
                 if dataset_name.startswith('exp_obs'):
                     exp_obs.extend([dataset[:]])
                 elif dataset_name.startswith('exp_acts'):
                     exp_acts.extend([dataset[()]])
                 elif dataset_name.startswith('exp_done'):
-                    exp_done.extend([dataset[()]]) 
-           
+                    exp_dones.extend([dataset[()]])
+        else:
+            for episode_name in episode_groups:
+                episode = hf[episode_name]
 
-    return  exp_obs, exp_acts, exp_done
+                for dataset_name, dataset in episode.items():
+                    if dataset_name.startswith('exp_obs'):
+                        exp_obs.extend([dataset[:]])
+                    elif dataset_name.startswith('exp_acts'):
+                        exp_acts.extend([dataset[()]])
+                    elif dataset_name.startswith('exp_done'):
+                        exp_dones.extend([dataset[()]])
+          
+
+    return  exp_obs, exp_acts, exp_dones
 
 
 def write_module_hierarchy_to_file(model, file):
@@ -106,18 +109,42 @@ def DefaultActorCriticPolicy(env, device):
 
 class CustomDataset(Dataset):
     def __init__(self, data_file, device, pad_value=0):
-        # Load your data from the file and prepare it here
-        # self.data = ...  # Load your data into this variable
-        self.exp_obs, self.exp_acts, self.exp_dones = extract_expert_data(data_file)
+        # self.exp_obs, self.exp_acts, self.exp_dones = extract_expert_data(data_file)
+        self.data_file = data_file
         self.pad_value = pad_value
         self.device = device
+        self.exp_obs = []
+        self.exp_acts = []
+        self.exp_dones = []
+        self.grp_idx = 0  # Initialize episode group index
+        self.total_episode_groups = self._get_total_episode_groups()
         print(" data lengths ", len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
-        return
 
     def __len__(self):
-        return len(self.exp_acts)
+        # return len(self.exp_acts)
+        return int(1000000)
+
+    def _load_episode_group(self):
+        extract_expert_data(self.data_file, self.exp_obs, self.exp_acts, self.exp_dones, self.grp_idx)
+
+    def _get_total_episode_groups(self):
+        with h5py.File(self.data_file, 'r') as hf:
+            total_episode_groups = len(list(hf.keys()))
+        return total_episode_groups
+
 
     def __getitem__(self, idx):
+        while True:
+            if idx >= len(self.exp_acts):
+                self.grp_idx += 1
+                if self.grp_idx >= self.total_episode_groups:
+                    # No more data left, raise a StopIteration exception
+                    raise StopIteration("No more data available.")
+
+                self._load_episode_group()
+            else:
+                break
+
         # Return a dictionary with "obs" and "acts" as Tensors
         observation = torch.tensor(self.exp_obs[idx], dtype=torch.float32)
         action = torch.tensor(self.exp_acts[idx], dtype=torch.float32)
