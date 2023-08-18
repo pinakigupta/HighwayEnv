@@ -24,10 +24,10 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 import shutil
 from models.gail import GAIL
-from generate_expert_data import collect_expert_data, downsample_most_dominant_class
+from generate_expert_data import collect_expert_data, downsample_most_dominant_class, postprocess
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
-from utilities import extract_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset
+from utilities import extract_post_processed_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset
 import warnings
 import concurrent.futures
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -64,7 +64,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.BC
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -325,8 +325,8 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    expert_data_file='expert_data_relative.h5'
-    validation_data_file = 'expert_data_rel_val.h5'
+    expert_data_file='pp_expert_data_relative.h5'
+    validation_data_file = 'pp_expert_data_rel_val.h5'
     n_cpu =  multiprocessing.cpu_count()
     device = torch.device("cpu")
 
@@ -369,6 +369,8 @@ if __name__ == "__main__":
                                     **env_kwargs
                                 )
         print("collect data complete")
+        postprocess(expert_data_file)
+        postprocess(validation_data_file)
     elif train == TrainEnum.RLTRAIN: # training 
         append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
         env = make_vec_env(
@@ -443,7 +445,7 @@ if __name__ == "__main__":
         with open("config.json") as f:
             train_config = json.load(f)
 
-        exp_obs, exp_acts, _ = extract_expert_data(expert_data_file)
+        exp_obs, exp_acts, _ = extract_post_processed_expert_data(expert_data_file)
 
         
         exp_obs = FloatTensor(exp_obs)
@@ -611,7 +613,7 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
-        # exp_obs, exp_acts, exp_dones = extract_expert_data(expert_data_file)
+        # exp_obs, exp_acts, exp_dones = extract_post_processed_expert_data(expert_data_file)
         # raw_len = len(exp_acts)
         # exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
         # filtered_len = len(exp_acts)
@@ -662,8 +664,8 @@ if __name__ == "__main__":
                           )
 
         
-        reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
+        # reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
+        # print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
         
         custom_dataset = CustomDataset(expert_data_file, device=device)
@@ -678,8 +680,8 @@ if __name__ == "__main__":
         
         bc_trainer.set_demonstrations(data_loader)
         bc_trainer.train(n_epochs=10)
-        reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
-        print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
+        # reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
+        # print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
 
 
         with wandb.init(
@@ -694,7 +696,7 @@ if __name__ == "__main__":
                         run.log_artifact(artifact)
         wandb.finish()
 
-        val_obs, val_acts, val_dones = extract_expert_data(validation_data_file)
+        val_obs, val_acts, val_dones = extract_post_processed_expert_data(validation_data_file)
         # Iterate through the validation data and make predictions
         with torch.no_grad():
             predicted_labels = [bc_trainer.policy.predict(obs)[0] for obs in val_obs]
@@ -745,9 +747,6 @@ if __name__ == "__main__":
         print("Precision:", precision,  np.mean(precision))
         print("Recall:", recall, np.mean(recall))
         print("F1 Score:", f1, np.mean(recall))
-
-
-
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})

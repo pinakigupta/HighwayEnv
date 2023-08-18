@@ -7,41 +7,7 @@ from models.nets import PolicyNetwork
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 import torch
-    
-def extract_expert_data(filename):
-    exp_obs  = []
-    exp_acts = []
-    exp_done = []
-    with h5py.File(filename, 'r') as hf:
-        # List all the episode groups in the HDF5 file
-        episode_groups = list(hf.keys())
-
-        # Iterate through each episode group
-        for episode_name in episode_groups:
-            episode = hf[episode_name]
-
-            # ep_obs  = []
-            # ep_acts = []
-            # ep_done = []
-
-            # List all datasets (exp_obs and exp_acts) in the episode group
-            datasets = list(episode.keys())
-
-            # Iterate through each dataset in the episode group
-            for dataset_name in datasets:
-                dataset = episode[dataset_name]
-
-                # Append the data to the corresponding list
-                if dataset_name.startswith('exp_obs'):
-                    exp_obs.extend([dataset[:]])
-                elif dataset_name.startswith('exp_acts'):
-                    exp_acts.extend([dataset[()]])
-                elif dataset_name.startswith('exp_done'):
-                    exp_done.extend([dataset[()]]) 
-           
-
-    return  exp_obs, exp_acts, exp_done
-
+from generate_expert_data import extract_post_processed_expert_data    
 
 def write_module_hierarchy_to_file(model, file):
     def write_module_recursive(module, file=None, indent='', processed_submodules=None):
@@ -108,7 +74,7 @@ class CustomDataset(Dataset):
     def __init__(self, data_file, device, pad_value=0):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
-        self.exp_obs, self.exp_acts, self.exp_dones = extract_expert_data(data_file)
+        self.exp_obs, self.exp_acts, self.exp_dones = extract_post_processed_expert_data(data_file)
         self.pad_value = pad_value
         self.device = device
         print(" data lengths ", len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))

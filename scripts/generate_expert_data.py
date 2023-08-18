@@ -11,6 +11,7 @@ from collections import Counter
 from scipy.stats import entropy
 import random
 
+
 torch.set_default_tensor_type(torch.FloatTensor)
 
 def make_configure_env(**kwargs):
@@ -237,6 +238,18 @@ def collect_expert_data(
     # exp_done = np.array(exp_done)
     # return exp_obs, exp_acts, exp_done
 
+def postprocess(datafile):
+    exp_obs, exp_acts, exp_dones = extract_expert_data(datafile)
+    exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
+    # Convert the list of arrays into a NumPy array
+    numpy_exp_obs = np.array(exp_obs)
+    numpy_exp_acts = np.array(exp_acts)
+    numpy_exp_dones = np.array(exp_dones)
+    with h5py.File("pp_"+datafile, 'w') as hf:
+        hf.create_dataset('obs',  data=numpy_exp_obs)
+        hf.create_dataset('act',  data=numpy_exp_acts)
+        hf.create_dataset('dones',  data=numpy_exp_dones)
+
 def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
     # Calculate the distribution of classes
     class_distribution = Counter(exp_acts)
@@ -312,3 +325,51 @@ def is_skewed(actual_distribution, threshold, num_action_types=5):
     actual_normalized_distribution = normalize_distribution(Counter(actual_distribution), num_action_types)
     kl_divergence = entropy(list(actual_normalized_distribution.values()), uniform_normalized_distribution)
     return kl_divergence > threshold
+
+
+def extract_expert_data(filename):
+    exp_obs  = []
+    exp_acts = []
+    exp_done = []
+    with h5py.File(filename, 'r') as hf:
+        # List all the episode groups in the HDF5 file
+        episode_groups = list(hf.keys())
+
+        # Iterate through each episode group
+        for episode_name in episode_groups:
+            episode = hf[episode_name]
+
+            # ep_obs  = []
+            # ep_acts = []
+            # ep_done = []
+
+            # List all datasets (exp_obs and exp_acts) in the episode group
+            datasets = list(episode.keys())
+
+            # Iterate through each dataset in the episode group
+            for dataset_name in datasets:
+                dataset = episode[dataset_name]
+
+                # Append the data to the corresponding list
+                if dataset_name.startswith('exp_obs'):
+                    exp_obs.extend([dataset[:]])
+                elif dataset_name.startswith('exp_acts'):
+                    exp_acts.extend([dataset[()]])
+                elif dataset_name.startswith('exp_done'):
+                    exp_done.extend([dataset[()]]) 
+           
+
+    return  exp_obs, exp_acts, exp_done
+
+
+def extract_post_processed_expert_data(filename):
+    # Open the HDF5 file in read mode
+    with h5py.File(filename, 'r') as hf:
+        # Read the 'obs' dataset
+        obs_array = hf['obs'][:]  # [:] to read the entire dataset
+        
+        # If you've saved other datasets (e.g., 'act' and 'done'), you can read them similarly
+        act_array = hf['act'][:]
+        done_array = hf['dones'][:]
+
+    return obs_array, act_array, done_array
