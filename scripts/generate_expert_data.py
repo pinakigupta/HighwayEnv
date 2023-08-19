@@ -207,22 +207,22 @@ def collect_expert_data(
                 episode_group.create_dataset(f'exp_done{i}', data=arr3)
             pbar_outer.update(steps_count - pbar_outer.n)
 
-    print(" joining worker processes ", [worker.pid for worker in worker_processes], flush=True)
+    # print(" joining worker processes ", [worker.pid for worker in worker_processes], flush=True)
 
 
     # Join worker processes to wait for their completion
     for worker_process in worker_processes:
         worker_process.terminate()
 
-    print(" End of worker_process join")
+    # print(" End of worker_process join")
 
     # Close and join the queue
     exp_data_queue.close()
-    print(" End of data queue")
+    # print(" End of data queue")
     exp_data_queue.join_thread()
     pbar_outer.close()
 
-    print(" End of data collection")
+    # print(" End of data collection")
     # Accumulate episode rewards where episodes are done
     # for rwd in episode_rewards:
     #     exp_rwd_iter.append(rwd)
@@ -238,14 +238,14 @@ def collect_expert_data(
     # exp_done = np.array(exp_done)
     # return exp_obs, exp_acts, exp_done
 
-def postprocess(datafile):
-    exp_obs, exp_acts, exp_dones = extract_expert_data(datafile)
+def postprocess(inputfile,outputfile):
+    exp_obs, exp_acts, exp_dones = extract_expert_data(inputfile)
     exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
     # Convert the list of arrays into a NumPy array
     numpy_exp_obs = np.array(exp_obs)
     numpy_exp_acts = np.array(exp_acts)
     numpy_exp_dones = np.array(exp_dones)
-    with h5py.File("pp_"+datafile, 'w') as hf:
+    with h5py.File(outputfile, 'w') as hf:
         hf.create_dataset('obs',  data=numpy_exp_obs)
         hf.create_dataset('act',  data=numpy_exp_acts)
         hf.create_dataset('dones',  data=numpy_exp_dones)
@@ -255,13 +255,13 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
     class_distribution = Counter(exp_acts)
     most_common_class, most_common_count = class_distribution.most_common(1)[0]
     second_most_common_class, second_most_common_count = class_distribution.most_common(2)[1]
-    print("class_distribution ", class_distribution)
-    print(
-            "most_common_class ", most_common_class,
-            "most_common_count ", most_common_count, 
-            " second_most_common_class ", second_most_common_class, 
-            " second_most_common_count ", second_most_common_count
-         )
+    # print("class_distribution ", class_distribution)
+    # print(
+    #         "most_common_class ", most_common_class,
+    #         "most_common_count ", most_common_count, 
+    #         " second_most_common_class ", second_most_common_class, 
+    #         " second_most_common_count ", second_most_common_count
+    #      )
     desired_samples = factor * second_most_common_count
     # Determine whether downsampling is needed
     if most_common_count > factor * second_most_common_count:

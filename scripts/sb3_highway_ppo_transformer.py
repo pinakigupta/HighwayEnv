@@ -325,9 +325,9 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    expert_data_file='pp_expert_data_relative.h5'
-    validation_data_file = 'pp_expert_data_rel_val.h5'
-    zip_filename = 'pp_expert_data.zip'
+    expert_data_file='expert_data_relative.h5'
+    validation_data_file = 'expert_data_rel_val.h5'
+    zip_filename = 'expert_data.zip'
     n_cpu =  multiprocessing.cpu_count()
     device = torch.device("cpu")
 
@@ -374,12 +374,12 @@ if __name__ == "__main__":
                                             train_filename=expert_data_file,
                                             validation_filename=validation_data_file,
                                             **env_kwargs
-                                        )
-                print("collect data complete")
-                exp_file = f'{filenum}_{expert_data_file}'
-                val_file = f'{filenum}_{validation_data_file}'
-                postprocess(exp_file)
-                postprocess(val_file)
+                                      )
+                # print("collect data complete")
+                exp_file = f'data/expert_train_data_{filenum}.h5'
+                val_file = f'data/expert_val_data_{filenum}.h5'
+                postprocess(expert_data_file, exp_file)
+                postprocess(validation_data_file, val_file)
                 zipf.write(exp_file)
                 zipf.write(val_file)
                 outer_bar.update(1)
