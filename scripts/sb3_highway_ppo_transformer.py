@@ -38,12 +38,12 @@ import matplotlib.pyplot as plt
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.ppo import MlpPolicy
-
+import zipfile
 from imitation.algorithms import bc
 from imitation.data import rollout
 from imitation.data.wrappers import RolloutInfoWrapper
 from imitation.data import types
-
+from tqdm import tqdm
 from ray import tune
 from ray.tune.trainable import trainable
 
@@ -64,7 +64,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BC
+train = TrainEnum.EXPERT_DATA_COLLECTION
 
 def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
     kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
@@ -327,6 +327,7 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     expert_data_file='pp_expert_data_relative.h5'
     validation_data_file = 'pp_expert_data_rel_val.h5'
+    zip_filename = 'pp_expert_data.zip'
     n_cpu =  multiprocessing.cpu_count()
     device = torch.device("cpu")
 
@@ -361,16 +362,29 @@ if __name__ == "__main__":
         
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
         append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
-        collect_expert_data  (
-                                    model,
-                                    config["num_expert_steps"],
-                                    train_filename=expert_data_file,
-                                    validation_filename=validation_data_file,
-                                    **env_kwargs
-                                )
-        print("collect data complete")
-        postprocess(expert_data_file)
-        postprocess(validation_data_file)
+
+        total_iterations = 1000  # The total number of loop iterations
+        with zipfile.ZipFile(zip_filename, 'w') as zipf:
+            # Create an outer tqdm progress bar
+            outer_bar = tqdm(total=total_iterations, desc="Outer Loop Progress")
+            for filenum in range(total_iterations):
+                collect_expert_data  (
+                                            model,
+                                            config["num_expert_steps"],
+                                            train_filename=expert_data_file,
+                                            validation_filename=validation_data_file,
+                                            **env_kwargs
+                                        )
+                print("collect data complete")
+                exp_file = f'{filenum}_{expert_data_file}'
+                val_file = f'{filenum}_{validation_data_file}'
+                postprocess(exp_file)
+                postprocess(val_file)
+                zipf.write(exp_file)
+                zipf.write(val_file)
+                outer_bar.update(1)
+            outer_bar.close()
+
     elif train == TrainEnum.RLTRAIN: # training 
         append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
         env = make_vec_env(
