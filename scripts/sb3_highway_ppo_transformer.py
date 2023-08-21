@@ -3,7 +3,6 @@ import gymnasium as gym
 import pygame
 import seaborn as sns
 import torch as th
-from highway_env.utils import lmap, print_overwrite
 from stable_baselines3 import PPO
 import torch
 import numpy as np
@@ -12,7 +11,7 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
 from collections import Counter
-import os, statistics
+import os
 import multiprocessing
 from enum import Enum
 import json
@@ -20,34 +19,22 @@ import copy
 import wandb
 from datetime import datetime
 from torch import FloatTensor
-from torch import nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 import shutil
 from models.gail import GAIL
-from generate_expert_data import collect_expert_data, downsample_most_dominant_class, postprocess
+from generate_expert_data import collect_expert_data, postprocess
+from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from attention_network import EgoAttentionNetwork
 from utilities import extract_post_processed_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset
 import warnings
-import concurrent.futures
-from stable_baselines3.common.evaluation import evaluate_policy
+
 from imitation.algorithms import bc
-from imitation.data import types
 from python_config import sweep_config, env_kwargs
 import matplotlib.pyplot as plt
-from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.vec_env import DummyVecEnv
-from stable_baselines3.ppo import MlpPolicy
 import zipfile
 from imitation.algorithms import bc
-from imitation.data import rollout
-from imitation.data.wrappers import RolloutInfoWrapper
-from imitation.data import types
 from tqdm import tqdm
-from ray import tune
-from ray.tune.trainable import trainable
-
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
 warnings.filterwarnings("ignore")
@@ -64,10 +51,9 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
+train = TrainEnum.BC
 
-def append_key_to_dict_of_dict(kwargs, outer_key, inner_key, value):
-    kwargs[outer_key] = {**kwargs.get(outer_key, {}), inner_key: value}
+
 
 attention_network_kwargs = dict(
     # in_size=5*15,
@@ -92,20 +78,7 @@ class CustomExtractor(BaseFeaturesExtractor):
     def forward(self, observations: th.Tensor) -> th.Tensor:
         return self.extractor(observations)
 
-# ==================================
-#     Environment configuration
-# ==================================
 
-def make_configure_env(**kwargs):
-    env = gym.make(
-                    # kwargs["id"], 
-                    # render_mode=kwargs["render_mode"], 
-                    # config=kwargs["config"],
-                    **kwargs
-                  )
-    # env.configure(kwargs["config"])
-    env.reset()
-    return env
 
 
 
@@ -115,63 +88,6 @@ def make_configure_env(**kwargs):
 #        Display attention matrix
 # ==================================
 
-def display_vehicles_attention(agent_surface, sim_surface, env, fe, min_attention=0.01):
-        v_attention = compute_vehicles_attention(env, fe)
-        # print("v_attention ", v_attention)
-        # Extract the subsurface of the larger rectangle
-        attention_surface = pygame.Surface(sim_surface.get_size(), pygame.SRCALPHA)
-        pygame.draw.circle(
-                                        surface=attention_surface,
-                                        color=pygame.Color("white"),
-                                        center=sim_surface.vec2pix(env.vehicle.position),
-                                        radius=20,
-                                        width=2
-                          )
-        for head in range(list(v_attention.values())[0].shape[0]):
-            
-            for vehicle, attention in v_attention.items():
-                if attention[head] < min_attention:
-                    continue
-                # if True: 
-                #     print("attention[head] ", attention[head], "vehicle ", vehicle)
-                width = attention[head] * 5
-                desat = np.clip(lmap(attention[head], (0, 0.5), (0.7, 1)), 0.7, 1)
-                colors = sns.color_palette("dark", desat=desat)
-                color = np.array(colors[(2*head) % (len(colors) - 1)]) * 255
-                color = (*color, np.clip(lmap(attention[head], (0, 0.5), (100, 200)), 100, 200))
-                pygame.draw.line(attention_surface, color,
-                                     sim_surface.vec2pix(env.vehicle.position),
-                                     sim_surface.vec2pix(vehicle.position),
-                                     max(sim_surface.pix(width), 1)
-                                )
-            # subsurface = attention_surface.subsurface(pygame.Rect(0, 0, 4800, 200))
-            sim_surface.blit(attention_surface, (0, 0))
-
-def compute_vehicles_attention(env,fe):
-    obs = env.unwrapped.observation_type.observe()
-    obs_t = torch.tensor(obs[None, ...], dtype=torch.float)
-    attention = fe.extractor.get_attention_matrix(obs_t)
-    attention = attention.squeeze(0).squeeze(1).detach().cpu().numpy()
-    ego, others, mask = fe.extractor.split_input(obs_t)
-    mask = mask.squeeze()
-    v_attention = {}
-    obs_type = env.observation_type
-    if hasattr(obs_type, "agents_observation_types"):  # Handle multi-model observation
-        obs_type = obs_type.agents_observation_types[0]
-    for v_index in range(obs.shape[0]):
-        if mask[v_index]:
-            continue
-        v_position = {}
-        for feature in ["x", "y"]:
-            v_feature = obs[v_index, obs_type.features.index(feature)]
-            v_feature = lmap(v_feature, [-1, 1], obs_type.features_range[feature])
-            v_position[feature] = v_feature
-        v_position = np.array([v_position["x"], v_position["y"]])
-        if not obs_type.absolute and v_index > 0:
-            v_position += env.unwrapped.vehicle.position # This is ego
-        vehicle = min(env.unwrapped.road.vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
-        v_attention[vehicle] = attention[:, v_index]
-    return v_attention
 
 # ==================================
 #        Main script  20 
@@ -213,96 +129,10 @@ def retrieve_gail_agents( artifact_version, project = None):
     optimal_gail_agent = torch.load(optimal_gail_agent_path)
     return optimal_gail_agent, final_gail_agent
 
-total_count_lock = multiprocessing.Lock()
-total_count = multiprocessing.Value("i", 0)
 
 
 
-def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_rollouts=50, num_workers =4):
-    global total_count
-    rollouts_per_worker = num_rollouts // num_workers
-    extra_rollouts = num_rollouts % num_workers
-    # print("rollouts_per_worker ", rollouts_per_worker, "extra_rollouts ", extra_rollouts)
 
-    total_rewards = []
-
-    if worker_id != 0:
-        env_kwargs.update({'render_mode': 'rgb_array'})
-    else:
-        env_kwargs.update({'render_mode': render_mode})
-        append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
-    
-    env = make_configure_env(**env_kwargs)
-    for _ in range(rollouts_per_worker):
-        obs, info = env.reset()
-        done = truncated = False
-        cumulative_reward = 0
-        while not (done or truncated):
-            with torch.no_grad():
-                try:  
-                    print(type(agent))  
-                    action = agent.act(obs)
-                except:
-                    try:
-                        action = agent.predict(obs)
-                        action = action[0]
-                    except:
-                        action = agent.pi(obs)
-            obs, reward, done, truncated, info = env.step(action)
-            cumulative_reward += gamma * reward
-            # xs = [(v.position[0],v.speed) for v in env.road.vehicles]
-            # print(" ego x " , env.vehicle.position[0], "xs ", xs)
-            # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-            # env.render(render_mode=render_mode)
-        total_rewards.append(cumulative_reward)
-        count_length = len("Total Episodes Count: ")  # Length of the text before the count
-        with total_count_lock:
-            total_count.value += 1
-            count_text = f"Total Episodes Count: {total_count.value}"
-            print_overwrite(count_text, count_length)
-        # print(worker_id," : ",len(total_rewards),"--------------------------------------------------------------------------------------")
-    return total_rewards
-
-def simulate_with_model( agent, env_kwargs, render_mode, gamma = 1.0, num_rollouts=50, num_workers = 4):
-    # progress_bar = tqdm(total=num_rollouts , desc="Episodes", unit="episodes")
-    all_rewards = []
-    work_queue = list(range(num_rollouts))  # Create a work queue with rollout IDs
-    completed_rollouts = 0  # Counter for completed rollouts
-    
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-            future_to_rollout = {executor.submit(
-                                                    worker_rollout, 
-                                                    worker_id, 
-                                                    agent, 
-                                                    render_mode=render_mode,
-                                                    env_kwargs=env_kwargs, 
-                                                    num_workers=num_workers, 
-                                                    num_rollouts=num_rollouts
-                                                ):
-                                worker_id for worker_id in range(num_workers)}
-
-            while completed_rollouts < num_rollouts:
-                # Wait for the next completed rollout and get its result
-                for future in concurrent.futures.as_completed(future_to_rollout):
-                    worker_id = future_to_rollout[future]
-                    try:
-                        rewards = future.result()
-                        all_rewards.extend(rewards)
-                        completed_rollouts += 1
-
-                        if completed_rollouts > num_rollouts:
-                            break
-
-                        if work_queue:
-                            next_rollout = work_queue.pop(0)
-                            future_to_rollout[executor.submit(worker_rollout, worker_id, agent, render_mode=render_mode,
-                                                            env_kwargs=env_kwargs, num_workers=num_workers,
-                                                            num_rollouts=num_rollouts)] = worker_id
-                    except concurrent.futures.process.BrokenProcessPool as e:
-                        print("BrokenProcessPool Exception:", e)
-
-    mean_rewards = statistics.mean(all_rewards)
-    return mean_rewards
 
 
 
@@ -330,6 +160,7 @@ if __name__ == "__main__":
     zip_filename = 'expert_data.zip'
     n_cpu =  multiprocessing.cpu_count()
     device = torch.device("cpu")
+    extract_path = "data/expert_data"
 
 
     def timenow():
@@ -627,46 +458,13 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
-        # exp_obs, exp_acts, exp_dones = extract_post_processed_expert_data(expert_data_file)
-        # raw_len = len(exp_acts)
-        # exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
-        # filtered_len = len(exp_acts)
-        # print("class_distribution post resampling ", Counter(exp_acts))
 
-        # Split the data into training and validation sets
-        # train_obs, val_obs , train_acts, val_acts, train_dones, val_dones= \
-        #                     train_test_split(
-        #                                         exp_obs, 
-        #                                         exp_acts,
-        #                                         exp_dones,
-        #                                         test_size=0.2, 
-        #                                         random_state=42
-        #                                     )
-        # print("Data splitting done ")
-        # def transitions(train_obs, train_acts, train_dones):
-        #     transitions = types.Transitions(
-        #                                         obs=np.array(train_obs[:-1]),
-        #                                         acts=np.array(train_acts[:-1]),
-        #                                         dones=np.array(train_dones[:-1]),
-        #                                         infos=np.array(len(train_dones[:-1])*[{}]),
-        #                                         next_obs=np.array(train_obs[1:])
-        #                                     )
-        #     return transitions
-        
-    #     num_samples = len(train_acts)
-    #     permuted_indices = np.random.permutation(num_samples)
-    # # Shuffle all lists using the same index permutation
-    #     shuffled_obs = [train_obs[i] for i in permuted_indices]
-    #     shuffled_acts = [train_acts[i] for i in permuted_indices]
-    #     shuffled_dones = [train_dones[i] for i in permuted_indices]
-    #     training_transitions = transitions(shuffled_obs, shuffled_acts, shuffled_dones)
-    #     print("shuffling complete")
-
+        num_epochs = 3
         rng=np.random.default_rng()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         policy = DefaultActorCriticPolicy(env, device)
         
-        batch_size= 64
+        batch_size= 128
         bc_trainer = bc.BC(
                             observation_space=env.observation_space,
                             action_space=env.action_space,
@@ -681,19 +479,39 @@ if __name__ == "__main__":
         # reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
         # print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
 
+        # Extract the HDF5 files from the zip archive
+        with zipfile.ZipFile(zip_filename, 'r') as archive:
+            archive.extractall(extract_path)
+
+        # Extract the names of the HDF5 files from the zip archive
+        with zipfile.ZipFile(zip_filename, 'r') as archive:
+            hdf5_train_file_names = [os.path.join(extract_path, name) 
+                                        for name in archive.namelist() 
+                                        if name.endswith('.h5') and "train" in name]
+            hdf5_val_file_names = [os.path.join(extract_path, name) 
+                                        for name in archive.namelist() 
+                                        if name.endswith('.h5') and "val" in name]            
+
+        # Create separate datasets for each HDF5 file
+        train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names[:2]]
+        # val_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_val_file_names]
         
-        custom_dataset = CustomDataset(expert_data_file, device=device)
-        data_loader = DataLoader(
-                                    custom_dataset, 
+        # custom_dataset = CustomDataset(expert_data_file, device=device)
+        train_data_loaders = [DataLoader(
+                                    dataset, 
                                     batch_size=batch_size, 
                                     shuffle=True,
                                     drop_last=True,
                                     num_workers=n_cpu,
                                     pin_memory=True
-                                )
+                                ) for dataset in train_datasets]
         
-        bc_trainer.set_demonstrations(data_loader)
-        bc_trainer.train(n_epochs=10)
+        
+
+        for epoch in range(num_epochs):
+            for data_loader in train_data_loaders:
+                bc_trainer.set_demonstrations(data_loader)
+                bc_trainer.train(n_epochs=1)
         # reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
         # print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
 
@@ -710,11 +528,14 @@ if __name__ == "__main__":
                         run.log_artifact(artifact)
         wandb.finish()
 
-        val_obs, val_acts, val_dones = extract_post_processed_expert_data(validation_data_file)
+        true_labels = []
+        predicted_labels = []
         # Iterate through the validation data and make predictions
         with torch.no_grad():
-            predicted_labels = [bc_trainer.policy.predict(obs)[0] for obs in val_obs]
-            true_labels = val_acts
+            for val_data_file in hdf5_val_file_names[:2]:
+                val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
+                predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
+                true_labels.extend(val_acts)
 
         # Calculate evaluation metrics
         accuracy = accuracy_score(true_labels, predicted_labels)
@@ -729,24 +550,14 @@ if __name__ == "__main__":
         print("Recall:", recall, np.mean(recall))
         print("F1 Score:", f1, np.mean(f1))
 
-        from highway_env.envs.common.action import DiscreteMetaAction
-        ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
-        plt.figure(figsize=(8, 6))
-        class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
-        sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
-        plt.xlabel("Predicted Labels")
-        plt.ylabel("True Labels")
-        plt.title("Confusion Matrix")
-        plt.show()
 
         predicted_labels = []
-        true_label = []
+        true_labels = []
         with torch.no_grad():
-            for batch_obs, batch_acts, _ in data_loader:
-                print(batch_obs.shape)
-                batch_predictions = [bc_trainer.policy.predict(obs)[0] for obs in batch_obs]
-                predicted_labels.extend(batch_predictions)
-                true_labels.extend(batch_acts)
+            for val_data_file in hdf5_train_file_names[:2]:
+                val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
+                predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
+                true_labels.extend(val_acts)
 
         # Calculate evaluation metrics
         accuracy = accuracy_score(true_labels, predicted_labels)
@@ -761,6 +572,17 @@ if __name__ == "__main__":
         print("Precision:", precision,  np.mean(precision))
         print("Recall:", recall, np.mean(recall))
         print("F1 Score:", f1, np.mean(recall))
+
+        from highway_env.envs.common.action import DiscreteMetaAction
+        ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
+        plt.figure(figsize=(8, 6))
+        class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
+        sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
+        plt.xlabel("Predicted Labels")
+        plt.ylabel("True Labels")
+        plt.title("Confusion Matrix")
+        plt.show()
+        
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
