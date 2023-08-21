@@ -393,122 +393,165 @@ if __name__ == "__main__":
         print("Default policy initialized ")
         
         batch_size= 128
-        bc_trainer = bc.BC(
-                            observation_space=env.observation_space,
-                            action_space=env.action_space,
-                            demonstrations=None, #training_transitions,
-                            rng=rng,
-                            batch_size=batch_size,
-                            device = device,
-                            policy=policy
-                          )
-        print("BC trainer created ")
+        def create_trainer(env, policy, **kwargs):
+            return       bc.BC(
+                                observation_space=env.observation_space,
+                                action_space=env.action_space,
+                                demonstrations=None, #training_transitions,
+                                rng=np.random.default_rng(),
+                                batch_size=kwargs['batch_size'],
+                                device = device,
+                                policy=policy
+                                )        
         
-        # reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
-        # print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")
+        def create_dataloaders(zip_filename, **kwargs):
+            # Extract the HDF5 files from the zip archive
+            with zipfile.ZipFile(zip_filename, 'r') as archive:
+                archive.extractall(extract_path)
 
-        # Extract the HDF5 files from the zip archive
-        with zipfile.ZipFile(zip_filename, 'r') as archive:
-            archive.extractall(extract_path)
+            # Extract the names of the HDF5 files from the zip archive
+            with zipfile.ZipFile(zip_filename, 'r') as archive:
+                hdf5_train_file_names = [os.path.join(extract_path, name) 
+                                            for name in archive.namelist() 
+                                            if name.endswith('.h5') and "train" in name]
+                hdf5_val_file_names = [os.path.join(extract_path, name) 
+                                            for name in archive.namelist() 
+                                            if name.endswith('.h5') and "val" in name]            
 
-        # Extract the names of the HDF5 files from the zip archive
-        with zipfile.ZipFile(zip_filename, 'r') as archive:
-            hdf5_train_file_names = [os.path.join(extract_path, name) 
-                                        for name in archive.namelist() 
-                                        if name.endswith('.h5') and "train" in name]
-            hdf5_val_file_names = [os.path.join(extract_path, name) 
-                                        for name in archive.namelist() 
-                                        if name.endswith('.h5') and "val" in name]            
-
-        # Create separate datasets for each HDF5 file
-        train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names[:2]]
-        # val_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_val_file_names]
+            hdf5_train_file_names = hdf5_train_file_names[:2]
+            hdf5_val_file_names = hdf5_val_file_names[:2]
+            # Create separate datasets for each HDF5 file
+            train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
+            # val_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_val_file_names]
+            
+            # custom_dataset = CustomDataset(expert_data_file, device=device)
+            train_data_loaders = [DataLoader(
+                                        dataset, 
+                                        batch_size=kwargs['batch_size'], 
+                                        shuffle=True,
+                                        drop_last=True,
+                                        num_workers=n_cpu,
+                                        pin_memory=True
+                                    ) for dataset in train_datasets]
+            return train_data_loaders, hdf5_train_file_names, hdf5_val_file_names
         
-        # custom_dataset = CustomDataset(expert_data_file, device=device)
-        train_data_loaders = [DataLoader(
-                                    dataset, 
-                                    batch_size=batch_size, 
-                                    shuffle=True,
-                                    drop_last=True,
-                                    num_workers=n_cpu,
-                                    pin_memory=True
-                                ) for dataset in train_datasets]
-        
-        
+        def _train(trainer, data_loaders, **training_kwargs):
+            for epoch in range(training_kwargs['num_epochs']):
+                for data_loader in data_loaders:
+                    trainer.set_demonstrations(data_loader)
+                    trainer.train(n_epochs=1)    
 
-        for epoch in range(num_epochs):
-            for data_loader in train_data_loaders:
-                bc_trainer.set_demonstrations(data_loader)
-                bc_trainer.train(n_epochs=1)
-        # reward_after_training, std_reward_after_training = evaluate_policy(bc_trainer.policy, env, 10)
-        # print(f"Reward after training: {reward_after_training}, std_reward_after_training: {std_reward_after_training}") 
+        def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
+            true_labels = []
+            predicted_labels = []
+            # Iterate through the validation data and make predictions
+            with torch.no_grad():
+                for val_data_file in hdf5_val_file_names:
+                    val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
+                    predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
+                    true_labels.extend(val_acts)
+
+            # Calculate evaluation metrics
+            accuracy = accuracy_score(true_labels, predicted_labels)
+            precision = precision_score(true_labels, predicted_labels, average=None)
+            recall = recall_score(true_labels, predicted_labels, average=None)
+            f1 = f1_score(true_labels, predicted_labels, average=None)
+            conf_matrix = confusion_matrix(true_labels, predicted_labels)
+
+            # Print the metrics
+            print("Accuracy:", accuracy, np.mean(accuracy))
+            print("Precision:", precision, np.mean(precision))
+            print("Recall:", recall, np.mean(recall))
+            print("F1 Score:", f1, np.mean(f1))
 
 
-        with wandb.init(
-                            project="BC", 
-                            magic=True,
-                        ) as run:
-                        run.name = f"sweep_{month}{day}_{timenow()}"
-                        # Log the model as an artifact in wandb
-                        torch.save(bc_trainer, 'BC_agent.pth')            
-                        artifact = wandb.Artifact("trained_model", type="model")
-                        artifact.add_file("BC_agent.pth")
-                        run.log_artifact(artifact)
+            predicted_labels = []
+            true_labels = []
+            with torch.no_grad():
+                for val_data_file in hdf5_train_file_names:
+                    val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
+                    predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
+                    true_labels.extend(val_acts)
+
+            # Calculate evaluation metrics
+            accuracy = accuracy_score(true_labels, predicted_labels)
+            precision = precision_score(true_labels, predicted_labels, average=None)
+            recall = recall_score(true_labels, predicted_labels, average=None)
+            f1 = f1_score(true_labels, predicted_labels, average=None)
+
+
+
+            print("--------  Training data metrics for reference---------------")
+            print("Accuracy:", accuracy, np.mean(accuracy))
+            print("Precision:", precision,  np.mean(precision))
+            print("Recall:", recall, np.mean(recall))
+            print("F1 Score:", f1, np.mean(recall))
+
+
+            plt.figure(figsize=(8, 6))
+            class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
+            sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
+            plt.xlabel("Predicted Labels")
+            plt.ylabel("True Labels")
+            plt.title("Confusion Matrix")
+            plt.savefig(training_kwargs['plot_path'])
+            plt.show()  
+
+        import importlib
+        import python_config
+        importlib.reload(python_config)
+        from python_config import sweep_config
+        print(sweep_config['parameters'])
+
+        project_name = f"BC_1"
+        run_name = f"sweep_{month}{day}_{timenow()}"
+        sweep_id = wandb.sweep(sweep_config, project=project_name)
+
+        def train_sweep(env, policy, config=None):
+            with wandb.init(
+                        project=project_name, 
+                        config=config,
+                        # magic=True,
+                    ) as run:
+                config = run.config
+                print("config ", config)
+                run.name = f"sweep_{month}{day}_{timenow()}"
+                name = ""
+                for key, value in config.items():
+                    # Discard first 3 letters from the key
+                    key = key[3:]
+
+                    # Format the float value
+                    value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
+
+                    # Append the formatted key-value pair to the name
+                    name += f"{key}_{value_str}_"
+                plot_path = f"plot_{name}.png"
+                batch_size = config.batch_size
+                num_epochs = config.num_epochs 
+                bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs)
+                train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(zip_filename, batch_size=batch_size)
+                _train(bc_trainer, train_data_loaders, num_epochs=num_epochs)
+                calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path=plot_path )
+
+                os.makedirs("models_archive", exist_ok=True)
+                torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
+
+                # Log the model as an artifact in wandb
+                artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+                artifact.add_dir("models_archive")
+                run.log_artifact(artifact)
+                # Log the saved plot to WandB
+                run.log({f"plot_{name}": wandb.Image(plot_path)})
+
+        wandb.agent(
+                    sweep_id=sweep_id, 
+                    function=lambda: train_sweep(env, policy)
+                )
+
         wandb.finish()
+            
 
-        true_labels = []
-        predicted_labels = []
-        # Iterate through the validation data and make predictions
-        with torch.no_grad():
-            for val_data_file in hdf5_val_file_names[:2]:
-                val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
-                predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
-                true_labels.extend(val_acts)
-
-        # Calculate evaluation metrics
-        accuracy = accuracy_score(true_labels, predicted_labels)
-        precision = precision_score(true_labels, predicted_labels, average=None)
-        recall = recall_score(true_labels, predicted_labels, average=None)
-        f1 = f1_score(true_labels, predicted_labels, average=None)
-        conf_matrix = confusion_matrix(true_labels, predicted_labels)
-
-        # Print the metrics
-        print("Accuracy:", accuracy, np.mean(accuracy))
-        print("Precision:", precision, np.mean(precision))
-        print("Recall:", recall, np.mean(recall))
-        print("F1 Score:", f1, np.mean(f1))
-
-
-        predicted_labels = []
-        true_labels = []
-        with torch.no_grad():
-            for val_data_file in hdf5_train_file_names[:2]:
-                val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
-                predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
-                true_labels.extend(val_acts)
-
-        # Calculate evaluation metrics
-        accuracy = accuracy_score(true_labels, predicted_labels)
-        precision = precision_score(true_labels, predicted_labels, average=None)
-        recall = recall_score(true_labels, predicted_labels, average=None)
-        f1 = f1_score(true_labels, predicted_labels, average=None)
-
-
-
-        print("--------  Training data metrics for reference---------------")
-        print("Accuracy:", accuracy, np.mean(accuracy))
-        print("Precision:", precision,  np.mean(precision))
-        print("Recall:", recall, np.mean(recall))
-        print("F1 Score:", f1, np.mean(recall))
-
-
-        plt.figure(figsize=(8, 6))
-        class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
-        sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
-        plt.xlabel("Predicted Labels")
-        plt.ylabel("True Labels")
-        plt.title("Confusion Matrix")
-        plt.show()
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
