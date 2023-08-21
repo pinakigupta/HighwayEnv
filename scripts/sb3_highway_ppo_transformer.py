@@ -220,8 +220,6 @@ if __name__ == "__main__":
             train_config = json.load(f)
 
         exp_obs, exp_acts, _ = extract_post_processed_expert_data(expert_data_file)
-
-        
         exp_obs = FloatTensor(exp_obs)
         exp_acts = FloatTensor(exp_acts)
 
