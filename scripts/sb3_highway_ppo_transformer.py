@@ -393,6 +393,7 @@ if __name__ == "__main__":
         rng=np.random.default_rng()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         policy = DefaultActorCriticPolicy(env, device)
+        print("Default policy initialized ")
         
         batch_size= 128
         bc_trainer = bc.BC(
@@ -404,7 +405,7 @@ if __name__ == "__main__":
                             device = device,
                             policy=policy
                           )
-
+        print("BC trainer created ")
         
         # reward_before_training, std_reward_before_training = evaluate_policy(bc_trainer.policy, env, 10)
         # print(f"Reward before training: {reward_before_training}, std_reward_before_training: {std_reward_before_training}")

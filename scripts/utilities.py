@@ -90,9 +90,30 @@ class CustomDataset(Dataset):
         return
 
     def __len__(self):
-        return len(self.exp_acts)
+        # return len(self.exp_acts)
+        return int(1000000)
+
+    def _load_episode_group(self):
+        extract_expert_data(self.data_file, self.exp_obs, self.exp_acts, self.exp_dones, self.grp_idx)
+
+    def _get_total_episode_groups(self):
+        with h5py.File(self.data_file, 'r') as hf:
+            total_episode_groups = len(list(hf.keys()))
+        return total_episode_groups
+
 
     def __getitem__(self, idx):
+        while True:
+            if idx >= len(self.exp_acts):
+                self.grp_idx += 1
+                if self.grp_idx >= self.total_episode_groups:
+                    # No more data left, raise a StopIteration exception
+                    raise StopIteration("No more data available.")
+
+                self._load_episode_group()
+            else:
+                break
+
         # Return a dictionary with "obs" and "acts" as Tensors
         observation = torch.tensor(self.exp_obs[idx], dtype=torch.float32)
         action = torch.tensor(self.exp_acts[idx], dtype=torch.float32)
