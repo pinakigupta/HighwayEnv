@@ -495,7 +495,7 @@ if __name__ == "__main__":
             plt.ylabel("True Labels")
             plt.title("Confusion Matrix")
             plt.savefig(training_kwargs['plot_path'])
-            plt.show()  
+            # plt.show()  
 
         import importlib
         import python_config
