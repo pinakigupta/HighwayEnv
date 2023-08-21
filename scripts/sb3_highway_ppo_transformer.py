@@ -1,21 +1,15 @@
 import functools
 import gymnasium as gym
-import pygame
 import seaborn as sns
-import torch as th
 from stable_baselines3 import PPO
 import torch
 import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.vec_env import SubprocVecEnv
-from stable_baselines3.common.evaluation import evaluate_policy
-from collections import Counter
 import os
 import multiprocessing
 from enum import Enum
 import json
-import copy
 import wandb
 from datetime import datetime
 from torch import FloatTensor
@@ -25,10 +19,8 @@ from models.gail import GAIL
 from generate_expert_data import collect_expert_data, postprocess
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
-from attention_network import EgoAttentionNetwork
-from utilities import extract_post_processed_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset
+from utilities import extract_post_processed_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset, CustomExtractor, retrieve_gail_agents
 import warnings
-
 from imitation.algorithms import bc
 from python_config import sweep_config, env_kwargs
 import matplotlib.pyplot as plt
@@ -39,7 +31,8 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 warnings.filterwarnings("ignore")
 
-
+from highway_env.envs.common.action import DiscreteMetaAction
+ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
 
 class TrainEnum(Enum):
@@ -62,76 +55,14 @@ attention_network_kwargs = dict(
     # num_layers = 3,
 )
 
+def timenow():
+    return now.strftime("%H%M")
 
-
-class CustomExtractor(BaseFeaturesExtractor):
-    """
-    :param observation_space: (gym.Space)
-    :param features_dim: (int) Number of features extracted.
-        This corresponds to the number of unit for the last layer.
-    """
-
-    def __init__(self, observation_space: gym.spaces.Box, **kwargs):
-        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"])
-        self.extractor = EgoAttentionNetwork(**kwargs)
-
-    def forward(self, observations: th.Tensor) -> th.Tensor:
-        return self.extractor(observations)
-
-
-
-
-
-
-
-# ==================================
-#        Display attention matrix
-# ==================================
 
 
 # ==================================
 #        Main script  20 
 # ==================================
-
-def retrieve_gail_agents( artifact_version, project = None):
-    # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-    # action_dim = env.action_space.n
-    # observation_space = env.observation_space
-    # Initialize wandb
-    wandb.init(project=project, name="inference")
-    # Access the run containing the logged artifact
-
-    # Download the artifact
-    artifact = wandb.use_artifact(artifact_version)
-    artifact_dir = artifact.download()
-    wandb.finish()
-
-    # Load the model from the downloaded artifact
-    optimal_gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
-    final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
-
-    # with open("config.json") as f:
-    #     config = copy.deepcopy(json.load(f))
-    # Load the GAIL model
-    # final_gail_agent = GAIL(
-    #                             state_dim, 
-    #                             action_dim, 
-    #                             discrete=True, 
-    #                             device=torch.device("cpu"), 
-    #                             **config, 
-    #                         #  **policy_kwargs, 
-    #                             observation_space= observation_space 
-    #                             )
-    # optimal_gail_agent = copy.deepcopy(final_gail_agent)
-    # final_gail_agent.load_state_dict(torch.load(final_gail_agent_path))
-    # optimal_gail_agent.load_state_dict(torch.load(optimal_gail_agent_path))
-    final_gail_agent = torch.load(final_gail_agent_path)
-    optimal_gail_agent = torch.load(optimal_gail_agent_path)
-    return optimal_gail_agent, final_gail_agent
-
-
-
-
 
 
 
@@ -163,8 +94,7 @@ if __name__ == "__main__":
     extract_path = "data/expert_data"
 
 
-    def timenow():
-        return now.strftime("%H%M")
+    
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
@@ -573,8 +503,7 @@ if __name__ == "__main__":
         print("Recall:", recall, np.mean(recall))
         print("F1 Score:", f1, np.mean(recall))
 
-        from highway_env.envs.common.action import DiscreteMetaAction
-        ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
+
         plt.figure(figsize=(8, 6))
         class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
         sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
@@ -582,7 +511,7 @@ if __name__ == "__main__":
         plt.ylabel("True Labels")
         plt.title("Confusion Matrix")
         plt.show()
-        
+
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})

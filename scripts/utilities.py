@@ -12,6 +12,11 @@ import pygame
 import numpy as np
 import seaborn as sns
 from highway_env.utils import lmap
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+import wandb
+import os
+from attention_network import EgoAttentionNetwork
+import gymnasium as gym
 
 def write_module_hierarchy_to_file(model, file):
     def write_module_recursive(module, file=None, indent='', processed_submodules=None):
@@ -171,3 +176,41 @@ def compute_vehicles_attention(env,fe):
         vehicle = min(env.unwrapped.road.vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
         v_attention[vehicle] = attention[:, v_index]
     return v_attention
+
+class CustomExtractor(BaseFeaturesExtractor):
+    """
+    :param observation_space: (gym.Space)
+    :param features_dim: (int) Number of features extracted.
+        This corresponds to the number of unit for the last layer.
+    """
+
+    def __init__(self, observation_space: gym.spaces.Box, **kwargs):
+        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"])
+        self.extractor = EgoAttentionNetwork(**kwargs)
+
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        return self.extractor(observations)
+
+
+
+
+
+def retrieve_gail_agents( artifact_version, project = None):
+    # Initialize wandb
+    wandb.init(project=project, name="inference")
+    # Access the run containing the logged artifact
+
+    # Download the artifact
+    artifact = wandb.use_artifact(artifact_version)
+    artifact_dir = artifact.download()
+    wandb.finish()
+
+    # Load the model from the downloaded artifact
+    optimal_gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+    final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
+
+    final_gail_agent = torch.load(final_gail_agent_path)
+    optimal_gail_agent = torch.load(optimal_gail_agent_path)
+    return optimal_gail_agent, final_gail_agent
+
+
