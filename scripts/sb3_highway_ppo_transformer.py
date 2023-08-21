@@ -439,7 +439,8 @@ if __name__ == "__main__":
             for epoch in range(training_kwargs['num_epochs']):
                 for data_loader in data_loaders:
                     trainer.set_demonstrations(data_loader)
-                    trainer.train(n_epochs=1)    
+                    trainer.train(n_epochs=1) 
+                    print(trainer._logger)   
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
             true_labels = []
