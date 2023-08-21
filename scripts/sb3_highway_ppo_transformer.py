@@ -145,7 +145,6 @@ if __name__ == "__main__":
                 zipf.write(val_file)
                 outer_bar.update(1)
             outer_bar.close()
-
     elif train == TrainEnum.RLTRAIN: # training 
         append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
         env = make_vec_env(
@@ -512,7 +511,6 @@ if __name__ == "__main__":
         plt.ylabel("True Labels")
         plt.title("Confusion Matrix")
         plt.show()
-
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
