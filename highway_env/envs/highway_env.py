@@ -84,14 +84,15 @@ class HighwayEnv(AbstractEnv):
                 speed=speed,
                 lane_id=self.config["initial_lane_id"],
                 spacing=self.config["ego_spacing"],
-                x0=100
+                x0=100,
+                **self.config
             )
             vehicle = self.action_type.vehicle_class(self.road, vehicle.position, vehicle.heading, vehicle.speed)
             self.controlled_vehicles.append(vehicle)
             self.road.vehicles.append(vehicle)
 
             for _ in range(others):
-                vehicle = other_vehicles_type.create_random(self.road, spacing=1 / self.config["vehicles_density"])
+                vehicle = other_vehicles_type.create_random(self.road, spacing=1 / self.config["vehicles_density"],**self.config)
                 vehicle.randomize_behavior()
                 self.road.vehicles.append(vehicle)
 

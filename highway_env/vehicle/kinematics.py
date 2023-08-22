@@ -35,14 +35,16 @@ class Vehicle(RoadObject):
                  position: Vector,
                  heading: float = 0,
                  speed: float = 0,
-                 predition_type: str = 'constant_steering'):
-        super().__init__(road, position, heading, speed)
+                 predition_type: str = 'constant_steering',
+                 **kwargs):
+        super().__init__(road, position, heading, speed, **kwargs)
         self.prediction_type = predition_type
         self.action = {'steering': 0, 'acceleration': 0}
         self.crashed = False
         self.impact = None
         self.log = []
         self.history = deque(maxlen=self.HISTORY_SIZE)
+        self.kwargs = kwargs
 
     @classmethod
     def create_random(cls, road: Road,
@@ -52,7 +54,8 @@ class Vehicle(RoadObject):
                       lane_id: Optional[int] = None,
                       spacing: float = 1,
                       x0:Optional[float] = None,
-                      seed:Optional[int] = None) \
+                      seed:Optional[int] = None,
+                      **kwargs) \
             -> "Vehicle":
         """
         Create a random vehicle on the road.
@@ -88,7 +91,7 @@ class Vehicle(RoadObject):
             else:
                 x0 = np.max([lane.local_coordinates(v.position)[0] for v in road.vehicles]) 
                 x0 += offset * road.np_random.uniform(0.9, 1.1)                
-        v = cls(road, lane.position(x0, 0), lane.heading_at(x0), speed)
+        v = cls(road, lane.position(x0, 0), lane.heading_at(x0), speed, **kwargs)
         return v
 
     @classmethod

@@ -22,7 +22,7 @@ class RoadObject(ABC):
     LENGTH: float = 2  # Object length [m]
     WIDTH: float = 2  # Object width [m]
 
-    def __init__(self, road: 'Road', position: Sequence[float], heading: float = 0, speed: float = 0):
+    def __init__(self, road: 'Road', position: Sequence[float], heading: float = 0, speed: float = 0, **kwargs):
         """
         :param road: the road instance where the object is placed in
         :param position: cartesian position of object in the surface

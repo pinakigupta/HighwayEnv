@@ -2,11 +2,11 @@
 env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
-
     'config': {
         'simulation_frequency': 10,
         "lanes_count": 4,
         "vehicles_count": 'random',
+        'politeness': 'random',
         "action": {
                 "type": "DiscreteMetaAction",
             },
@@ -53,7 +53,7 @@ sweep_config = {
             "values": [32, 64, 128]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [3, 10]  # Values for the "duration" field to be swept
+            "values": [5]  # Values for the "duration" field to be swept
         },    
     }
 }

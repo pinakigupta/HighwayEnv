@@ -51,13 +51,17 @@ class IDMVehicle(ControlledVehicle):
                  target_speed: float = None,
                  route: Route = None,
                  enable_lane_change: bool = True,
-                 timer: float = None,):
+                 timer: float = None,
+                 **kwargs):
         # Lateral policy parameters
         self.LANE_CHANGE_MIN_ACC_GAIN = 0.2  # [m/s2]
         self.LANE_CHANGE_MAX_BRAKING_IMPOSED = 2.0  # [m/s2]
         self.LANE_CHANGE_DELAY = 1.0  # [s]
-        super().__init__(road, position, heading, speed, target_lane_index, target_speed, route)
-        self.POLITENESS = self.road.np_random.uniform(0.2, 0.8) #0.8  # in [0, 1]
+        super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
+        if ('politeness' in self.kwargs) and (self.kwargs['politeness'] is 'random'):
+            self.POLITENESS = self.road.np_random.uniform(0.2, 0.8) #0.8  # in [0, 1]
+        else:
+             self.POLITENESS = self.kwargs['politeness']
         self.enable_lane_change = enable_lane_change
         self.timer = timer or (np.sum(self.position)*np.pi) % self.LANE_CHANGE_DELAY
         self.observer = None
