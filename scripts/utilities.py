@@ -203,7 +203,7 @@ class CustomExtractor(BaseFeaturesExtractor):
 
 
 
-def retrieve_gail_agents( artifact_version, project = None):
+def retrieve_agent( artifact_version, agent_model ,project = None):
     # Initialize wandb
     wandb.init(project=project, name="inference")
     # Access the run containing the logged artifact
@@ -214,11 +214,11 @@ def retrieve_gail_agents( artifact_version, project = None):
     wandb.finish()
 
     # Load the model from the downloaded artifact
-    optimal_gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
-    final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
+    optimal_gail_agent_path = os.path.join(artifact_dir, agent_model) #, "optimal_gail_agent.pth")
+    # final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
 
-    final_gail_agent = torch.load(final_gail_agent_path)
+    # final_gail_agent = torch.load(final_gail_agent_path)
     optimal_gail_agent = torch.load(optimal_gail_agent_path)
-    return optimal_gail_agent, final_gail_agent
+    return optimal_gail_agent
 
 

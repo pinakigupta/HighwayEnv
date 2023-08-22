@@ -19,7 +19,7 @@ from models.gail import GAIL
 from generate_expert_data import collect_expert_data, postprocess
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
-from utilities import extract_post_processed_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset, CustomExtractor, retrieve_gail_agents
+from utilities import extract_post_processed_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset, CustomExtractor, retrieve_agent
 import warnings
 from imitation.algorithms import bc
 from python_config import sweep_config, env_kwargs
@@ -44,7 +44,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 
 
 
@@ -74,9 +74,15 @@ if __name__ == "__main__":
         )
 
     if False:
-        optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
+        optimal_gail_agent                       = retrieve_agent(
                                                                     # env= make_configure_env(**env_kwargs).unwrapped, # need only certain parameters
-                                                                    artifact_version='trained_model_directory:v2'
+                                                                    artifact_version='trained_model_directory:v2',
+                                                                    agent_model='optimal_gail_agent.pth'
+                                                                    )
+        final_gail_agent                         = retrieve_agent(
+                                                                    # env= make_configure_env(**env_kwargs).unwrapped, # need only certain parameters
+                                                                    artifact_version='trained_model_directory:v2',
+                                                                    agent_model='final_gail_agent.pth'
                                                                     )
         reward_oracle = final_gail_agent.d
         env_kwargs.update({'reward_oracle':reward_oracle})
@@ -324,11 +330,18 @@ if __name__ == "__main__":
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
-        optimal_gail_agent, final_gail_agent = retrieve_gail_agents(
+        optimal_gail_agent                       = retrieve_agent(
                                                                     # env=env,
                                                                     artifact_version='trained_model_directory:latest',
+                                                                    agent_model = 'optimal_gail_agent.pth',
                                                                     project="random_env_gail_1"
-                                                                    )
+                                                                 )
+        final_gail_agent                         = retrieve_agent(
+                                                                    # env=env,
+                                                                    artifact_version='trained_model_directory:latest',
+                                                                    agent_model = 'final_gail_agent.pth',
+                                                                    project="random_env_gail_1"
+                                                                 )
         num_rollouts = 10
         reward = simulate_with_model(
                                             agent=final_gail_agent, 
@@ -551,26 +564,17 @@ if __name__ == "__main__":
                 )
 
         wandb.finish()
-            
-
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env = make_configure_env(**env_kwargs)
-        rng=np.random.default_rng()
-        wandb.init(project="BC", name="inference")
-        # Access the run containing the logged artifact
-
-        # Download the artifact
-        artifact = wandb.use_artifact("trained_model:latest")
-        artifact_dir = artifact.download()
-
-        # Load the model from the downloaded artifact
-        rl_agent_path = os.path.join(artifact_dir, "BC_agent.pth")
-        BC_agent = torch.load(rl_agent_path, map_location=device)
-        wandb.finish()
+        BC_agent                            = retrieve_agent(
+                                                            artifact_version='trained_model_directory:latest',
+                                                            agent_model = 'BC_agent.pth',
+                                                            project="BC_1"
+                                                            )
         num_rollouts = 10
         gamma = 1.0
         # reward = simulate_with_model(
