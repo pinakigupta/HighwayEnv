@@ -87,7 +87,7 @@ class HighwayEnv(AbstractEnv):
                 x0=100,
                 **self.config
             )
-            vehicle = self.action_type.vehicle_class(self.road, vehicle.position, vehicle.heading, vehicle.speed)
+            vehicle = self.action_type.vehicle_class(self.road, vehicle.position, vehicle.heading, vehicle.speed, **self.config)
             self.controlled_vehicles.append(vehicle)
             self.road.vehicles.append(vehicle)
 

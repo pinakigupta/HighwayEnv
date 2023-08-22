@@ -324,7 +324,7 @@ class Road(object):
         return vehicles
 
     def act(self) -> None:
-        from highway_env.vehicle.controller import MDPVehicle
+        from highway_env.vehicle.behavior import MDPVehicle
         """Decide the actions of each entity on the road."""
         for vehicle in self.vehicles:
             if not isinstance(vehicle, MDPVehicle):
