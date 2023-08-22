@@ -56,6 +56,7 @@ class IDMVehicle(ControlledVehicle):
         self.LANE_CHANGE_MIN_ACC_GAIN = 0.2  # [m/s2]
         self.LANE_CHANGE_MAX_BRAKING_IMPOSED = 2.0  # [m/s2]
         self.LANE_CHANGE_DELAY = 1.0  # [s]
+        self._discrete_action = "Reset"
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         if ('politeness' in self.kwargs) and (self.kwargs['politeness'] is 'random'):
             self.POLITENESS = self.road.np_random.uniform(0.2, 0.8) #0.8  # in [0, 1]
@@ -108,24 +109,10 @@ class IDMVehicle(ControlledVehicle):
                                                    front_vehicle=front_vehicle,
                                                    rear_vehicle=rear_vehicle)
         
-        delta_id = self.target_lane_index[2] - self.lane_index[2]
-        if(delta_id > 0):
-            self.discrete_action = "LANE_RIGHT"
-        elif(delta_id < 0):
-            self.discrete_action = "LANE_LEFT"
-        elif action['acceleration'] > self.DELTA_SPEED/5:
-            self.discrete_action = "FASTER"
-        elif action['acceleration'] < -self.DELTA_SPEED/5:
-            self.discrete_action = "SLOWER"
-        else:
-            self.discrete_action = "IDLE"
-        # print(" vehicle ", id(self)," target_lane_index ", self.target_lane_index[2],
-        #      " lane_index ", self.lane_index[2], self.action, self.observer)
 
+        self.discrete_action()
         # When changing lane, check both current and target lanes
         if self.lane_index != self.target_lane_index:
-            
-            
             
             front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.target_lane_index)
             target_idm_acceleration = self.acceleration(ego_vehicle=self,
@@ -135,6 +122,24 @@ class IDMVehicle(ControlledVehicle):
         # action['acceleration'] = self.recover_from_stop(action['acceleration'])
         action['acceleration'] = np.clip(action['acceleration'], -self.ACC_MAX, self.ACC_MAX)
         Vehicle.act(self, action)  # Skip ControlledVehicle.act(), or the command will be overriden.
+    
+    def discrete_action(self):
+        delta_id = self.target_lane_index[2] - self.lane_index[2]
+        front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.lane_index)
+        acceleration = self.acceleration(ego_vehicle=self,
+                                                   front_vehicle=front_vehicle,
+                                                   rear_vehicle=rear_vehicle)
+        if(delta_id > 0):
+            self._discrete_action = "LANE_RIGHT"
+        elif(delta_id < 0):
+            self._discrete_action = "LANE_LEFT"
+        elif acceleration > self.DELTA_SPEED/5:
+            self._discrete_action = "FASTER"
+        elif acceleration < -self.DELTA_SPEED/5:
+            self._discrete_action = "SLOWER"
+        else:
+            self._discrete_action = "IDLE"
+        return self._discrete_action
 
     def step(self, dt: float):
         """
@@ -540,11 +545,14 @@ class MDPVehicle(IDMVehicle):
         :param target_speeds: the discrete list of speeds the vehicle is able to track, through faster/slower actions
         :param route: the planned route of the vehicle, to handle intersections
         """
-        self.discrete_action = "Reset"
+        self.mdp_action = "Reset"
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         self.target_speeds = np.array(target_speeds) if target_speeds is not None else self.DEFAULT_TARGET_SPEEDS
         self.speed_index = self.speed_to_index(self.target_speed)
         self.target_speed = self.index_to_speed(self.speed_index)
+
+    def discrete_action(self):
+        self.mdp_action
 
     def act(self, action: Union[dict, str] = None) -> None:
         """
@@ -555,11 +563,7 @@ class MDPVehicle(IDMVehicle):
 
         :param action: a high-level action
         """
-        # if action is None:   # Need to resolve this in a proper way
-        #     action = self.discrete_action
-        # else:
-
-        self.discrete_action = action
+        self.mdp_action = action
         # print("self.discrete_action ", self.discrete_action, id(self), " action ", action)
         if action == "FASTER":
             self.speed_index = self.speed_to_index(self.speed) + 1
