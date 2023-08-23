@@ -27,7 +27,7 @@ def make_configure_env(**kwargs):
 
 
 def worker(
-                oracle, 
+                placeholder, 
                 data_queue, 
                 episode_rewards, 
                 steps_per_worker, 
@@ -40,6 +40,8 @@ def worker(
     env = make_configure_env(**env_kwargs).unwrapped #env_value.value  # Retrieve the shared env object
     steps_collected = 0
     # oracle = env.controlled_vehicles[0]
+
+    oracle = torch.load('oracle.pth', map_location='cpu')
 
     while True:
         ob = env.reset()
@@ -56,8 +58,8 @@ def worker(
             # features_extractor, policy_net, action_net = oracle
             ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
 
-            
-            act = oracle.act(ob_tensor)
+
+            act = oracle.predict(ob)[0]
             # act = 4
             next_ob, rwd, done, _, _ = env.step(act)
 
@@ -71,7 +73,8 @@ def worker(
 
             for v in experts_to_consider:
                 obs = v.observer
-                acts = env.action_type.actions_indexes[v.discrete_action()]
+                discrete_action = "IDLE" #v.discrete_action()
+                acts = env.action_type.actions_indexes[discrete_action]
                 if v not in all_obs:
                     all_obs[v] = []
                     all_acts[v] = []
@@ -80,17 +83,18 @@ def worker(
                 all_acts[v].append(acts)
                 all_done[v].append(False)
             # print(type(all_done[-1]), len(all_done[-1]))
+            
+            # print("all_obs ", len(all_obs), discrete_action, done)
             if done:
                 for v in all_done:
                     all_done[v][-1] = True
                 break
-
             ob = next_ob
             # data_queue.put((ob, act))
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
 
-        # print("all_obs ", len(all_obs))
+        print("all_obs ", len(all_obs), len(all_acts), len(all_done))
         # Update progress value
         if lock.acquire(timeout=1):
             for (v , ep_obs), (v_, ep_acts), (v_, ep_done) in zip(all_obs.items(), all_acts.items(), all_done.items()):
@@ -105,7 +109,7 @@ def worker(
             lock.release()
             # progress.value += obs_collecected
             # print("worker ", worker_id, " steps_collected ", steps_collected,   flush=True)
-        episode_rewards.append(np.sum(ep_rwds))
+        # episode_rewards.append(np.sum(ep_rwds))
         # time.sleep(0.001)
 
 def collect_expert_data(
@@ -143,7 +147,7 @@ def collect_expert_data(
     episode_rewards = manager.list()
 
     # Determine the number of workers based on available CPU cores
-    num_workers = max(multiprocessing.cpu_count()-5,1)
+    num_workers =  max(multiprocessing.cpu_count()-3,1)
 
     # Calculate the number of steps per worker
     num_steps_per_worker = num_steps_per_iter // num_workers
@@ -154,13 +158,14 @@ def collect_expert_data(
 
     # env_value.value = env
     # Launch worker processes for oracle data collection
-
+    oracle.to('cpu')
+    torch.save(oracle,'oracle.pth')
     for i in range(num_workers):
         
         worker_process = multiprocessing.Process(
                                                     target=worker, 
                                                     args=(
-                                                            copy.deepcopy(oracle), 
+                                                            oracle, 
                                                             exp_data_queue, 
                                                             episode_rewards, 
                                                             num_steps_per_worker, 
@@ -210,9 +215,9 @@ def collect_expert_data(
 
             episode_group = hf.create_group(f'episode_{ep_collected}')
             for i, (arr1, arr2, arr3) in enumerate(zip(ob, act, done)):
-                episode_group.create_dataset(f'exp_obs{i}',  data=arr1)
-                episode_group.create_dataset(f'exp_acts{i}', data=arr2)
-                episode_group.create_dataset(f'exp_done{i}', data=arr3)
+                episode_group.create_dataset(f'exp_obs{i}',  data=arr1,  dtype='float32')
+                episode_group.create_dataset(f'exp_acts{i}', data=arr2,  dtype='float32')
+                episode_group.create_dataset(f'exp_done{i}', data=arr3,  dtype=bool)
             pbar_outer.update(steps_count - pbar_outer.n)
 
     # print(" joining worker processes ", [worker.pid for worker in worker_processes], flush=True)

@@ -552,7 +552,7 @@ class MDPVehicle(IDMVehicle):
         self.target_speed = self.index_to_speed(self.speed_index)
 
     def discrete_action(self):
-        self.mdp_action
+        return self.mdp_action
 
     def act(self, action: Union[dict, str] = None) -> None:
         """
@@ -563,7 +563,8 @@ class MDPVehicle(IDMVehicle):
 
         :param action: a high-level action
         """
-        self.mdp_action = action
+        if action is not None:
+            self.mdp_action = action
         # print("self.discrete_action ", self.discrete_action, id(self), " action ", action)
         if action == "FASTER":
             self.speed_index = self.speed_to_index(self.speed) + 1

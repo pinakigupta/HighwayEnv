@@ -423,12 +423,12 @@ if __name__ == "__main__":
                     trainer.train(n_epochs=1) 
                     print(trainer._logger)
                     expert_data_collector(
-                                            trainer,
+                                            trainer.policy,
                                             data_folder_path = folder_path,
                                             zip_filename=zip_filename,
                                             total_iterations = 100,
                                             **{**env_kwargs, **{'expert':'MDPVehicle'}}           
-                                        )
+                                         )
             return hdf5_train_file_names, hdf5_val_file_names   
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
@@ -497,54 +497,67 @@ if __name__ == "__main__":
         run_name = f"sweep_{month}{day}_{timenow()}"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
 
-        def train_sweep(env, policy, config=None):
-            with wandb.init(
-                        project=project_name, 
-                        config=config,
-                        # magic=True,
-                    ) as run:
-                config = run.config
-                print("config ", config)
-                run.name = f"sweep_{month}{day}_{timenow()}"
-                name = ""
-                for key, value in config.items():
-                    # Discard first 3 letters from the key
-                    key = key[3:]
+        batch_size = 32
+        num_epochs = 10 
+        bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs)
+        hdf5_train_file_names, hdf5_val_file_names = _train(
+                                                                bc_trainer, 
+                                                                zip_filename,
+                                                                extract_path,
+                                                                num_epochs=num_epochs, 
+                                                                batch_size=batch_size
+                                                            )
+        calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path='tmp.png' )
 
-                    # Format the float value
-                    value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
+        # def train_sweep(env, policy, config=None):
+        #     with wandb.init(
+        #                 project=project_name, 
+        #                 config=config,
+        #                 mode="disabled"
+        #                 # magic=True,
+        #             ) as run:
+        #         config = run.config
+        #         print("config ", config)
+        #         run.name = f"sweep_{month}{day}_{timenow()}"
+        #         name = ""
+        #         for key, value in config.items():
+        #             # Discard first 3 letters from the key
+        #             key = key[3:]
 
-                    # Append the formatted key-value pair to the name
-                    name += f"{key}_{value_str}_"
-                plot_path = f"plot_{name}.png"
-                batch_size = config.batch_size
-                num_epochs = config.num_epochs 
-                bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs)
-                hdf5_train_file_names, hdf5_val_file_names = _train(
-                                                                     bc_trainer, 
-                                                                     zip_filename,
-                                                                     extract_path,
-                                                                     num_epochs=num_epochs, 
-                                                                     batch_size=batch_size
-                                                                    )
-                calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path=plot_path )
+        #             # Format the float value
+        #             value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
 
-                os.makedirs("models_archive", exist_ok=True)
-                torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
+        #             # Append the formatted key-value pair to the name
+        #             name += f"{key}_{value_str}_"
+        #         plot_path = f"plot_{name}.png"
+        #         batch_size = config.batch_size
+        #         num_epochs = config.num_epochs 
+        #         bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs)
+        #         hdf5_train_file_names, hdf5_val_file_names = _train(
+        #                                                              bc_trainer, 
+        #                                                              zip_filename,
+        #                                                              extract_path,
+        #                                                              num_epochs=num_epochs, 
+        #                                                              batch_size=batch_size
+        #                                                             )
+        #         calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path=plot_path )
 
-                # Log the model as an artifact in wandb
-                artifact = wandb.Artifact("trained_model_directory", type="model_directory")
-                artifact.add_dir("models_archive")
-                run.log_artifact(artifact)
-                # Log the saved plot to WandB
-                run.log({f"plot_{name}": wandb.Image(plot_path)})
+        #         os.makedirs("models_archive", exist_ok=True)
+        #         torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
 
-        wandb.agent(
-                    sweep_id=sweep_id, 
-                    function=lambda: train_sweep(env, policy)
-                )
+        #         # Log the model as an artifact in wandb
+        #         artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+        #         artifact.add_dir("models_archive")
+        #         run.log_artifact(artifact)
+        #         # Log the saved plot to WandB
+        #         run.log({f"plot_{name}": wandb.Image(plot_path)})
 
-        wandb.finish()
+        # wandb.agent(
+        #             sweep_id=sweep_id, 
+        #             function=lambda: train_sweep(env, policy)
+        #         )
+
+        # wandb.finish()
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
