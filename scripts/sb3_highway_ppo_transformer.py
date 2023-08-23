@@ -44,7 +44,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
+train = TrainEnum.BC
 
 
 
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     zip_filename = 'expert_data.zip'
     n_cpu =  multiprocessing.cpu_count()
     device = torch.device("cpu")
-    extract_path = f"{folder_path}/expert_data"
+    extract_path = f"{folder_path}"
 
 
 
@@ -104,10 +104,13 @@ if __name__ == "__main__":
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
-        expert_data_collector(
-                                artifact_version='trained_model_directory:latest',
-                                agent_model = 'optimal_gail_agent.pth',
-                                project="random_env_gail_1",
+        oracle_agent                       = retrieve_agent(
+                                                                artifact_version='trained_model_directory:latest',
+                                                                agent_model = 'optimal_gail_agent.pth',
+                                                                project="random_env_gail_1",
+                                                             )
+        expert_data_collector(  
+                                oracle_agent,
                                 data_folder_path = folder_path,
                                 zip_filename=zip_filename,
                                 total_iterations = 100,
@@ -360,14 +363,11 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
-
-        num_epochs = 3
         rng=np.random.default_rng()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         policy = DefaultActorCriticPolicy(env, device)
         print("Default policy initialized ")
         
-        batch_size= 128
         def create_trainer(env, policy, **kwargs):
             return       bc.BC(
                                 observation_space=env.observation_space,
@@ -379,7 +379,7 @@ if __name__ == "__main__":
                                 policy=policy
                                 )        
         
-        def create_dataloaders(zip_filename, **kwargs):
+        def create_dataloaders(zip_filename, extract_path, **kwargs):
             # Extract the HDF5 files from the zip archive
             with zipfile.ZipFile(zip_filename, 'r') as archive:
                 archive.extractall(extract_path)
@@ -393,8 +393,8 @@ if __name__ == "__main__":
                                             for name in archive.namelist() 
                                             if name.endswith('.h5') and "val" in name]            
 
-            hdf5_train_file_names = hdf5_train_file_names[:2]
-            hdf5_val_file_names = hdf5_val_file_names[:2]
+            # hdf5_train_file_names = hdf5_train_file_names[:2]
+            # hdf5_val_file_names = hdf5_val_file_names[:2]
             # Create separate datasets for each HDF5 file
             train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
             # val_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_val_file_names]
@@ -410,12 +410,26 @@ if __name__ == "__main__":
                                     ) for dataset in train_datasets]
             return train_data_loaders, hdf5_train_file_names, hdf5_val_file_names
         
-        def _train(trainer, data_loaders, **training_kwargs):
+        def _train(trainer, zip_filename, extract_path, **training_kwargs):
             for epoch in range(training_kwargs['num_epochs']):
-                for data_loader in data_loaders:
+                train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
+                                                                                                      zip_filename,
+                                                                                                      extract_path, 
+                                                                                                      batch_size=training_kwargs['batch_size']
+                                                                                                   )
+                
+                for data_loader in train_data_loaders:
                     trainer.set_demonstrations(data_loader)
                     trainer.train(n_epochs=1) 
-                    print(trainer._logger)   
+                    print(trainer._logger)
+                    # expert_data_collector(
+                    #                         trainer,
+                    #                         data_folder_path = folder_path,
+                    #                         zip_filename=zip_filename,
+                    #                         total_iterations = 100,
+                    #                         **{**env_kwargs, **{'expert':'MDPVehicle'}}           
+                    #                     )
+            return hdf5_train_file_names, hdf5_val_file_names   
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
             true_labels = []
@@ -506,8 +520,13 @@ if __name__ == "__main__":
                 batch_size = config.batch_size
                 num_epochs = config.num_epochs 
                 bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs)
-                train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(zip_filename, batch_size=batch_size)
-                _train(bc_trainer, train_data_loaders, num_epochs=num_epochs)
+                hdf5_train_file_names, hdf5_val_file_names = _train(
+                                                                     bc_trainer, 
+                                                                     zip_filename,
+                                                                     extract_path,
+                                                                     num_epochs=num_epochs, 
+                                                                     batch_size=batch_size
+                                                                    )
                 calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path=plot_path )
 
                 os.makedirs("models_archive", exist_ok=True)

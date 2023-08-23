@@ -403,9 +403,7 @@ def retrieve_agent( artifact_version, agent_model ,project = None):
     return optimal_gail_agent
 
 def expert_data_collector(
-                            artifact_version,
-                            agent_model,
-                            project,
+                            oracle_agent,
                             data_folder_path,
                             zip_filename,
                             total_iterations = 1000,
@@ -415,13 +413,7 @@ def expert_data_collector(
         config = json.load(f)
     expert_temp_data_file=f'{data_folder_path}/expert_data_relative.h5'
     validation_temp_data_file = f'{data_folder_path}expert_data_rel_val.h5'
-    device = torch.device("cpu")
-    oracle_agent                       = retrieve_agent(
-                                                                artifact_version=artifact_version,
-                                                                agent_model = agent_model,
-                                                                project=project
-                                                                )
-            
+    device = torch.device("cpu")            
     append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
     append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
     total_iterations = total_iterations  # The total number of loop iterations
