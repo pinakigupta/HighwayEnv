@@ -44,7 +44,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.EXPERT_DATA_COLLECTION
 
 
 
@@ -108,27 +108,16 @@ if __name__ == "__main__":
         with open("config.json") as f:
             config = json.load(f)
         device = torch.device("cpu")
-        model = PPO(
-                    "MlpPolicy", 
-                    gym.make(**env_kwargs),
-                    policy_kwargs=policy_kwargs,
-                    device=device
-                    )
-        # expert = PPO.load("highway_attention_ppo/model", env=gym.make(**env_kwargs), device=device) # This is not really ultimately treated as expert. Just some policy to run ego.
-        wandb.init(project="RL", name="inference")
-        # Access the run containing the logged artifact
-
-        # Download the artifact
-        artifact = wandb.use_artifact("trained_model:latest")
-        artifact_dir = artifact.download()
-
-        # Load the model from the downloaded artifact
-        rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
-        model.policy.load_state_dict(torch.load(rl_agent_path, map_location=device))
-        wandb.finish()        
-        
+        optimal_gail_agent                       = retrieve_agent(
+                                                                    # env=env,
+                                                                    artifact_version='trained_model_directory:latest',
+                                                                    agent_model = 'optimal_gail_agent.pth',
+                                                                    project="random_env_gail_1"
+                                                                 )
+                
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
         append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
+
 
         total_iterations = 1000  # The total number of loop iterations
         with zipfile.ZipFile(zip_filename, 'w') as zipf:
@@ -136,8 +125,8 @@ if __name__ == "__main__":
             outer_bar = tqdm(total=total_iterations, desc="Outer Loop Progress")
             for filenum in range(total_iterations):
                 collect_expert_data  (
-                                            model,
-                                            config["num_expert_steps"],
+                                            expert=optimal_gail_agent,
+                                            num_steps_per_iter=config["num_expert_steps"],
                                             train_filename=expert_data_file,
                                             validation_filename=validation_data_file,
                                             **env_kwargs

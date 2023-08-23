@@ -52,22 +52,28 @@ def worker(
             ob_tensor = copy.deepcopy(torch.Tensor(ob).to(torch.device('cpu')))
 
             
-            act = expert.predict(ob_tensor)[0]
+            act = expert.act(ob_tensor)
             # act = 4
             next_ob, rwd, done, _, _ = env.step(act)
 
+            experts_to_consider = []
+            if('expert' in env_kwargs) and (env_kwargs['expert']=='MDPVehicle'):
+                experts_to_consider = [env.vehicle]
+            else:
+                for v in env.road.vehicles:
+                    if v is not env.vehicle:
+                        experts_to_consider.append(v) 
 
-            for v in env.road.vehicles:
-                if v is not env.vehicle: 
-                    obs = v.observer
-                    acts = env.action_type.actions_indexes[v.discrete_action]
-                    if v not in all_obs:
-                        all_obs[v] = []
-                        all_acts[v] = []
-                        all_done[v] = []
-                    all_obs[v].append(obs)
-                    all_acts[v].append(acts)
-                    all_done[v].append(False)
+            for v in experts_to_consider:
+                obs = v.observer
+                acts = env.action_type.actions_indexes[v.discrete_action]
+                if v not in all_obs:
+                    all_obs[v] = []
+                    all_acts[v] = []
+                    all_done[v] = []
+                all_obs[v].append(obs)
+                all_acts[v].append(acts)
+                all_done[v].append(False)
             # print(type(all_done[-1]), len(all_done[-1]))
             if done:
                 for v in all_done:
