@@ -16,10 +16,10 @@ from torch import FloatTensor
 from torch.utils.data import DataLoader
 import shutil
 from models.gail import GAIL
-from generate_expert_data import collect_expert_data, postprocess
+from generate_expert_data import expert_data_collector, retrieve_agent
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
-from utilities import extract_post_processed_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset, CustomExtractor, retrieve_agent
+from utilities import extract_post_processed_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset, CustomExtractor
 import warnings
 from imitation.algorithms import bc
 from python_config import sweep_config, env_kwargs
@@ -93,63 +93,26 @@ if __name__ == "__main__":
     month = now.strftime("%m")
     day = now.strftime("%d")
     folder_path = 'data'
-    expert_data_file=f'{folder_path}/expert_data_relative.h5'
-    validation_data_file = f'{folder_path}expert_data_rel_val.h5'
     zip_filename = 'expert_data.zip'
     n_cpu =  multiprocessing.cpu_count()
     device = torch.device("cpu")
     extract_path = f"{folder_path}/expert_data"
 
 
-    
+
+
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
-        # env = make_configure_env(**env_kwargs).unwrapped
-        with open("config.json") as f:
-            config = json.load(f)
-        device = torch.device("cpu")
-        optimal_gail_agent                       = retrieve_agent(
-                                                                    # env=env,
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'optimal_gail_agent.pth',
-                                                                    project="random_env_gail_1"
-                                                                 )
-                
-        append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
-        append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
-        
-
-        total_iterations = 1000  # The total number of loop iterations
-        with zipfile.ZipFile(zip_filename, 'w') as zipf:
-            # Create an outer tqdm progress bar
-            outer_bar = tqdm(total=total_iterations, desc="Outer Loop Progress")
-            highest_filenum = max(
-                                    (
-                                        int(filename.split('_')[3].split('.')[0])
-                                        for filename in os.listdir(folder_path)
-                                        if filename.startswith('expert_train_data_') and filename.endswith('.h5')
-                                        and filename.split('_')[3].split('.')[0].isdigit()
-                                    ),
-                                    default=-1
-                                 )
-            for filenum in range(total_iterations):
-                collect_expert_data  (
-                                            oracle=optimal_gail_agent,
-                                            num_steps_per_iter=config["num_expert_steps"],
-                                            train_filename=expert_data_file,
-                                            validation_filename=validation_data_file,
-                                            **env_kwargs
-                                      )
-                # print("collect data complete")
-                exp_file = f'{folder_path}/expert_train_data_{filenum}.h5'
-                val_file = f'{folder_path}/expert_val_data_{filenum}.h5'
-                postprocess(expert_data_file, exp_file)
-                postprocess(validation_data_file, val_file)
-                zipf.write(exp_file)
-                zipf.write(val_file)
-                outer_bar.update(1)
-            outer_bar.close()
+        expert_data_collector(
+                                artifact_version='trained_model_directory:latest',
+                                agent_model = 'optimal_gail_agent.pth',
+                                project="random_env_gail_1",
+                                data_folder_path = folder_path,
+                                zip_filename=zip_filename,
+                                total_iterations = 100,
+                                **{**env_kwargs, **{'expert':None}}           
+                             )
     elif train == TrainEnum.RLTRAIN: # training 
         append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
         env = make_vec_env(

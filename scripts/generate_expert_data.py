@@ -10,7 +10,12 @@ import gymnasium as gym
 from collections import Counter
 from scipy.stats import entropy
 import random
+import wandb
+import json
+import zipfile
+import os
 
+from forward_simulation import append_key_to_dict_of_dict
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
@@ -57,7 +62,7 @@ def worker(
             next_ob, rwd, done, _, _ = env.step(act)
 
             experts_to_consider = []
-            if('oracle' in env_kwargs) and (env_kwargs['oracle']=='MDPVehicle'):
+            if('expert' in env_kwargs) and (env_kwargs['expert']=='MDPVehicle'):
                 experts_to_consider = [env.vehicle]
             else:
                 for v in env.road.vehicles:
@@ -112,7 +117,6 @@ def collect_expert_data(
                         **env_kwargs,
                         ):
     
-    import os
     if os.path.exists(train_filename):
         os.remove(train_filename)
     if os.path.exists(validation_filename):
@@ -379,3 +383,74 @@ def extract_post_processed_expert_data(filename):
         done_array = hf['dones'][:]
 
     return obs_array, act_array, done_array
+
+def retrieve_agent( artifact_version, agent_model ,project = None):
+    # Initialize wandb
+    wandb.init(project=project, name="inference")
+    # Access the run containing the logged artifact
+
+    # Download the artifact
+    artifact = wandb.use_artifact(artifact_version)
+    artifact_dir = artifact.download()
+    wandb.finish()
+
+    # Load the model from the downloaded artifact
+    optimal_gail_agent_path = os.path.join(artifact_dir, agent_model) #, "optimal_gail_agent.pth")
+    # final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
+
+    # final_gail_agent = torch.load(final_gail_agent_path)
+    optimal_gail_agent = torch.load(optimal_gail_agent_path)
+    return optimal_gail_agent
+
+def expert_data_collector(
+                            artifact_version,
+                            agent_model,
+                            project,
+                            data_folder_path,
+                            zip_filename,
+                            total_iterations = 1000,
+                            **env_kwargs
+                            ):
+    with open("config.json") as f:
+        config = json.load(f)
+    expert_temp_data_file=f'{data_folder_path}/expert_data_relative.h5'
+    validation_temp_data_file = f'{data_folder_path}expert_data_rel_val.h5'
+    device = torch.device("cpu")
+    oracle_agent                       = retrieve_agent(
+                                                                artifact_version=artifact_version,
+                                                                agent_model = agent_model,
+                                                                project=project
+                                                                )
+            
+    append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
+    append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
+    total_iterations = total_iterations  # The total number of loop iterations
+    with zipfile.ZipFile(zip_filename, 'w') as zipf:
+        # Create an outer tqdm progress bar
+        outer_bar = tqdm(total=total_iterations, desc="Outer Loop Progress")
+        highest_filenum = max(
+                                (
+                                    int(filename.split('_')[3].split('.')[0])
+                                    for filename in os.listdir(data_folder_path)
+                                    if filename.startswith('expert_train_data_') and filename.endswith('.h5')
+                                    and filename.split('_')[3].split('.')[0].isdigit()
+                                ),
+                                default=-1
+                                )
+        for filenum in range(highest_filenum, total_iterations):
+            collect_expert_data  (
+                                        oracle=oracle_agent,
+                                        num_steps_per_iter=config["num_expert_steps"],
+                                        train_filename=expert_temp_data_file,
+                                        validation_filename=validation_temp_data_file,
+                                        **env_kwargs
+                                    )
+            # print("collect data complete")
+            exp_file = f'{data_folder_path}/expert_train_data_{filenum}.h5'
+            val_file = f'{data_folder_path}/expert_val_data_{filenum}.h5'
+            postprocess(expert_temp_data_file, exp_file)
+            postprocess(validation_temp_data_file, val_file)
+            zipf.write(exp_file)
+            zipf.write(val_file)
+            outer_bar.update(1)
+        outer_bar.close()
