@@ -54,7 +54,7 @@ def worker(
         while True:
             # Extract features from observations using the feature extractor
             # features_extractor, policy_net, action_net = oracle
-            ob_tensor = copy.deepcopy(torch.Tensor(ob).to(torch.device('cpu')))
+            ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
 
             
             act = oracle.act(ob_tensor)
@@ -186,8 +186,6 @@ def collect_expert_data(
     with h5py.File(train_filename, 'a') as train_hf, h5py.File(validation_filename, 'a') as valid_hf:
         while steps_count < 0.9*num_steps_per_iter:
             ob, act, done = exp_data_queue.get()
-
-
             exp_acts_temp =copy.deepcopy(exp_acts)
             exp_acts_temp.extend(act)
 
@@ -232,21 +230,7 @@ def collect_expert_data(
     exp_data_queue.join_thread()
     pbar_outer.close()
 
-    # print(" End of data collection")
-    # Accumulate episode rewards where episodes are done
-    # for rwd in episode_rewards:
-    #     exp_rwd_iter.append(rwd)
 
-    
-    # exp_rwd_mean = np.mean(exp_rwd_iter)
-    # print(
-    #     "Expert Reward Mean: {}".format(exp_rwd_mean)
-    # )
-
-    # exp_obs = np.array(exp_obs)
-    # exp_acts = np.array(exp_acts)
-    # exp_done = np.array(exp_done)
-    # return exp_obs, exp_acts, exp_done
 
 def postprocess(inputfile,outputfile):
     exp_obs, exp_acts, exp_dones = extract_expert_data(inputfile)
@@ -417,7 +401,7 @@ def expert_data_collector(
     append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
     append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
     total_iterations = total_iterations  # The total number of loop iterations
-    with zipfile.ZipFile(zip_filename, 'w') as zipf:
+    with zipfile.ZipFile(zip_filename, 'a') as zipf:
         # Create an outer tqdm progress bar
         outer_bar = tqdm(total=total_iterations, desc="Outer Loop Progress")
         highest_filenum = max(

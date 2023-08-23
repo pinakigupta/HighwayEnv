@@ -422,13 +422,13 @@ if __name__ == "__main__":
                     trainer.set_demonstrations(data_loader)
                     trainer.train(n_epochs=1) 
                     print(trainer._logger)
-                    # expert_data_collector(
-                    #                         trainer,
-                    #                         data_folder_path = folder_path,
-                    #                         zip_filename=zip_filename,
-                    #                         total_iterations = 100,
-                    #                         **{**env_kwargs, **{'expert':'MDPVehicle'}}           
-                    #                     )
+                    expert_data_collector(
+                                            trainer,
+                                            data_folder_path = folder_path,
+                                            zip_filename=zip_filename,
+                                            total_iterations = 100,
+                                            **{**env_kwargs, **{'expert':'MDPVehicle'}}           
+                                        )
             return hdf5_train_file_names, hdf5_val_file_names   
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
