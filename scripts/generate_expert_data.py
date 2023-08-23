@@ -22,7 +22,7 @@ def make_configure_env(**kwargs):
 
 
 def worker(
-                expert, 
+                oracle, 
                 data_queue, 
                 episode_rewards, 
                 steps_per_worker, 
@@ -34,7 +34,7 @@ def worker(
                 ):
     env = make_configure_env(**env_kwargs).unwrapped #env_value.value  # Retrieve the shared env object
     steps_collected = 0
-    # expert = env.controlled_vehicles[0]
+    # oracle = env.controlled_vehicles[0]
 
     while True:
         ob = env.reset()
@@ -48,16 +48,16 @@ def worker(
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
         while True:
             # Extract features from observations using the feature extractor
-            # features_extractor, policy_net, action_net = expert
+            # features_extractor, policy_net, action_net = oracle
             ob_tensor = copy.deepcopy(torch.Tensor(ob).to(torch.device('cpu')))
 
             
-            act = expert.act(ob_tensor)
+            act = oracle.act(ob_tensor)
             # act = 4
             next_ob, rwd, done, _, _ = env.step(act)
 
             experts_to_consider = []
-            if('expert' in env_kwargs) and (env_kwargs['expert']=='MDPVehicle'):
+            if('oracle' in env_kwargs) and (env_kwargs['oracle']=='MDPVehicle'):
                 experts_to_consider = [env.vehicle]
             else:
                 for v in env.road.vehicles:
@@ -66,7 +66,7 @@ def worker(
 
             for v in experts_to_consider:
                 obs = v.observer
-                acts = env.action_type.actions_indexes[v.discrete_action]
+                acts = env.action_type.actions_indexes[v.discrete_action()]
                 if v not in all_obs:
                     all_obs[v] = []
                     all_acts[v] = []
@@ -104,7 +104,7 @@ def worker(
         # time.sleep(0.001)
 
 def collect_expert_data(
-                        expert,
+                        oracle,
                         num_steps_per_iter,
                         train_filename,
                         validation_filename,
@@ -132,7 +132,7 @@ def collect_expert_data(
     
     processes_launched = multiprocessing.Event()
 
-    # Initialize a queue to store expert data
+    # Initialize a queue to store oracle data
     exp_data_queue = multiprocessing.Queue()
 
     # Initialize a list to store episode rewards
@@ -149,14 +149,14 @@ def collect_expert_data(
     worker_processes = []
 
     # env_value.value = env
-    # Launch worker processes for expert data collection
+    # Launch worker processes for oracle data collection
 
     for i in range(num_workers):
         
         worker_process = multiprocessing.Process(
                                                     target=worker, 
                                                     args=(
-                                                            copy.deepcopy(expert), 
+                                                            copy.deepcopy(oracle), 
                                                             exp_data_queue, 
                                                             episode_rewards, 
                                                             num_steps_per_worker, 
@@ -173,7 +173,7 @@ def collect_expert_data(
 
     pbar_outer = tqdm(total=num_steps_per_iter, desc='Progress of Expert data collection')
 
-    # Collect expert data from the queue
+    # Collect oracle data from the queue
     ep_collected = 0
     steps_count = 0
     exp_acts = []

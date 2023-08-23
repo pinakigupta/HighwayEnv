@@ -28,7 +28,7 @@ import zipfile
 from imitation.algorithms import bc
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
-
+import importlib
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -92,12 +92,13 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    expert_data_file='expert_data_relative.h5'
-    validation_data_file = 'expert_data_rel_val.h5'
+    folder_path = 'data'
+    expert_data_file=f'{folder_path}/expert_data_relative.h5'
+    validation_data_file = f'{folder_path}expert_data_rel_val.h5'
     zip_filename = 'expert_data.zip'
     n_cpu =  multiprocessing.cpu_count()
     device = torch.device("cpu")
-    extract_path = "data/expert_data"
+    extract_path = f"{folder_path}/expert_data"
 
 
     
@@ -117,23 +118,32 @@ if __name__ == "__main__":
                 
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
         append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
-
+        
 
         total_iterations = 1000  # The total number of loop iterations
         with zipfile.ZipFile(zip_filename, 'w') as zipf:
             # Create an outer tqdm progress bar
             outer_bar = tqdm(total=total_iterations, desc="Outer Loop Progress")
+            highest_filenum = max(
+                                    (
+                                        int(filename.split('_')[3].split('.')[0])
+                                        for filename in os.listdir(folder_path)
+                                        if filename.startswith('expert_train_data_') and filename.endswith('.h5')
+                                        and filename.split('_')[3].split('.')[0].isdigit()
+                                    ),
+                                    default=-1
+                                 )
             for filenum in range(total_iterations):
                 collect_expert_data  (
-                                            expert=optimal_gail_agent,
+                                            oracle=optimal_gail_agent,
                                             num_steps_per_iter=config["num_expert_steps"],
                                             train_filename=expert_data_file,
                                             validation_filename=validation_data_file,
                                             **env_kwargs
                                       )
                 # print("collect data complete")
-                exp_file = f'data/expert_train_data_{filenum}.h5'
-                val_file = f'data/expert_val_data_{filenum}.h5'
+                exp_file = f'{folder_path}/expert_train_data_{filenum}.h5'
+                val_file = f'{folder_path}/expert_val_data_{filenum}.h5'
                 postprocess(expert_data_file, exp_file)
                 postprocess(validation_data_file, val_file)
                 zipf.write(exp_file)
@@ -500,7 +510,7 @@ if __name__ == "__main__":
             plt.savefig(training_kwargs['plot_path'])
             # plt.show()  
 
-        import importlib
+        
         import python_config
         importlib.reload(python_config)
         from python_config import sweep_config
