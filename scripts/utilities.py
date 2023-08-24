@@ -90,6 +90,7 @@ class CustomDataset(Dataset):
         return
 
     def __len__(self):
+        print("data length for custom data set ",id(self), " is ", len(self.exp_acts),  len(self.exp_obs))
         return len(self.exp_acts)
 
     # def _load_episode_group(self):
@@ -102,9 +103,13 @@ class CustomDataset(Dataset):
 
 
     def __getitem__(self, idx):
-        observation = torch.tensor(self.exp_obs[idx], dtype=torch.float32)
-        action = torch.tensor(self.exp_acts[idx], dtype=torch.float32)
-        done = torch.tensor(self.exp_dones[idx], dtype=torch.float32)
+        try:
+            observation = torch.tensor(self.exp_obs[idx], dtype=torch.float32)
+            action = torch.tensor(self.exp_acts[idx], dtype=torch.float32)
+            done = torch.tensor(self.exp_dones[idx], dtype=torch.float32)
+        except Exception as e:
+            print(e , "for ", id(self), len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
+            raise e
 
         sample = {
             'obs': observation,

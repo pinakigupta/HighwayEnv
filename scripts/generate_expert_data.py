@@ -52,7 +52,13 @@ def worker(
         all_acts = {}
         all_done = {}
         rollout_steps = 0
-
+        experts_to_consider = []
+        if('expert' in env_kwargs) and (env_kwargs['expert']=='MDPVehicle'):
+            experts_to_consider = [env.vehicle]
+        else:
+            for v in env.road.vehicles:
+                if v is not env.vehicle:
+                    experts_to_consider.append(v) 
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
         while rollout_steps < steps_per_worker:
             # Extract features from observations using the feature extractor
@@ -65,17 +71,10 @@ def worker(
             next_ob, rwd, done, _, _ = env.step(act)
             rollout_steps += 1
 
-            experts_to_consider = []
-            if('expert' in env_kwargs) and (env_kwargs['expert']=='MDPVehicle'):
-                experts_to_consider = [env.vehicle]
-            else:
-                for v in env.road.vehicles:
-                    if v is not env.vehicle:
-                        experts_to_consider.append(v) 
 
             for v in experts_to_consider:
                 obs = v.observer
-                discrete_action = "IDLE" #v.discrete_action()
+                discrete_action = v.discrete_action()
                 acts = env.action_type.actions_indexes[discrete_action]
                 if v not in all_obs:
                     all_obs[v] = []
@@ -95,8 +94,7 @@ def worker(
             # data_queue.put((ob, act))
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
-
-        # print("all_obs ", len(all_obs[env.vehicle]), len(all_acts), len(all_done))
+        # print("all_obs ", len(all_obs[env.vehicle]), len(all_acts[env.vehicle]), len(all_done[env.vehicle]))
         # Update progress value
         if lock.acquire(timeout=1):
             for (v , ep_obs), (v_, ep_acts), (v_, ep_done) in zip(all_obs.items(), all_acts.items(), all_done.items()):
@@ -106,6 +104,7 @@ def worker(
                 #     pass
                 #     # print(" Discarding data as vehicle ", v, " crashed " )
                 # else:
+                # print("ep_obs ", ep_obs)
                 data_queue.put((ep_obs, ep_acts, ep_done))
                 steps_collected += len(ep_acts)
             lock.release()
@@ -243,7 +242,11 @@ def collect_expert_data(
 
 def postprocess(inputfile,outputfile):
     exp_obs, exp_acts, exp_dones = extract_expert_data(inputfile)
+    class_distribution = Counter(exp_acts)
+    # print(" Before post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs))
     exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
+    class_distribution = Counter(exp_acts)
+    # print(" After post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs))
     # Convert the list of arrays into a NumPy array
     numpy_exp_obs = np.array(exp_obs)
     numpy_exp_acts = np.array(exp_acts)
@@ -262,6 +265,8 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
         class_distribution[action_index] = class_distribution.get(action_index, 0)
     most_common_class, most_common_count = class_distribution.most_common(1)[0]
     second_most_common_class, second_most_common_count = class_distribution.most_common(2)[1]
+    if second_most_common_count == 0:
+        return exp_obs, exp_acts, exp_dones
     desired_samples = factor * second_most_common_count
     # Determine whether downsampling is needed
     if most_common_count > factor * second_most_common_count:
@@ -405,8 +410,7 @@ def expert_data_collector(
         config = json.load(f)
     expert_temp_data_file=f'expert_T_data_.h5'
     validation_temp_data_file = f'expert_V_data_.h5'
-    device = torch.device("cpu")            
-    append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
+    device = torch.device("cpu")    
     append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
     with zipfile.ZipFile(zip_filename, 'a') as zipf:
         # Create an outer tqdm progress bar

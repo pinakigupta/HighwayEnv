@@ -109,6 +109,7 @@ if __name__ == "__main__":
                                                                 agent_model = 'optimal_gail_agent.pth',
                                                                 project="random_env_gail_1",
                                                              )
+        append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
         expert_data_collector(  
                                 oracle_agent,
                                 data_folder_path = folder_path,
@@ -364,11 +365,12 @@ if __name__ == "__main__":
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         rng=np.random.default_rng()
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = 'cpu'
         policy = DefaultActorCriticPolicy(env, device)
         print("Default policy initialized ")
         
-        def create_trainer(env, policy, **kwargs):
+        def create_trainer(env, policy, device=device, **kwargs):
             return       bc.BC(
                                 observation_space=env.observation_space,
                                 action_space=env.action_space,
@@ -379,7 +381,7 @@ if __name__ == "__main__":
                                 policy=policy
                                 )        
         
-        def create_dataloaders(zip_filename, extract_path, **kwargs):
+        def create_dataloaders(zip_filename, extract_path, device=device, **kwargs):
             # Extract the HDF5 files from the zip archive
             with zipfile.ZipFile(zip_filename, 'r') as archive:
                 archive.extractall(extract_path)
@@ -407,23 +409,26 @@ if __name__ == "__main__":
                                         # shuffle=True,
                                         drop_last=True,
                                         num_workers=n_cpu,
-                                        pin_memory=True
+                                        # pin_memory=True,
+                                        # pin_memory_device=device
                                     ) for dataset in train_datasets]
             return train_data_loaders, hdf5_train_file_names, hdf5_val_file_names
         
-        def _train(trainer, zip_filename, extract_path, **training_kwargs):
+        def _train(trainer, zip_filename, extract_path, device=device, **training_kwargs):
             for epoch in range(training_kwargs['num_epochs']):
+                append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
                 train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
                                                                                                       zip_filename,
                                                                                                       extract_path, 
+                                                                                                      device=device,
                                                                                                       batch_size=training_kwargs['batch_size']
                                                                                                    )
                 
-                print("beginning training. train_data_loaders ", train_data_loaders, " hdf5_train_file_names ", hdf5_train_file_names)
+                print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
                 for data_loader in train_data_loaders:
                     if len(data_loader) > 0:
-                        trainer.set_demonstrations(data_loader)
-                        trainer.train(n_epochs=1) 
+                        trainer.set_demonstrations(data_loader) 
+                        trainer.train(n_epochs=1)  
                     else:
                         print("No data at data loader ", data_loader)
                 expert_data_collector(
@@ -507,13 +512,13 @@ if __name__ == "__main__":
 
         batch_size = 32
         num_epochs = 10 
-        bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs)
+        bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device)
         hdf5_train_file_names, hdf5_val_file_names = _train(
                                                                 bc_trainer, 
                                                                 zip_filename,
                                                                 extract_path,
                                                                 num_epochs=num_epochs, 
-                                                                batch_size=batch_size
+                                                                batch_size=batch_size,
                                                             )
         calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path='tmp.png' )
 
