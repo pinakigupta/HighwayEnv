@@ -400,7 +400,7 @@ if __name__ == "__main__":
             # Create separate datasets for each HDF5 file
             train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
             # val_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_val_file_names]
-            print('train_datasets ', train_datasets, " hdf5_train_file_names ", hdf5_train_file_names)
+            print('train_datasets_lengths ', [ len(ds) for ds in train_datasets], " hdf5_train_file_names ", hdf5_train_file_names)
             
             # custom_dataset = CustomDataset(expert_data_file, device=device)
             train_data_loaders = [DataLoader(
@@ -510,8 +510,8 @@ if __name__ == "__main__":
         run_name = f"sweep_{month}{day}_{timenow()}"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
 
-        batch_size = 32
-        num_epochs = 10 
+        batch_size = sweep_config['parameters']['batch_size']['values'][0]
+        num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
         bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device)
         hdf5_train_file_names, hdf5_val_file_names = _train(
                                                                 bc_trainer, 
