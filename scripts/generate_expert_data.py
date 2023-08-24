@@ -51,9 +51,10 @@ def worker(
         all_obs = {}
         all_acts = {}
         all_done = {}
+        rollout_steps = 0
 
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
-        while True:
+        while rollout_steps < steps_per_worker:
             # Extract features from observations using the feature extractor
             # features_extractor, policy_net, action_net = oracle
             ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
@@ -62,6 +63,7 @@ def worker(
             act = oracle.predict(ob)[0]
             # act = 4
             next_ob, rwd, done, _, _ = env.step(act)
+            rollout_steps += 1
 
             experts_to_consider = []
             if('expert' in env_kwargs) and (env_kwargs['expert']=='MDPVehicle'):
@@ -84,7 +86,7 @@ def worker(
                 all_done[v].append(False)
             # print(type(all_done[-1]), len(all_done[-1]))
             
-            # print("all_obs ", len(all_obs), discrete_action, done)
+            # print(id(env.vehicle), " all_obs ", len(all_obs[env.vehicle]), discrete_action, done)
             if done:
                 for v in all_done:
                     all_done[v][-1] = True
@@ -94,7 +96,7 @@ def worker(
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
 
-        print("all_obs ", len(all_obs[env.vehicle]), len(all_acts), len(all_done))
+        # print("all_obs ", len(all_obs[env.vehicle]), len(all_acts), len(all_done))
         # Update progress value
         if lock.acquire(timeout=1):
             for (v , ep_obs), (v_, ep_acts), (v_, ep_done) in zip(all_obs.items(), all_acts.items(), all_done.items()):
@@ -152,7 +154,7 @@ def collect_expert_data(
     num_workers =  max(multiprocessing.cpu_count()-3,1)
 
     # Calculate the number of steps per worker
-    num_steps_per_worker = num_steps_per_iter // num_workers
+    num_steps_per_worker = min(num_steps_per_iter , 2 * (num_steps_per_iter// num_workers))
     # num_steps_per_worker *=1.25 # allocate higher number of episodes than quota, so that free workers can do them w/o a blocking call
 
     # Create a list to store worker processes
@@ -397,7 +399,6 @@ def expert_data_collector(
                             oracle_agent,
                             data_folder_path,
                             zip_filename,
-                            total_iterations = 1000,
                             **env_kwargs
                             ):
     with open("config.json") as f:
@@ -407,10 +408,8 @@ def expert_data_collector(
     device = torch.device("cpu")            
     append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
     append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
-    total_iterations = total_iterations  # The total number of loop iterations
     with zipfile.ZipFile(zip_filename, 'a') as zipf:
         # Create an outer tqdm progress bar
-        outer_bar = tqdm(total=total_iterations, desc="Outer Loop Progress")
         highest_filenum = max(
                                 (
                                     int(filename.split('_')[3].split('.')[0])
@@ -420,6 +419,13 @@ def expert_data_collector(
                                 ),
                                 default=-1
                                 )
+        if 'total_iterations' in env_kwargs:
+            total_iterations = env_kwargs['total_iterations']  # The total number of loop iterations
+            total = total_iterations
+        elif 'delta_iterations' in env_kwargs:
+            total = env_kwargs['delta_iterations']
+            total_iterations = highest_filenum + total
+        outer_bar = tqdm(total=total, desc="Outer Loop Progress")
         for filenum in range(highest_filenum, total_iterations):
             collect_expert_data  (
                                         oracle=oracle_agent,

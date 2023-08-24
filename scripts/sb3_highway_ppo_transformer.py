@@ -398,6 +398,7 @@ if __name__ == "__main__":
             # Create separate datasets for each HDF5 file
             train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
             # val_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_val_file_names]
+            print('train_datasets ', train_datasets)
             
             # custom_dataset = CustomDataset(expert_data_file, device=device)
             train_data_loaders = [DataLoader(
@@ -421,14 +422,16 @@ if __name__ == "__main__":
                 for data_loader in train_data_loaders:
                     trainer.set_demonstrations(data_loader)
                     trainer.train(n_epochs=1) 
-                    print(trainer._logger)
                     expert_data_collector(
                                             trainer.policy,
                                             data_folder_path = folder_path,
                                             zip_filename=zip_filename,
-                                            total_iterations = 100,
-                                            **{**env_kwargs, **{'expert':'MDPVehicle'}}           
-                                         )
+                                            num_iterations = 100,
+                                            **{
+                                                **env_kwargs, 
+                                                **{'expert':'MDPVehicle'}
+                                                }           
+                                            )
             return hdf5_train_file_names, hdf5_val_file_names   
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
