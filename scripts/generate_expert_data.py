@@ -153,7 +153,7 @@ def collect_expert_data(
     num_workers =  max(multiprocessing.cpu_count()-3,1)
 
     # Calculate the number of steps per worker
-    num_steps_per_worker = min(num_steps_per_iter , 2 * (num_steps_per_iter// num_workers))
+    num_steps_per_worker = min(num_steps_per_iter , 1 * (num_steps_per_iter// num_workers))
     # num_steps_per_worker *=1.25 # allocate higher number of episodes than quota, so that free workers can do them w/o a blocking call
 
     # Create a list to store worker processes

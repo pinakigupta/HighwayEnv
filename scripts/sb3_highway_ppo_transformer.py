@@ -6,6 +6,7 @@ import torch
 import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.evaluation import evaluate_policy
 import os
 import multiprocessing
 from enum import Enum
@@ -432,7 +433,7 @@ if __name__ == "__main__":
                     else:
                         print("No data at data loader ", data_loader)
                 expert_data_collector(
-                                        trainer.policy,
+                                        trainer.policy, # This is the exploration policy
                                         data_folder_path = folder_path,
                                         zip_filename=zip_filename,
                                         delta_iterations = 1,
@@ -441,7 +442,15 @@ if __name__ == "__main__":
                                             **{'expert':'MDPVehicle'}
                                             }           
                                         )
-                print("Dagger collection ended for epoch ", epoch)
+                # num_rollouts = 10
+                # reward = simulate_with_model(
+                #                                     agent=trainer.policy, 
+                #                                     env_kwargs=env_kwargs, 
+                #                                     render_mode='none', 
+                #                                     num_workers= min(num_rollouts,n_cpu), 
+                #                                     num_rollouts=num_rollouts
+                #                             )
+                # print(f"Reward after training epoch {epoch}: {reward}")
             return hdf5_train_file_names, hdf5_val_file_names   
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):

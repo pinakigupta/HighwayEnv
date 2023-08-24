@@ -552,7 +552,8 @@ class MDPVehicle(IDMVehicle):
         self.target_speed = self.index_to_speed(self.speed_index)
 
     def discrete_action(self):
-        return self.mdp_action
+        return super(MDPVehicle,self).discrete_action()
+        # return self.mdp_action
 
     def act(self, action: Union[dict, str] = None) -> None:
         """
