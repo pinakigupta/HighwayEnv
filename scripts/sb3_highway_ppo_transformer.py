@@ -415,8 +415,8 @@ if __name__ == "__main__":
             return train_data_loaders, hdf5_train_file_names, hdf5_val_file_names
         
         def _train(trainer, zip_filename, extract_path, device=device, **training_kwargs):
+            append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             for epoch in range(training_kwargs['num_epochs']):
-                append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
                 train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
                                                                                                       zip_filename,
                                                                                                       extract_path, 
@@ -424,7 +424,7 @@ if __name__ == "__main__":
                                                                                                       batch_size=training_kwargs['batch_size']
                                                                                                    )
                 
-                print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
+                # print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
                 for data_loader in train_data_loaders:
                     if len(data_loader) > 0:
                         trainer.set_demonstrations(data_loader) 
@@ -441,7 +441,7 @@ if __name__ == "__main__":
                                             **{'expert':'MDPVehicle'}
                                             }           
                                         )
-                print("Dagger collection ended")
+                print("Dagger collection ended for epoch ", epoch)
             return hdf5_train_file_names, hdf5_val_file_names   
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):

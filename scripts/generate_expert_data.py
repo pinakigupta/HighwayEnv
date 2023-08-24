@@ -431,7 +431,7 @@ def expert_data_collector(
             total = env_kwargs['delta_iterations']
             total_iterations = highest_filenum + total +1 
         outer_bar = tqdm(total=total, desc="Outer Loop Progress")
-        print("highest_filenum ", highest_filenum)
+        # print("highest_filenum ", highest_filenum)
         for filenum in range(highest_filenum+1, total_iterations):
             collect_expert_data  (
                                         oracle=oracle_agent,
