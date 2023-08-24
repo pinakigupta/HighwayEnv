@@ -403,8 +403,8 @@ def expert_data_collector(
                             ):
     with open("config.json") as f:
         config = json.load(f)
-    expert_temp_data_file=f'{data_folder_path}/expert_data_relative.h5'
-    validation_temp_data_file = f'{data_folder_path}expert_data_rel_val.h5'
+    expert_temp_data_file=f'expert_T_data_.h5'
+    validation_temp_data_file = f'expert_V_data_.h5'
     device = torch.device("cpu")            
     append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
     append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
@@ -419,14 +419,16 @@ def expert_data_collector(
                                 ),
                                 default=-1
                                 )
+        total = 0
         if 'total_iterations' in env_kwargs:
             total_iterations = env_kwargs['total_iterations']  # The total number of loop iterations
             total = total_iterations
         elif 'delta_iterations' in env_kwargs:
             total = env_kwargs['delta_iterations']
-            total_iterations = highest_filenum + total
+            total_iterations = highest_filenum + total +1 
         outer_bar = tqdm(total=total, desc="Outer Loop Progress")
-        for filenum in range(highest_filenum, total_iterations):
+        print("highest_filenum ", highest_filenum)
+        for filenum in range(highest_filenum+1, total_iterations):
             collect_expert_data  (
                                         oracle=oracle_agent,
                                         num_steps_per_iter=config["num_expert_steps"],
@@ -435,8 +437,8 @@ def expert_data_collector(
                                         **env_kwargs
                                     )
             # print("collect data complete")
-            exp_file = f'{data_folder_path}/expert_train_data_{filenum}.h5'
-            val_file = f'{data_folder_path}/expert_val_data_{filenum}.h5'
+            exp_file = f'expert_train_data_{filenum}.h5'
+            val_file = f'expert_val_data_{filenum}.h5'
             postprocess(expert_temp_data_file, exp_file)
             postprocess(validation_temp_data_file, val_file)
             zipf.write(exp_file)

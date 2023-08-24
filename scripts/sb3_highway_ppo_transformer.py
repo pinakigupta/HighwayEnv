@@ -398,13 +398,13 @@ if __name__ == "__main__":
             # Create separate datasets for each HDF5 file
             train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
             # val_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_val_file_names]
-            print('train_datasets ', train_datasets)
+            print('train_datasets ', train_datasets, " hdf5_train_file_names ", hdf5_train_file_names)
             
             # custom_dataset = CustomDataset(expert_data_file, device=device)
             train_data_loaders = [DataLoader(
                                         dataset, 
                                         batch_size=kwargs['batch_size'], 
-                                        shuffle=True,
+                                        # shuffle=True,
                                         drop_last=True,
                                         num_workers=n_cpu,
                                         pin_memory=True
@@ -419,19 +419,24 @@ if __name__ == "__main__":
                                                                                                       batch_size=training_kwargs['batch_size']
                                                                                                    )
                 
+                print("beginning training. train_data_loaders ", train_data_loaders, " hdf5_train_file_names ", hdf5_train_file_names)
                 for data_loader in train_data_loaders:
-                    trainer.set_demonstrations(data_loader)
-                    trainer.train(n_epochs=1) 
-                    expert_data_collector(
-                                            trainer.policy,
-                                            data_folder_path = folder_path,
-                                            zip_filename=zip_filename,
-                                            num_iterations = 100,
-                                            **{
-                                                **env_kwargs, 
-                                                **{'expert':'MDPVehicle'}
-                                                }           
-                                            )
+                    if len(data_loader) > 0:
+                        trainer.set_demonstrations(data_loader)
+                        trainer.train(n_epochs=1) 
+                    else:
+                        print("No data at data loader ", data_loader)
+                expert_data_collector(
+                                        trainer.policy,
+                                        data_folder_path = folder_path,
+                                        zip_filename=zip_filename,
+                                        delta_iterations = 1,
+                                        **{
+                                            **env_kwargs, 
+                                            **{'expert':'MDPVehicle'}
+                                            }           
+                                        )
+                print("Dagger collection ended")
             return hdf5_train_file_names, hdf5_val_file_names   
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
