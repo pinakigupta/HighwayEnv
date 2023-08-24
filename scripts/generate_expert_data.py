@@ -45,13 +45,6 @@ def worker(
 
     while True:
         ob = env.reset()
-        ob=ob[0]
-        done = False
-        ep_rwds = []
-        all_obs = {}
-        all_acts = {}
-        all_done = {}
-        rollout_steps = 0
         experts_to_consider = []
         if('expert' in env_kwargs) and (env_kwargs['expert']=='MDPVehicle'):
             experts_to_consider = [env.vehicle]
@@ -59,11 +52,19 @@ def worker(
             for v in env.road.vehicles:
                 if v is not env.vehicle:
                     experts_to_consider.append(v) 
+        ob=ob[0]
+        done = False
+        ep_rwds = []
+        all_obs = {}
+        all_acts = {}
+        all_done = {}
+        rollout_steps = 0
+        
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
         while rollout_steps < steps_per_worker:
             # Extract features from observations using the feature extractor
             # features_extractor, policy_net, action_net = oracle
-            ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
+            # ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
 
 
             act = oracle.predict(ob)[0]
@@ -94,7 +95,7 @@ def worker(
             # data_queue.put((ob, act))
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
-        # print("all_obs ", len(all_obs[env.vehicle]), len(all_acts[env.vehicle]), len(all_done[env.vehicle]))
+        # print("all_obs. worker ",worker_id," : ", len(all_obs[env.vehicle]), len(all_acts[env.vehicle]), len(all_done[env.vehicle]))
         # Update progress value
         if lock.acquire(timeout=1):
             for (v , ep_obs), (v_, ep_acts), (v_, ep_done) in zip(all_obs.items(), all_acts.items(), all_done.items()):
@@ -107,12 +108,13 @@ def worker(
                 # print("ep_obs ", ep_obs)
                 data_queue.put((ep_obs, ep_acts, ep_done))
                 steps_collected += len(ep_acts)
+                # print("steps_collected ", steps_collected)
             lock.release()
         else:
             print("lock time out occurred")
             # progress.value += obs_collecected
             # print("worker ", worker_id, " steps_collected ", steps_collected,   flush=True)
-        # episode_rewards.append(np.sum(ep_rwds))
+        episode_rewards.append(np.sum(ep_rwds))
         # time.sleep(0.001)
 
 def collect_expert_data(
@@ -193,10 +195,11 @@ def collect_expert_data(
 
     with h5py.File(train_filename, 'a') as train_hf, h5py.File(validation_filename, 'a') as valid_hf:
         while steps_count < 0.9*num_steps_per_iter:
+            queue_size = exp_data_queue.qsize()
             ob, act, done = exp_data_queue.get()
             exp_acts_temp =copy.deepcopy(exp_acts)
             exp_acts_temp.extend(act)
-
+            # print("collected steps_count ", steps_count)
 
             # if is_skewed(
             #                 act,
@@ -395,7 +398,7 @@ def retrieve_agent( artifact_version, agent_model ,project = None):
     # Load the model from the downloaded artifact
     optimal_gail_agent_path = os.path.join(artifact_dir, agent_model) #, "optimal_gail_agent.pth")
     # final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
-
+    print("optimal_gail_agent_path ", optimal_gail_agent_path)
     # final_gail_agent = torch.load(final_gail_agent_path)
     optimal_gail_agent = torch.load(optimal_gail_agent_path)
     return optimal_gail_agent

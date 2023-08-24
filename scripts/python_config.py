@@ -6,7 +6,7 @@ env_kwargs = {
     'config': {
         'simulation_frequency': 10,
         "lanes_count": 4,
-        "vehicles_count": 'random',
+        "vehicles_count": 100,
         'politeness': 'random',
         "action": {
                 "type": "DiscreteMetaAction",
@@ -54,7 +54,7 @@ sweep_config = {
             "values": [ 64]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [15]  # Values for the "duration" field to be swept
+            "values": [1]  # Values for the "duration" field to be swept
         },    
     }
 }

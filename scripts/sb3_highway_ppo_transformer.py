@@ -45,7 +45,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 
 
 
@@ -530,6 +530,20 @@ if __name__ == "__main__":
                                                                 batch_size=batch_size,
                                                             )
         calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path='tmp.png' )
+    
+        with wandb.init(
+                            project="BC_1", 
+                            magic=True,
+                        ) as run:
+                        run.name = f"sweep_{month}{day}_{timenow()}"
+                        # Log the model as an artifact in wandb
+                        os.makedirs("models_archive", exist_ok=True)
+                        torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
+                        artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+                        artifact.add_dir("models_archive")
+                        run.log_artifact(artifact)
+
+        wandb.finish()
 
         # def train_sweep(env, policy, config=None):
         #     with wandb.init(
