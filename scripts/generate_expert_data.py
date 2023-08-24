@@ -94,7 +94,7 @@ def worker(
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
 
-        print("all_obs ", len(all_obs), len(all_acts), len(all_done))
+        print("all_obs ", len(all_obs[env.vehicle]), len(all_acts), len(all_done))
         # Update progress value
         if lock.acquire(timeout=1):
             for (v , ep_obs), (v_, ep_acts), (v_, ep_done) in zip(all_obs.items(), all_acts.items(), all_done.items()):
@@ -107,6 +107,8 @@ def worker(
                 data_queue.put((ep_obs, ep_acts, ep_done))
                 steps_collected += len(ep_acts)
             lock.release()
+        else:
+            print("lock time out occurred")
             # progress.value += obs_collecected
             # print("worker ", worker_id, " steps_collected ", steps_collected,   flush=True)
         # episode_rewards.append(np.sum(ep_rwds))
@@ -252,15 +254,12 @@ def postprocess(inputfile,outputfile):
 def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
     # Calculate the distribution of classes
     class_distribution = Counter(exp_acts)
+    actions_indexes = {'LANE_LEFT': 0, 'IDLE': 1, 'LANE_RIGHT': 2, 'FASTER': 3, 'SLOWER': 4}
+    # Initialize all classes to 0 in the class_distribution
+    for action_index in actions_indexes.values():
+        class_distribution[action_index] = class_distribution.get(action_index, 0)
     most_common_class, most_common_count = class_distribution.most_common(1)[0]
     second_most_common_class, second_most_common_count = class_distribution.most_common(2)[1]
-    # print("class_distribution ", class_distribution)
-    # print(
-    #         "most_common_class ", most_common_class,
-    #         "most_common_count ", most_common_count, 
-    #         " second_most_common_class ", second_most_common_class, 
-    #         " second_most_common_count ", second_most_common_count
-    #      )
     desired_samples = factor * second_most_common_count
     # Determine whether downsampling is needed
     if most_common_count > factor * second_most_common_count:
@@ -344,18 +343,21 @@ def extract_expert_data(filename):
 
             # List all datasets (exp_obs and exp_acts) in the episode group
             datasets = list(episode.keys())
-
             # Iterate through each dataset in the episode group
             for dataset_name in datasets:
                 dataset = episode[dataset_name]
 
                 # Append the data to the corresponding list
-                if dataset_name.startswith('exp_obs'):
-                    exp_obs.extend([dataset[:]])
-                elif dataset_name.startswith('exp_acts'):
-                    exp_acts.extend([dataset[()]])
-                elif dataset_name.startswith('exp_done'):
-                    exp_done.extend([dataset[()]]) 
+                try:
+                    if dataset_name.startswith('exp_obs'):
+                        exp_obs.extend([dataset[:]])
+                    elif dataset_name.startswith('exp_acts'):
+                        exp_acts.extend([dataset[()]])
+                    elif dataset_name.startswith('exp_done'):
+                        exp_done.extend([dataset[()]])
+                except Exception as e:
+                    pass
+                    # print(e)
            
 
     return  exp_obs, exp_acts, exp_done
