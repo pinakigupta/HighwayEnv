@@ -90,7 +90,7 @@ class CustomDataset(Dataset):
         return
 
     def __len__(self):
-        print("data length for custom data set ",id(self), " is ", len(self.exp_acts),  len(self.exp_obs))
+        # print("data length for custom data set ",id(self), " is ", len(self.exp_acts),  len(self.exp_obs))
         return len(self.exp_acts)
 
     # def _load_episode_group(self):
@@ -111,6 +111,7 @@ class CustomDataset(Dataset):
             print(e , "for ", id(self), len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
             raise e
 
+        # print(" Inside custom data set. Devices are ",self.device, observation.device, action.device, done.device)
         sample = {
             'obs': observation,
             'acts': action,

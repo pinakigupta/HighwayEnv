@@ -1,3 +1,4 @@
+import torch.multiprocessing as mp
 import functools
 import gymnasium as gym
 import seaborn as sns
@@ -8,7 +9,6 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
 import os
-import multiprocessing
 from enum import Enum
 import json
 import wandb
@@ -69,6 +69,7 @@ def timenow():
 
 
 if __name__ == "__main__":
+    
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     month = now.strftime("%m")
     day = now.strftime("%d")
     zip_filename = 'expert_data.zip'
-    n_cpu =  multiprocessing.cpu_count()
+    n_cpu =  mp.cpu_count()
     device = torch.device("cpu")
     extract_path = 'data'
 
@@ -365,8 +366,8 @@ if __name__ == "__main__":
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         rng=np.random.default_rng()
-        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        device = 'cpu'
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # device = 'cpu'
         policy = DefaultActorCriticPolicy(env, device)
         print("Default policy initialized ")
         
@@ -404,6 +405,7 @@ if __name__ == "__main__":
             print('train_datasets_lengths ', [ len(ds) for ds in train_datasets], " hdf5_train_file_names ", hdf5_train_file_names)
             
             # custom_dataset = CustomDataset(expert_data_file, device=device)
+            print('device is ', device)
             train_data_loaders = [DataLoader(
                                         dataset, 
                                         batch_size=kwargs['batch_size'], 
@@ -415,9 +417,10 @@ if __name__ == "__main__":
                                     ) for dataset in train_datasets]
             return train_data_loaders, hdf5_train_file_names, hdf5_val_file_names
         
-        def _train(trainer, zip_filename, extract_path, device=device, **training_kwargs):
+        def _train(zip_filename, extract_path, device=device, **training_kwargs):
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             for epoch in range(training_kwargs['num_epochs']):
+                trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
                 train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
                                                                                                       zip_filename,
                                                                                                       extract_path, 
@@ -427,6 +430,7 @@ if __name__ == "__main__":
                 
                 # print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
                 for data_loader in train_data_loaders:
+                    print("DataLoader device:", type(data_loader.pin_memory_device), data_loader.pin_memory_device)
                     if len(data_loader) > 0:
                         trainer.set_demonstrations(data_loader) 
                         trainer.train(n_epochs=1)  
@@ -441,7 +445,8 @@ if __name__ == "__main__":
                                             **env_kwargs, 
                                             **{'expert':'MDPVehicle'}
                                             }           
-                                        )
+                                     )
+
                 # num_rollouts = 10
                 # reward = simulate_with_model(
                 #                                     agent=trainer.policy, 
@@ -451,6 +456,7 @@ if __name__ == "__main__":
                 #                                     num_rollouts=num_rollouts
                 #                             )
                 # print(f"Reward after training epoch {epoch}: {reward}")
+                calculate_validation_metrics(trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path=f"{extract_path}/tmp_{epoch}.png" )
             return hdf5_train_file_names, hdf5_val_file_names   
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
@@ -521,15 +527,14 @@ if __name__ == "__main__":
 
         batch_size = sweep_config['parameters']['batch_size']['values'][0]
         num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
-        bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device)
+        
         hdf5_train_file_names, hdf5_val_file_names = _train(
-                                                                bc_trainer, 
                                                                 zip_filename,
                                                                 extract_path,
                                                                 num_epochs=num_epochs, 
                                                                 batch_size=batch_size,
                                                             )
-        calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path='tmp.png' )
+        
     
         with wandb.init(
                             project="BC_1", 
