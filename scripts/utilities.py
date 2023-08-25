@@ -14,9 +14,15 @@ import seaborn as sns
 from highway_env.utils import lmap
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import wandb
-import os
+import os, shutil
 from attention_network import EgoAttentionNetwork
 import gymnasium as gym
+
+def clear_and_makedirs(directory):
+    # Clear the directory to remove existing files
+    if os.path.exists(directory):
+        shutil.rmtree(directory)
+    os.makedirs(directory)
 
 def write_module_hierarchy_to_file(model, file):
     def write_module_recursive(module, file=None, indent='', processed_submodules=None):

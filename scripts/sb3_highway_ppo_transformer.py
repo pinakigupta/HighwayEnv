@@ -20,7 +20,7 @@ from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent, extract_post_processed_expert_data
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
-from utilities import  write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset, CustomExtractor
+from utilities import  write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset, CustomExtractor, clear_and_makedirs
 import warnings
 from imitation.algorithms import bc
 from python_config import sweep_config, env_kwargs
@@ -273,7 +273,7 @@ if __name__ == "__main__":
 
                 
                 # Create a directory for the models
-                os.makedirs("models_archive", exist_ok=True)
+                clear_and_makedirs("models_archive")
 
                 shutil.move("optimal_gail_agent.pth", "models_archive/optimal_gail_agent.pth")
                 shutil.move("final_gail_agent.pth", "models_archive/final_gail_agent.pth")
@@ -367,10 +367,25 @@ if __name__ == "__main__":
         action_dim = env.action_space.n
         rng=np.random.default_rng()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        project = "BC_1"
         # device = 'cpu'
         policy = DefaultActorCriticPolicy(env, device)
         print("Default policy initialized ")
         
+        import python_config
+        importlib.reload(python_config)
+        from python_config import sweep_config
+        print(sweep_config['parameters'])
+
+        project_name = f"BC_1"
+        run_name = f"sweep_{month}{day}_{timenow()}"
+        # sweep_id = wandb.sweep(sweep_config, project=project_name)
+
+        metrics_plot_path = f"{extract_path}/metrics.png"
+
+        batch_size = sweep_config['parameters']['batch_size']['values'][0]
+        num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
+
         def create_trainer(env, policy, device=device, **kwargs):
             return       bc.BC(
                                 observation_space=env.observation_space,
@@ -402,10 +417,9 @@ if __name__ == "__main__":
             # Create separate datasets for each HDF5 file
             train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
             # val_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_val_file_names]
-            print('train_datasets_lengths ', [ len(ds) for ds in train_datasets], " hdf5_train_file_names ", hdf5_train_file_names)
+            # print('train_datasets_lengths ', [ len(ds) for ds in train_datasets], " hdf5_train_file_names ", hdf5_train_file_names)
             
             # custom_dataset = CustomDataset(expert_data_file, device=device)
-            print('device is ', device)
             train_data_loaders = [DataLoader(
                                         dataset, 
                                         batch_size=kwargs['batch_size'], 
@@ -416,10 +430,37 @@ if __name__ == "__main__":
                                         # pin_memory_device=device
                                     ) for dataset in train_datasets]
             return train_data_loaders, hdf5_train_file_names, hdf5_val_file_names
-        
+
+        def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
+
+            with wandb.init(
+                                project=project, 
+                                magic=True,
+                            ) as run:
+                            if epoch is None:
+                                epoch = "final"
+                                run.log({f"metrics_plot": wandb.Image(metrics_plot_path)})
+                            run.name = run_name
+                            # Log the model as an artifact in wandb
+                            clear_and_makedirs("models_archive")
+                            torch.save(trainer, f"models_archive/BC_agent_{epoch}.pth") 
+                            artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+                            artifact.add_dir("models_archive")
+                            run.log_artifact(artifact)
+
+            wandb.finish()
+
         def _train(zip_filename, extract_path, device=device, **training_kwargs):
+            num_epochs = training_kwargs['num_epochs']
+            checkpoint_interval = num_epochs//2
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
-            for epoch in range(training_kwargs['num_epochs']):
+            _validation_metrics =       {
+                                            "accuracy"  : [], 
+                                            "precision" : [], 
+                                            "recall"    : [],
+                                            "f1"        : []
+                                        }
+            for epoch in range(num_epochs):
                 trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
                 train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
                                                                                                       zip_filename,
@@ -429,13 +470,14 @@ if __name__ == "__main__":
                                                                                                    )
                 
                 # print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
-                for data_loader in train_data_loaders:
-                    print("DataLoader device:", type(data_loader.pin_memory_device), data_loader.pin_memory_device)
-                    if len(data_loader) > 0:
-                        trainer.set_demonstrations(data_loader) 
-                        trainer.train(n_epochs=1)  
-                    else:
-                        print("No data at data loader ", data_loader)
+                for mini_epoch in range(1):
+                    print("Training for mini_epoch ", mini_epoch , " of epoch ", epoch)
+                    for data_loader in train_data_loaders:
+                        if len(data_loader) > 0:
+                            trainer.set_demonstrations(data_loader) 
+                            trainer.train(n_epochs=1)  
+                        else:
+                            print("No data at data loader ", data_loader)
                 expert_data_collector(
                                         trainer.policy, # This is the exploration policy
                                         data_folder_path = extract_path,
@@ -456,8 +498,41 @@ if __name__ == "__main__":
                 #                                     num_rollouts=num_rollouts
                 #                             )
                 # print(f"Reward after training epoch {epoch}: {reward}")
-                calculate_validation_metrics(trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path=f"{extract_path}/tmp_{epoch}.png" )
-            return hdf5_train_file_names, hdf5_val_file_names   
+                # At the end of each epoch or desired interval
+                if checkpoint_interval !=0 and epoch % checkpoint_interval == 0:
+                    print("saving check point ", epoch)
+                    save_checkpoint(
+                                     project = project, 
+                                     run_name=run_name,
+                                     epoch = epoch, 
+                                     trainer = trainer,
+                                     metrics_plot_path = metrics_plot_path
+                                    )
+                accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                                trainer, 
+                                                                                hdf5_train_file_names, 
+                                                                                hdf5_val_file_names, 
+                                                                                plot_path=f"{extract_path}/tmp_{epoch}.png" 
+                                                                              )
+                _validation_metrics["accuracy"].append(accuracy)
+                _validation_metrics["precision"].append(precision)
+                _validation_metrics["recall"].append(recall)
+                _validation_metrics["f1"].append(f1)
+            epochs = range(num_epochs)
+
+            # Plotting
+            plt.figure(figsize=(10, 6))
+
+            for metric_name, metric_values in _validation_metrics.items():
+                plt.plot(epochs, metric_values, label=metric_name)
+
+            plt.xlabel("Epochs")
+            plt.ylabel("Metrics Value")
+            plt.title("Validation Metrics over Epochs")
+            plt.legend()
+            plt.grid(True)
+            plt.savefig(f"{extract_path}/metrics.png")
+            return trainer  
 
         def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
             true_labels = []
@@ -492,18 +567,18 @@ if __name__ == "__main__":
                     true_labels.extend(val_acts)
 
             # Calculate evaluation metrics
-            accuracy = accuracy_score(true_labels, predicted_labels)
-            precision = precision_score(true_labels, predicted_labels, average=None)
-            recall = recall_score(true_labels, predicted_labels, average=None)
-            f1 = f1_score(true_labels, predicted_labels, average=None)
+            tr_accuracy = accuracy_score(true_labels, predicted_labels)
+            tr_precision = precision_score(true_labels, predicted_labels, average=None)
+            tr_recall = recall_score(true_labels, predicted_labels, average=None)
+            tr_f1 = f1_score(true_labels, predicted_labels, average=None)
 
 
 
             print("--------  Training data metrics for reference---------------")
-            print("Accuracy:", accuracy, np.mean(accuracy))
-            print("Precision:", precision,  np.mean(precision))
-            print("Recall:", recall, np.mean(recall))
-            print("F1 Score:", f1, np.mean(recall))
+            print("Accuracy:", accuracy, np.mean(tr_accuracy))
+            print("Precision:", precision,  np.mean(tr_precision))
+            print("Recall:", recall, np.mean(tr_recall))
+            print("F1 Score:", f1, np.mean(tr_f1))
 
 
             plt.figure(figsize=(8, 6))
@@ -514,41 +589,37 @@ if __name__ == "__main__":
             plt.title("Confusion Matrix")
             plt.savefig(training_kwargs['plot_path'])
             # plt.show()  
+            return accuracy, precision, recall, f1
+        
 
         
-        import python_config
-        importlib.reload(python_config)
-        from python_config import sweep_config
-        print(sweep_config['parameters'])
-
-        project_name = f"BC_1"
-        run_name = f"sweep_{month}{day}_{timenow()}"
-        sweep_id = wandb.sweep(sweep_config, project=project_name)
-
-        batch_size = sweep_config['parameters']['batch_size']['values'][0]
-        num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
-        
-        hdf5_train_file_names, hdf5_val_file_names = _train(
+        bc_trainer                                  = _train(
                                                                 zip_filename,
                                                                 extract_path,
                                                                 num_epochs=num_epochs, 
                                                                 batch_size=batch_size,
                                                             )
-        
+        save_checkpoint(
+                            project = project, 
+                            run_name=run_name,
+                            epoch = None, 
+                            trainer = bc_trainer,
+                            metrics_plot_path = metrics_plot_path
+                        )        
     
-        with wandb.init(
-                            project="BC_1", 
-                            magic=True,
-                        ) as run:
-                        run.name = f"sweep_{month}{day}_{timenow()}"
-                        # Log the model as an artifact in wandb
-                        os.makedirs("models_archive", exist_ok=True)
-                        torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
-                        artifact = wandb.Artifact("trained_model_directory", type="model_directory")
-                        artifact.add_dir("models_archive")
-                        run.log_artifact(artifact)
+        # with wandb.init(
+        #                     project="BC_1", 
+        #                     magic=True,
+        #                 ) as run:
+        #                 run.name = run_name
+        #                 # Log the model as an artifact in wandb
+        #                 clear_and_makedirs("models_archive")
+        #                 torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
+        #                 artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+        #                 artifact.add_dir("models_archive")
+        #                 run.log_artifact(artifact)
 
-        wandb.finish()
+        # wandb.finish()
 
         # def train_sweep(env, policy, config=None):
         #     with wandb.init(
@@ -583,7 +654,7 @@ if __name__ == "__main__":
         #                                                             )
         #         calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path=plot_path )
 
-        #         os.makedirs("models_archive", exist_ok=True)
+        #         clear_and_makedirs("models_archive")
         #         torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
 
         #         # Log the model as an artifact in wandb
