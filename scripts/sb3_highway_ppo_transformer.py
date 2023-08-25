@@ -17,10 +17,10 @@ from torch import FloatTensor
 from torch.utils.data import DataLoader
 import shutil
 from models.gail import GAIL
-from generate_expert_data import expert_data_collector, retrieve_agent
+from generate_expert_data import expert_data_collector, retrieve_agent, extract_post_processed_expert_data
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
-from utilities import extract_post_processed_expert_data, write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset, CustomExtractor
+from utilities import  write_module_hierarchy_to_file, DefaultActorCriticPolicy, CustomDataset, CustomExtractor
 import warnings
 from imitation.algorithms import bc
 from python_config import sweep_config, env_kwargs
@@ -45,7 +45,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.BC
 
 
 
@@ -93,11 +93,10 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    folder_path = 'data'
     zip_filename = 'expert_data.zip'
     n_cpu =  multiprocessing.cpu_count()
     device = torch.device("cpu")
-    extract_path = f"{folder_path}"
+    extract_path = 'data'
 
 
 
@@ -113,7 +112,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
         expert_data_collector(  
                                 oracle_agent,
-                                data_folder_path = folder_path,
+                                data_folder_path = extract_path,
                                 zip_filename=zip_filename,
                                 total_iterations = 100,
                                 **{**env_kwargs, **{'expert':None}}           
@@ -384,6 +383,7 @@ if __name__ == "__main__":
         
         def create_dataloaders(zip_filename, extract_path, device=device, **kwargs):
             # Extract the HDF5 files from the zip archive
+            # These files may be alredy existing because of a previous post process step.
             with zipfile.ZipFile(zip_filename, 'r') as archive:
                 archive.extractall(extract_path)
 
@@ -434,7 +434,7 @@ if __name__ == "__main__":
                         print("No data at data loader ", data_loader)
                 expert_data_collector(
                                         trainer.policy, # This is the exploration policy
-                                        data_folder_path = folder_path,
+                                        data_folder_path = extract_path,
                                         zip_filename=zip_filename,
                                         delta_iterations = 1,
                                         **{

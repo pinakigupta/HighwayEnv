@@ -56,6 +56,9 @@ class HighwayEnv(AbstractEnv):
     def __init__(self, config: dict = None, render_mode: Optional[str] = None, **kwargs) -> None:
         super().__init__(config, render_mode)
         self.reward_oracle = kwargs["reward_oracle"] if "reward_oracle" in kwargs else None
+        for vehicle in self.road.vehicles:
+                    if vehicle not in self.controlled_vehicles:
+                        vehicle.check_collisions = False
 
     def _reset(self) -> None:
         self._create_road()

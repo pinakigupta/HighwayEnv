@@ -195,20 +195,7 @@ def collect_expert_data(
 
     with h5py.File(train_filename, 'a') as train_hf, h5py.File(validation_filename, 'a') as valid_hf:
         while steps_count < 0.9*num_steps_per_iter:
-            queue_size = exp_data_queue.qsize()
             ob, act, done = exp_data_queue.get()
-            exp_acts_temp =copy.deepcopy(exp_acts)
-            exp_acts_temp.extend(act)
-            # print("collected steps_count ", steps_count)
-
-            # if is_skewed(
-            #                 act,
-            #                 threshold=0.5
-            #             ):
-            #     # print("discarding episode as it is making the data skewed")
-            #     continue
-
-            exp_acts = exp_acts_temp
             steps_count += len(act)
             ep_collected +=1
                     # Stop collecting data
@@ -347,10 +334,6 @@ def extract_expert_data(filename):
         for episode_name in episode_groups:
             episode = hf[episode_name]
 
-            # ep_obs  = []
-            # ep_acts = []
-            # ep_done = []
-
             # List all datasets (exp_obs and exp_acts) in the episode group
             datasets = list(episode.keys())
             # Iterate through each dataset in the episode group
@@ -377,8 +360,7 @@ def extract_post_processed_expert_data(filename):
     # Open the HDF5 file in read mode
     with h5py.File(filename, 'r') as hf:
         # Read the 'obs' dataset
-        obs_array = hf['obs'][:]  # [:] to read the entire dataset
-        
+        obs_array = hf['obs'][:]  # [:] to read the entire dataset     
         # If you've saved other datasets (e.g., 'act' and 'done'), you can read them similarly
         act_array = hf['act'][:]
         done_array = hf['dones'][:]
@@ -444,11 +426,13 @@ def expert_data_collector(
                                         **env_kwargs
                                     )
             # print("collect data complete")
-            exp_file = f'expert_train_data_{filenum}.h5'
-            val_file = f'expert_val_data_{filenum}.h5'
+            exp_file = f'{data_folder_path}/expert_train_data_{filenum}.h5'
+            val_file = f'{data_folder_path}/expert_val_data_{filenum}.h5'
+            exp_zip_file = f'expert_train_data_{filenum}.h5'
+            val_zip_file = f'expert_val_data_{filenum}.h5'
             postprocess(expert_temp_data_file, exp_file)
             postprocess(validation_temp_data_file, val_file)
-            zipf.write(exp_file)
-            zipf.write(val_file)
+            zipf.write(exp_file, exp_zip_file)
+            zipf.write(val_file, val_zip_file)
             outer_bar.update(1)
         outer_bar.close()

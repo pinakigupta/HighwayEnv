@@ -32,30 +32,5 @@ def show_videos(path="videos"):
     ipythondisplay.display(ipythondisplay.HTML(data="<br>".join(html)))
     
     
-def extract_expert_data(filename):
-    exp_obs  = []
-    exp_acts = []
-    with h5py.File(filename, 'r') as hf:
-        # List all the episode groups in the HDF5 file
-        episode_groups = list(hf.keys())
-
-        # Iterate through each episode group
-        for episode_name in episode_groups:
-            episode = hf[episode_name]
-
-            # List all datasets (exp_obs and exp_acts) in the episode group
-            datasets = list(episode.keys())
-
-            # Iterate through each dataset in the episode group
-            for dataset_name in datasets:
-                dataset = episode[dataset_name]
-
-                # Append the data to the corresponding list
-                if dataset_name.startswith('exp_obs'):
-                    exp_obs.append(dataset[:])
-                elif dataset_name.startswith('exp_acts'):
-                    exp_acts.append(dataset[()]) 
-
-    return  exp_obs, exp_acts
 
 
