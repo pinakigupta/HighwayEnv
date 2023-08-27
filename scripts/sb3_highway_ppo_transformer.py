@@ -94,7 +94,7 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    zip_filename = 'expert_data.zip'
+    zip_filename = 'expert_data_100.zip'
     n_cpu =  mp.cpu_count()
     device = torch.device("cpu")
     extract_path = 'data'
@@ -519,8 +519,8 @@ if __name__ == "__main__":
                                             "recall"    : [],
                                             "f1"        : []
                                         }
+            trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
             for epoch in range(num_epochs):
-                trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
                 train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
                                                                                                       zip_filename,
                                                                                                       extract_path, 
@@ -567,23 +567,33 @@ if __name__ == "__main__":
                 #                      trainer = trainer,
                 #                      metrics_plot_path = metrics_plot_path
                 #                     )
-                accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                                trainer, 
-                                                                                hdf5_train_file_names, 
-                                                                                hdf5_val_file_names, 
-                                                                                plot_path=f"{extract_path}/tmp_{epoch}.png" 
-                                                                              )
-                _validation_metrics["accuracy"].append(accuracy)
-                _validation_metrics["precision"].append(precision)
-                _validation_metrics["recall"].append(recall)
-                _validation_metrics["f1"].append(f1)
+                # accuracy, precision, recall, f1 = calculate_validation_metrics(
+                #                                                                 trainer, 
+                #                                                                 hdf5_train_file_names, 
+                #                                                                 hdf5_val_file_names, 
+                #                                                                 plot_path=f"{extract_path}/tmp_{epoch}.png" 
+                #                                                               )
+                # _validation_metrics["accuracy"].append(accuracy)
+                # _validation_metrics["precision"].append(precision)
+                # _validation_metrics["recall"].append(recall)
+                # _validation_metrics["f1"].append(f1)
             epochs = range(num_epochs)
+
+
+            accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                            trainer, 
+                                                                            hdf5_train_file_names, 
+                                                                            hdf5_val_file_names, 
+                                                                            plot_path=f"{extract_path}/tmp_{epoch}.png" 
+                                                                            )
+
 
             # Plotting
             plt.figure(figsize=(10, 6))
 
             for metric_name, metric_values in _validation_metrics.items():
                 plt.plot(epochs, metric_values, label=metric_name)
+
 
             plt.xlabel("Epochs")
             plt.ylabel("Metrics Value")
