@@ -535,7 +535,7 @@ if __name__ == "__main__":
                 
                 # print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_epoch = 100 if last_epoch else 5
+                num_mini_epoch = 10 if last_epoch else 5
                 for mini_epoch in range(num_mini_epoch):
                     print("Training for mini_epoch ", mini_epoch , " of epoch ", epoch)
                     for data_loader in train_data_loaders:
@@ -566,7 +566,7 @@ if __name__ == "__main__":
                 #                             )
                 # print(f"Reward after training epoch {epoch}: {reward}")
                 # At the end of each epoch or desired interval
-                if checkpoint_interval !=0 and epoch % checkpoint_interval == 0:
+                if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
                     print("saving check point ", epoch)
                     save_checkpoint(
                                      project = project, 
@@ -597,19 +597,19 @@ if __name__ == "__main__":
 
 
             # Plotting
-            # plt.figure(figsize=(10, 6))
+            plt.figure(figsize=(10, 6))
 
-            # for metric_name, metric_values in _validation_metrics.items():
-            #     plt.plot(epochs, metric_values, label=metric_name)
+            for metric_name, metric_values in _validation_metrics.items():
+                plt.plot(epochs, metric_values, label=metric_name)
 
 
-            # plt.xlabel("Epochs")
-            # plt.ylabel("Metrics Value")
-            # plt.title("Validation Metrics over Epochs")
-            # plt.legend()
-            # plt.grid(True)
-            # plt.savefig(f"{extract_path}/metrics.png")
-            # return trainer  
+            plt.xlabel("Epochs")
+            plt.ylabel("Metrics Value")
+            plt.title("Validation Metrics over Epochs")
+            plt.legend()
+            plt.grid(True)
+            plt.savefig(f"{extract_path}/metrics.png")
+            return trainer  
 
         
 
@@ -620,27 +620,27 @@ if __name__ == "__main__":
                                                                 num_epochs=num_epochs, 
                                                                 batch_size=batch_size,
                                                             )
-        # save_checkpoint(
-        #                     project = project, 
-        #                     run_name=run_name,
-        #                     epoch = None, 
-        #                     trainer = bc_trainer,
-        #                     metrics_plot_path = metrics_plot_path
-        #                 )        
+        save_checkpoint(
+                            project = project, 
+                            run_name=run_name,
+                            epoch = None, 
+                            trainer = bc_trainer,
+                            metrics_plot_path = metrics_plot_path
+                        )        
     
-        # with wandb.init(
-        #                     project="BC_1", 
-        #                     magic=True,
-        #                 ) as run:
-        #                 run.name = run_name
-        #                 # Log the model as an artifact in wandb
-        #                 clear_and_makedirs("models_archive")
-        #                 torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
-        #                 artifact = wandb.Artifact("trained_model_directory", type="model_directory")
-        #                 artifact.add_dir("models_archive")
-        #                 run.log_artifact(artifact)
+        with wandb.init(
+                            project="BC_1", 
+                            magic=True,
+                        ) as run:
+                        run.name = run_name
+                        # Log the model as an artifact in wandb
+                        clear_and_makedirs("models_archive")
+                        torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
+                        artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+                        artifact.add_dir("models_archive")
+                        run.log_artifact(artifact)
 
-        # wandb.finish()
+        wandb.finish()
 
         # def train_sweep(env, policy, config=None):
         #     with wandb.init(
