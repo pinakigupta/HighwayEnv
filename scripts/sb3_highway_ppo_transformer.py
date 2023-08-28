@@ -67,7 +67,7 @@ def timenow():
 #        Main script  20 
 # ==================================
 
-def save_checkpoint(project, run_name, epoch, save_class, metrics_plot_path):
+def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
 
     with wandb.init(
                         project=project, 
@@ -79,7 +79,7 @@ def save_checkpoint(project, run_name, epoch, save_class, metrics_plot_path):
                     run.name = run_name
                     # Log the model as an artifact in wandb
                     clear_and_makedirs("models_archive")
-                    torch.save(save_class , f"models_archive/BC_agent_{epoch}.pth") 
+                    torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth") 
                     artifact = wandb.Artifact("trained_model_directory", type="model_directory")
                     artifact.add_dir("models_archive")
                     run.log_artifact(artifact)
@@ -596,7 +596,7 @@ if __name__ == "__main__":
                     plt.show()
 
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_epoch = 100 if last_epoch else 5 # Mini epoch here correspond to typical epoch
+                num_mini_epoch = 1 if last_epoch else 5 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
                 trainer.train(n_epochs=num_mini_epoch)  
                 # for mini_epoch in range(num_mini_epoch):
@@ -636,7 +636,7 @@ if __name__ == "__main__":
                                      project = project, 
                                      run_name=run_name,
                                      epoch = epoch, 
-                                     trainer = trainer.policy,
+                                     trainer = trainer,
                                      metrics_plot_path = metrics_plot_path
                                     )
                 accuracy, precision, recall, f1 = calculate_validation_metrics(
@@ -688,7 +688,7 @@ if __name__ == "__main__":
                             project = project, 
                             run_name=run_name,
                             epoch = None, 
-                            trainer = bc_trainer.policy,
+                            trainer = bc_trainer,
                             metrics_plot_path = metrics_plot_path
                         )        
 
@@ -747,7 +747,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env = make_configure_env(**env_kwargs)
-        BC_agent_policy                            = retrieve_agent(
+        BC_agent                            = retrieve_agent(
                                                             artifact_version='trained_model_directory:latest',
                                                             agent_model = 'BC_agent.pth',
                                                             project="BC_1"
@@ -767,7 +767,7 @@ if __name__ == "__main__":
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
-                action, _ = BC_agent_policy.policy.predict(obs)
+                action, _ = BC_agent.policy.predict(obs)
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
