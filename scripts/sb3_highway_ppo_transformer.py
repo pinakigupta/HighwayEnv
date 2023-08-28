@@ -534,8 +534,8 @@ if __name__ == "__main__":
                                                                                                    )
                 
                 # print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
-                last_epoch = (epoch ==num_epochs-1)
-                num_mini_epoch = 10 if last_epoch else 5
+                last_epoch = (epoch == num_epochs-1)
+                num_mini_epoch = 100 if last_epoch else 5
                 for mini_epoch in range(num_mini_epoch):
                     print("Training for mini_epoch ", mini_epoch , " of epoch ", epoch)
                     for data_loader in train_data_loaders:
