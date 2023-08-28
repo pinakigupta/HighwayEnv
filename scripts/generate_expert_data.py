@@ -378,12 +378,12 @@ def retrieve_agent( artifact_version, agent_model ,project = None):
     wandb.finish()
 
     # Load the model from the downloaded artifact
-    optimal_gail_agent_path = os.path.join(artifact_dir, agent_model) #, "optimal_gail_agent.pth")
+    optimal_agent_path = os.path.join(artifact_dir, agent_model) #, "optimal_gail_agent.pth")
     # final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
-    print("optimal_gail_agent_path ", optimal_gail_agent_path)
     # final_gail_agent = torch.load(final_gail_agent_path)
-    optimal_gail_agent = torch.load(optimal_gail_agent_path)
-    return optimal_gail_agent
+    print(" optimal_agent_path ", optimal_agent_path)
+    optimal_agent_path = torch.load(optimal_agent_path)
+    return optimal_agent_path
 
 def expert_data_collector(
                             oracle_agent,

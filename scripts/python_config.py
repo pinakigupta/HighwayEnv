@@ -51,10 +51,10 @@ sweep_config = {
             "values": [0.001]  # Values for the "duration" field to be swept
         },              
         "batch_size": {
-            "values": [ 64]  # Values for the "duration" field to be swept
+            "values": [ 128 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [10]  # Values for the "duration" field to be swept
+            "values": [1]  # Values for the "duration" field to be swept
         },    
     }
 }

@@ -30,6 +30,7 @@ from imitation.algorithms import bc
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import importlib
+import pandas as pd
 import random
 warnings.filterwarnings("ignore")
 
@@ -46,7 +47,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 
 
 
@@ -66,7 +67,7 @@ def timenow():
 #        Main script  20 
 # ==================================
 
-def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
+def save_checkpoint(project, run_name, epoch, save_class, metrics_plot_path):
 
     with wandb.init(
                         project=project, 
@@ -78,7 +79,7 @@ def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
                     run.name = run_name
                     # Log the model as an artifact in wandb
                     clear_and_makedirs("models_archive")
-                    torch.save(trainer, f"models_archive/BC_agent_{epoch}.pth") 
+                    torch.save(save_class , f"models_archive/BC_agent_{epoch}.pth") 
                     artifact = wandb.Artifact("trained_model_directory", type="model_directory")
                     artifact.add_dir("models_archive")
                     run.log_artifact(artifact)
@@ -544,8 +545,45 @@ if __name__ == "__main__":
                                                                                                       extract_path, 
                                                                                                       device=device,
                                                                                                       batch_size=training_kwargs['batch_size']
-                                                                                                   )
+                                                                                                  )
                 
+                if False:                                                                                   
+                    # Create a DataFrame from the data loader
+                    data_list = np.empty((0, 70)) 
+                    for batch in train_data_loader:
+                        whole_batch = batch['obs'].reshape(-1, 70) 
+                        data_list = np.vstack((data_list, whole_batch.numpy()))
+                    data_df = pd.DataFrame(data_list)
+
+                    # Define the ranges for each feature
+                    feature_ranges = np.linspace(-1, 1, num=101)  # Adjust the number of bins as needed
+
+                    # Calculate the count of samples within each range for each feature
+                    sample_counts = np.array([[((data_df[col] >= feature_ranges[i]) & (data_df[col] <= feature_ranges[i+1])).sum()
+                                            for i in range(len(feature_ranges)-1)]
+                                            for col in data_df.columns])
+                    sample_counts = sample_counts.T
+                    # Normalize the sample counts to a range between 0 and 1
+                    normalized_counts = (sample_counts - sample_counts.min()) / (sample_counts.max() - sample_counts.min())
+                    # Reshape the sample counts to create a heatmap
+                    # sample_count_matrix = sample_counts.reshape(-1, 1)
+
+                    # Create a color map based on the sample counts
+                    cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=0.95, reverse=False, as_cmap=True)
+
+
+                    # Create a violin plot directly from the data loader
+                    # Create a figure with two subplots
+                    fig, axes = plt.subplots(2, 1, figsize=(12, 6))
+                    sns.violinplot(data=data_df, inner="quartile", ax=axes[0])
+                    axes[0].set_title("Violin Plot")
+                    sns.heatmap(data=sample_counts, cmap=cmap, cbar=False, ax=axes[1])
+                    axes[1].set_title("Heatmap")
+                    # plt.xlabel("Dimension")
+                    # plt.ylabel("Value")
+                    plt.tight_layout()
+                    plt.show()
+
                 last_epoch = (epoch ==num_epochs-1)
                 num_mini_epoch = 100 if last_epoch else 5 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
@@ -587,7 +625,7 @@ if __name__ == "__main__":
                                      project = project, 
                                      run_name=run_name,
                                      epoch = epoch, 
-                                     trainer = trainer,
+                                     trainer = trainer.policy,
                                      metrics_plot_path = metrics_plot_path
                                     )
                 accuracy, precision, recall, f1 = calculate_validation_metrics(
@@ -639,7 +677,7 @@ if __name__ == "__main__":
                             project = project, 
                             run_name=run_name,
                             epoch = None, 
-                            trainer = bc_trainer,
+                            trainer = bc_trainer.policy,
                             metrics_plot_path = metrics_plot_path
                         )        
 
@@ -698,8 +736,8 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env = make_configure_env(**env_kwargs)
-        BC_agent                            = retrieve_agent(
-                                                            artifact_version='trained_model_directory:latest',
+        BC_agent_policy                            = retrieve_agent(
+                                                            artifact_version='trained_model_directory:v61',
                                                             agent_model = 'BC_agent.pth',
                                                             project="BC_1"
                                                             )
