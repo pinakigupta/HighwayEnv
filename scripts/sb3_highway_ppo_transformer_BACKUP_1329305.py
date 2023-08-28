@@ -548,8 +548,14 @@ if __name__ == "__main__":
                                                                                                       batch_size=training_kwargs['batch_size']
                                                                                                    )
                 
+<<<<<<< HEAD
+                # print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
+                last_epoch = (epoch == num_epochs-1)
+                num_mini_epoch = 100 if last_epoch else 5
+=======
                 last_epoch = (epoch ==num_epochs-1)
                 num_mini_epoch = 10 if last_epoch else 5
+>>>>>>> 38a376b0643eb54074d91abae839902ecc83e1b5
                 for mini_epoch in range(num_mini_epoch):
                     print("Training for mini_epoch ", mini_epoch , " of epoch ", epoch)
                     for data_loader in train_data_loaders:
@@ -641,6 +647,20 @@ if __name__ == "__main__":
                             trainer = bc_trainer,
                             metrics_plot_path = metrics_plot_path
                         )        
+    
+        with wandb.init(
+                            project="BC_1", 
+                            magic=True,
+                        ) as run:
+                        run.name = run_name
+                        # Log the model as an artifact in wandb
+                        clear_and_makedirs("models_archive")
+                        torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
+                        artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+                        artifact.add_dir("models_archive")
+                        run.log_artifact(artifact)
+
+        wandb.finish()
 
         # def train_sweep(env, policy, config=None):
         #     with wandb.init(

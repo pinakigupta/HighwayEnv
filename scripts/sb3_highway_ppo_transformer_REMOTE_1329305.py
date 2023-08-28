@@ -641,6 +641,20 @@ if __name__ == "__main__":
                             trainer = bc_trainer,
                             metrics_plot_path = metrics_plot_path
                         )        
+    
+        with wandb.init(
+                            project="BC_1", 
+                            magic=True,
+                        ) as run:
+                        run.name = run_name
+                        # Log the model as an artifact in wandb
+                        clear_and_makedirs("models_archive")
+                        torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
+                        artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+                        artifact.add_dir("models_archive")
+                        run.log_artifact(artifact)
+
+        wandb.finish()
 
         # def train_sweep(env, policy, config=None):
         #     with wandb.init(
