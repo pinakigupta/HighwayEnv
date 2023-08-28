@@ -185,6 +185,7 @@ def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_fil
 
 if __name__ == "__main__":
     
+    DAGGER = False
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -542,7 +543,7 @@ if __name__ == "__main__":
                                             "f1"        : []
                                         }
             trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
-            for epoch in range(num_epochs):
+            for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                 train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
                                                                                                       zip_filename,
                                                                                                       extract_path, 
@@ -551,7 +552,7 @@ if __name__ == "__main__":
                                                                                                    )
                 
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_epoch = 10 if last_epoch else 5
+                num_mini_epoch = 100 if last_epoch else 5 # Mini epoch here correspond to typical epoch
                 for mini_epoch in range(num_mini_epoch):
                     print("Training for mini_epoch ", mini_epoch , " of epoch ", epoch)
                     for data_loader in train_data_loaders:
@@ -560,7 +561,7 @@ if __name__ == "__main__":
                             trainer.train(n_epochs=1)  
                         else:
                             print("No data at data loader ", data_loader)
-                if not last_epoch:
+                if not last_epoch and DAGGER:
                     expert_data_collector(
                                             trainer.policy, # This is the exploration policy
                                             data_folder_path = extract_path,
@@ -643,20 +644,6 @@ if __name__ == "__main__":
                             trainer = bc_trainer,
                             metrics_plot_path = metrics_plot_path
                         )        
-    
-        with wandb.init(
-                            project="BC_1", 
-                            magic=True,
-                        ) as run:
-                        run.name = run_name
-                        # Log the model as an artifact in wandb
-                        clear_and_makedirs("models_archive")
-                        torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
-                        artifact = wandb.Artifact("trained_model_directory", type="model_directory")
-                        artifact.add_dir("models_archive")
-                        run.log_artifact(artifact)
-
-        wandb.finish()
 
         # def train_sweep(env, policy, config=None):
         #     with wandb.init(
