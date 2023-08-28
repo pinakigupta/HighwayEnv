@@ -47,7 +47,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.BC
 
 
 
@@ -549,11 +549,23 @@ if __name__ == "__main__":
                 
                 if False:                                                                                   
                     # Create a DataFrame from the data loader
-                    data_list = np.empty((0, 70)) 
+                    data_list = np.empty((0, 70))
+                    actions = []
                     for batch in train_data_loader:
-                        whole_batch = batch['obs'].reshape(-1, 70) 
-                        data_list = np.vstack((data_list, whole_batch.numpy()))
+                        whole_batch_states = batch['obs'].reshape(-1, 70) 
+                        actions.extend(batch['acts'].numpy().astype(int))
+                        data_list = np.vstack((data_list, whole_batch_states.numpy()))
                     data_df = pd.DataFrame(data_list)
+                    actions = np.array(actions)
+                    action_counts = np.bincount(actions.astype(int))
+
+                    # Create a bar chart for action distribution
+                    plt.figure(figsize=(10, 6))
+                    plt.bar(range(len(action_counts)), action_counts, tick_label=range(len(action_counts)))
+                    plt.xlabel("Action")
+                    plt.ylabel("Frequency")
+                    plt.title("Action Distribution")
+                    plt.show()
 
                     # Define the ranges for each feature
                     feature_ranges = np.linspace(-1, 1, num=101)  # Adjust the number of bins as needed
@@ -569,18 +581,17 @@ if __name__ == "__main__":
                     # sample_count_matrix = sample_counts.reshape(-1, 1)
 
                     # Create a color map based on the sample counts
-                    cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=0.95, reverse=False, as_cmap=True)
+                    cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=1.0, reverse=False, as_cmap=True)
 
 
                     # Create a violin plot directly from the data loader
                     # Create a figure with two subplots
                     fig, axes = plt.subplots(2, 1, figsize=(12, 6))
                     sns.violinplot(data=data_df, inner="quartile", ax=axes[0])
-                    axes[0].set_title("Violin Plot")
+                    axes[0].set_title("Violin Plot (input)")
                     sns.heatmap(data=sample_counts, cmap=cmap, cbar=False, ax=axes[1])
-                    axes[1].set_title("Heatmap")
-                    # plt.xlabel("Dimension")
-                    # plt.ylabel("Value")
+                    axes[1].set_title("Heatmap (input)")
+
                     plt.tight_layout()
                     plt.show()
 
@@ -756,7 +767,7 @@ if __name__ == "__main__":
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
-                action, _ = BC_agent_policy.predict(obs)
+                action, _ = BC_agent_policy.policy.predict(obs)
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
