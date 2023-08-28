@@ -30,6 +30,7 @@ from imitation.algorithms import bc
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import importlib
+import random
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    zip_filename = 'expert_data_100.zip'
+    zip_filename = 'expert_data.zip'
     n_cpu =  mp.cpu_count()
     device = torch.device("cpu")
     extract_path = 'data'
@@ -412,14 +413,18 @@ if __name__ == "__main__":
                                             for name in archive.namelist() 
                                             if name.endswith('.h5') and "val" in name]            
 
-            # hdf5_train_file_names = hdf5_train_file_names[:2]
-            # hdf5_val_file_names = hdf5_val_file_names[:2]
             # Create separate datasets for each HDF5 file
             train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
-            # val_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_val_file_names]
-            # print('train_datasets_lengths ', [ len(ds) for ds in train_datasets], " hdf5_train_file_names ", hdf5_train_file_names)
-            
-            # custom_dataset = CustomDataset(expert_data_file, device=device)
+
+            # Pair file names with their corresponding datasets
+            train_data_pairs = list(zip(hdf5_train_file_names, train_datasets))
+
+            # Shuffle the pairs synchronously
+            random.shuffle(train_data_pairs)
+
+            # Unpack the shuffled pairs into separate lists
+            shuffled_hdf5_train_file_names, shuffled_train_datasets = zip(*train_data_pairs)
+
             train_data_loaders = [DataLoader(
                                         dataset, 
                                         batch_size=kwargs['batch_size'], 
@@ -428,8 +433,8 @@ if __name__ == "__main__":
                                         num_workers=n_cpu,
                                         # pin_memory=True,
                                         # pin_memory_device=device
-                                    ) for dataset in train_datasets]
-            return train_data_loaders, hdf5_train_file_names, hdf5_val_file_names
+                                    ) for dataset in shuffled_train_datasets]
+            return train_data_loaders, shuffled_hdf5_train_file_names, hdf5_val_file_names
 
         def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
 
@@ -529,7 +534,9 @@ if __name__ == "__main__":
                                                                                                    )
                 
                 # print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
-                for mini_epoch in range(1):
+                last_epoch = (epoch ==num_epochs-1)
+                num_mini_epoch = 100 if last_epoch else 5
+                for mini_epoch in range(num_mini_epoch):
                     print("Training for mini_epoch ", mini_epoch , " of epoch ", epoch)
                     for data_loader in train_data_loaders:
                         if len(data_loader) > 0:
@@ -537,16 +544,17 @@ if __name__ == "__main__":
                             trainer.train(n_epochs=1)  
                         else:
                             print("No data at data loader ", data_loader)
-                # expert_data_collector(
-                #                         trainer.policy, # This is the exploration policy
-                #                         data_folder_path = extract_path,
-                #                         zip_filename=zip_filename,
-                #                         delta_iterations = 1,
-                #                         **{
-                #                             **env_kwargs, 
-                #                             **{'expert':'MDPVehicle'}
-                #                             }           
-                #                      )
+                if not last_epoch:
+                    expert_data_collector(
+                                            trainer.policy, # This is the exploration policy
+                                            data_folder_path = extract_path,
+                                            zip_filename=zip_filename,
+                                            delta_iterations = 1,
+                                            **{
+                                                **env_kwargs, 
+                                                **{'expert':'MDPVehicle'}
+                                                }           
+                                        )
 
                 # num_rollouts = 10
                 # reward = simulate_with_model(
@@ -558,25 +566,25 @@ if __name__ == "__main__":
                 #                             )
                 # print(f"Reward after training epoch {epoch}: {reward}")
                 # At the end of each epoch or desired interval
-                # if checkpoint_interval !=0 and epoch % checkpoint_interval == 0:
-                #     print("saving check point ", epoch)
-                #     save_checkpoint(
-                #                      project = project, 
-                #                      run_name=run_name,
-                #                      epoch = epoch, 
-                #                      trainer = trainer,
-                #                      metrics_plot_path = metrics_plot_path
-                #                     )
-                # accuracy, precision, recall, f1 = calculate_validation_metrics(
-                #                                                                 trainer, 
-                #                                                                 hdf5_train_file_names, 
-                #                                                                 hdf5_val_file_names, 
-                #                                                                 plot_path=f"{extract_path}/tmp_{epoch}.png" 
-                #                                                               )
-                # _validation_metrics["accuracy"].append(accuracy)
-                # _validation_metrics["precision"].append(precision)
-                # _validation_metrics["recall"].append(recall)
-                # _validation_metrics["f1"].append(f1)
+                if checkpoint_interval !=0 and epoch % checkpoint_interval == 0:
+                    print("saving check point ", epoch)
+                    save_checkpoint(
+                                     project = project, 
+                                     run_name=run_name,
+                                     epoch = epoch, 
+                                     trainer = trainer,
+                                     metrics_plot_path = metrics_plot_path
+                                    )
+                accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                                trainer, 
+                                                                                hdf5_train_file_names, 
+                                                                                hdf5_val_file_names, 
+                                                                                plot_path=f"{extract_path}/tmp_{epoch}.png" 
+                                                                              )
+                _validation_metrics["accuracy"].append(accuracy)
+                _validation_metrics["precision"].append(precision)
+                _validation_metrics["recall"].append(recall)
+                _validation_metrics["f1"].append(f1)
             epochs = range(num_epochs)
 
 
@@ -589,19 +597,19 @@ if __name__ == "__main__":
 
 
             # Plotting
-            plt.figure(figsize=(10, 6))
+            # plt.figure(figsize=(10, 6))
 
-            for metric_name, metric_values in _validation_metrics.items():
-                plt.plot(epochs, metric_values, label=metric_name)
+            # for metric_name, metric_values in _validation_metrics.items():
+            #     plt.plot(epochs, metric_values, label=metric_name)
 
 
-            plt.xlabel("Epochs")
-            plt.ylabel("Metrics Value")
-            plt.title("Validation Metrics over Epochs")
-            plt.legend()
-            plt.grid(True)
-            plt.savefig(f"{extract_path}/metrics.png")
-            return trainer  
+            # plt.xlabel("Epochs")
+            # plt.ylabel("Metrics Value")
+            # plt.title("Validation Metrics over Epochs")
+            # plt.legend()
+            # plt.grid(True)
+            # plt.savefig(f"{extract_path}/metrics.png")
+            # return trainer  
 
         
 
