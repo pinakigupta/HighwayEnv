@@ -737,7 +737,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env = make_configure_env(**env_kwargs)
         BC_agent_policy                            = retrieve_agent(
-                                                            artifact_version='trained_model_directory:v61',
+                                                            artifact_version='trained_model_directory:latest',
                                                             agent_model = 'BC_agent.pth',
                                                             project="BC_1"
                                                             )
@@ -756,7 +756,7 @@ if __name__ == "__main__":
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
-                action, _ = BC_agent.policy.predict(obs)
+                action, _ = BC_agent_policy.predict(obs)
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
