@@ -46,7 +46,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BC
+train = TrainEnum.IRLTRAIN
 
 
 
@@ -214,9 +214,13 @@ if __name__ == "__main__":
     device = torch.device("cpu")
     extract_path = 'data'
 
+    import python_config
+    importlib.reload(python_config)
+    from python_config import sweep_config
+    print(sweep_config['parameters'])
 
-
-
+    batch_size = sweep_config['parameters']['batch_size']['values'][0]
+    num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
@@ -307,17 +311,27 @@ if __name__ == "__main__":
         with open("config.json") as f:
             train_config = json.load(f)
 
+        expert_data_file = "expert_train_data_0.h5"
+
+
         exp_obs, exp_acts, _ = extract_post_processed_expert_data(expert_data_file)
         exp_obs = FloatTensor(exp_obs)
         exp_acts = FloatTensor(exp_acts)
 
         def train_gail_agent(
-                                exp_obs=exp_obs, 
-                                exp_acts=exp_acts, 
+                                # exp_obs=exp_obs, 
+                                # exp_acts=exp_acts, 
                                 gail_agent_path = None, 
                                 env_kwargs = None,
-                                train_config = None
+                                train_config = None,
+                                ** training_kwargs
                             ):
+            train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
+                                                                                                    zip_filename,
+                                                                                                    extract_path, 
+                                                                                                    device=training_kwargs['device'],
+                                                                                                    batch_size=training_kwargs['batch_size']
+                                                                                                )
             env= make_configure_env(**env_kwargs).unwrapped
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             action_dim = env.action_space.n
@@ -332,7 +346,12 @@ if __name__ == "__main__":
                              ).to(device=device)
             if gail_agent_path is not None:
                 gail_agent.load_state_dict(torch.load(gail_agent_path))
-            return gail_agent.train(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
+            return gail_agent.train(
+                                        # exp_obs=exp_obs, 
+                                        # exp_acts=exp_acts, 
+                                        data_loaders=train_data_loaders,
+                                        **env_kwargs
+                                    )
         
         gail_agent_path = None
         if WARM_START:
@@ -369,12 +388,15 @@ if __name__ == "__main__":
                     
 
                 rewards, disc_losses, advs, episode_count =       train_gail_agent(
-                                                                                    exp_obs=exp_obs, 
-                                                                                    exp_acts=exp_acts, 
+                                                                                    # exp_obs=exp_obs, 
+                                                                                    # exp_acts=exp_acts, 
                                                                                     gail_agent_path=gail_agent_path, 
                                                                                     env_kwargs = env_kwargs,
-                                                                                    train_config = train_config
+                                                                                    train_config = train_config,
+                                                                                    device=device,
+                                                                                    batch_size=batch_size
                                                                                   )
+
 
                 disc_losses = [ float(l.item()) for l in disc_losses]
                 advs = [ float(a.item()) for a in advs]
@@ -487,19 +509,13 @@ if __name__ == "__main__":
         policy = DefaultActorCriticPolicy(env, device)
         print("Default policy initialized ")
         
-        import python_config
-        importlib.reload(python_config)
-        from python_config import sweep_config
-        print(sweep_config['parameters'])
+
 
         project_name = f"BC_1"
         run_name = f"sweep_{month}{day}_{timenow()}"
         # sweep_id = wandb.sweep(sweep_config, project=project_name)
 
         metrics_plot_path = f"{extract_path}/metrics.png"
-
-        batch_size = sweep_config['parameters']['batch_size']['values'][0]
-        num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
 
         def create_trainer(env, policy, device=device, **kwargs):
             return       bc.BC(
@@ -532,7 +548,6 @@ if __name__ == "__main__":
                                                                                                       batch_size=training_kwargs['batch_size']
                                                                                                    )
                 
-                # print("beginning training. train_data_loaders ", [ id(dl) for dl in train_data_loaders], " hdf5_train_file_names ", hdf5_train_file_names)
                 last_epoch = (epoch ==num_epochs-1)
                 num_mini_epoch = 10 if last_epoch else 5
                 for mini_epoch in range(num_mini_epoch):
