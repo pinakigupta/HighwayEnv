@@ -14,7 +14,7 @@ import json
 import wandb
 from datetime import datetime
 from torch import FloatTensor
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 import shutil
 from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent, extract_post_processed_expert_data
@@ -46,7 +46,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.IRLTRAIN
+train = TrainEnum.BC
 
 
 
@@ -104,25 +104,20 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     # Create separate datasets for each HDF5 file
     train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
 
-    # Pair file names with their corresponding datasets
-    train_data_pairs = list(zip(hdf5_train_file_names, train_datasets))
+    # Create a combined dataset from the individual datasets
+    combined_train_dataset = ConcatDataset(train_datasets)
 
-    # Shuffle the pairs synchronously
-    random.shuffle(train_data_pairs)
 
-    # Unpack the shuffled pairs into separate lists
-    shuffled_hdf5_train_file_names, shuffled_train_datasets = zip(*train_data_pairs)
-
-    train_data_loaders = [DataLoader(
-                                dataset, 
+    train_data_loader = DataLoader(
+                                combined_train_dataset, 
                                 batch_size=kwargs['batch_size'], 
                                 shuffle=True,
                                 drop_last=True,
                                 num_workers=n_cpu,
                                 # pin_memory=True,
                                 # pin_memory_device=device
-                            ) for dataset in shuffled_train_datasets]
-    return train_data_loaders, shuffled_hdf5_train_file_names, hdf5_val_file_names
+                            ) 
+    return train_data_loader, hdf5_train_file_names, hdf5_val_file_names
 
 
 def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
@@ -157,19 +152,19 @@ def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_fil
             predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
             true_labels.extend(val_acts)
 
-    # Calculate evaluation metrics
-    tr_accuracy = accuracy_score(true_labels, predicted_labels)
-    tr_precision = precision_score(true_labels, predicted_labels, average=None)
-    tr_recall = recall_score(true_labels, predicted_labels, average=None)
-    tr_f1 = f1_score(true_labels, predicted_labels, average=None)
+    # # Calculate evaluation metrics for training
+    # tr_accuracy = accuracy_score(true_labels, predicted_labels)
+    # tr_precision = precision_score(true_labels, predicted_labels, average=None)
+    # tr_recall = recall_score(true_labels, predicted_labels, average=None)
+    # tr_f1 = f1_score(true_labels, predicted_labels, average=None)
 
 
 
-    print("--------  Training data metrics for reference---------------")
-    print("Accuracy:", accuracy, np.mean(tr_accuracy))
-    print("Precision:", precision,  np.mean(tr_precision))
-    print("Recall:", recall, np.mean(tr_recall))
-    print("F1 Score:", f1, np.mean(tr_f1))
+    # print("--------  Training data metrics for reference---------------")
+    # print("Accuracy:", accuracy, np.mean(tr_accuracy))
+    # print("Precision:", precision,  np.mean(tr_precision))
+    # print("Recall:", recall, np.mean(tr_recall))
+    # print("F1 Score:", f1, np.mean(tr_f1))
 
 
     plt.figure(figsize=(8, 6))
@@ -544,7 +539,7 @@ if __name__ == "__main__":
                                         }
             trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
             for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
-                train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
+                train_data_loader, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
                                                                                                       zip_filename,
                                                                                                       extract_path, 
                                                                                                       device=device,
@@ -553,14 +548,17 @@ if __name__ == "__main__":
                 
                 last_epoch = (epoch ==num_epochs-1)
                 num_mini_epoch = 100 if last_epoch else 5 # Mini epoch here correspond to typical epoch
-                for mini_epoch in range(num_mini_epoch):
-                    print("Training for mini_epoch ", mini_epoch , " of epoch ", epoch)
-                    for data_loader in train_data_loaders:
-                        if len(data_loader) > 0:
-                            trainer.set_demonstrations(data_loader) 
-                            trainer.train(n_epochs=1)  
-                        else:
-                            print("No data at data loader ", data_loader)
+                trainer.set_demonstrations(train_data_loader)
+                trainer.train(n_epochs=num_mini_epoch)  
+                # for mini_epoch in range(num_mini_epoch):
+                #     print("Training for mini_epoch ", mini_epoch , " of epoch ", epoch)
+                    # random.shuffle(train_data_loaders)
+                    # for data_loader in train_data_loaders:
+                    #     if len(data_loader) > 0:
+                    #         trainer.set_demonstrations(data_loader) 
+                    #         trainer.train(n_epochs=1)  
+                    #     else:
+                    #         print("No data at data loader ", data_loader)
                 if not last_epoch and DAGGER:
                     expert_data_collector(
                                             trainer.policy, # This is the exploration policy
