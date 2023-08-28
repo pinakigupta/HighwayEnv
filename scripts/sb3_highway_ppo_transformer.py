@@ -311,16 +311,17 @@ if __name__ == "__main__":
         with open("config.json") as f:
             train_config = json.load(f)
 
-        expert_data_file = "expert_train_data_0.h5"
+        # expert_data_file = "expert_train_data_0.h5"
 
 
-        exp_obs, exp_acts, _ = extract_post_processed_expert_data(expert_data_file)
-        exp_obs = FloatTensor(exp_obs)
-        exp_acts = FloatTensor(exp_acts)
+        # exp_obs, exp_acts, _ = extract_post_processed_expert_data(expert_data_file)
+        # exp_obs = FloatTensor(exp_obs)
+        # exp_acts = FloatTensor(exp_acts)
 
         def train_gail_agent(
                                 # exp_obs=exp_obs, 
-                                # exp_acts=exp_acts, 
+                                # exp_acts=exp_acts,
+                                zip_filename, 
                                 gail_agent_path = None, 
                                 env_kwargs = None,
                                 train_config = None,
@@ -364,7 +365,7 @@ if __name__ == "__main__":
         run_name = f"sweep_{month}{day}_{timenow()}"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
 
-        def train_sweep(exp_obs, exp_acts, config=None):
+        def train_sweep(data_loaders, config=None):
             with wandb.init(
                             project=project_name,
                             config=config,
@@ -389,7 +390,8 @@ if __name__ == "__main__":
 
                 rewards, disc_losses, advs, episode_count =       train_gail_agent(
                                                                                     # exp_obs=exp_obs, 
-                                                                                    # exp_acts=exp_acts, 
+                                                                                    # exp_acts=exp_acts,
+                                                                                    zip_filename ,
                                                                                     gail_agent_path=gail_agent_path, 
                                                                                     env_kwargs = env_kwargs,
                                                                                     train_config = train_config,
@@ -425,7 +427,7 @@ if __name__ == "__main__":
 
         wandb.agent(
                      sweep_id=sweep_id, 
-                     function=lambda: train_sweep(exp_obs, exp_acts)
+                     function=lambda: train_sweep(data_loaders)
                    )
         wandb.finish()
     elif train == TrainEnum.IRLDEPLOY:
