@@ -82,13 +82,15 @@ def DefaultActorCriticPolicy(env, device):
         import torch
         policy_net =  torch.nn.Sequential(
                                             torch.nn.Linear(state_dim, 64),
-                                            torch.nn.Tanh(),
+                                            torch.nn.LeakyReLU(),
+                                            torch.nn.Dropout(0.2),
                                          ).to(device)
         policy.mlp_extractor.policy_net = policy_net
         action_net =  torch.nn.Sequential(
-                                            torch.nn.Linear(64, 10),
-                                            torch.nn.LeakyReLU(),
-                                            torch.nn.Linear(10, action_dim),
+                                            torch.nn.Linear(64, 50),
+                                            torch.nn.Tanh(),
+                                            torch.nn.Dropout(0.3),
+                                            torch.nn.Linear(50, action_dim),
                                          ).to(device)
         policy.action_net =     action_net
         return policy   

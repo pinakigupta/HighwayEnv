@@ -792,11 +792,14 @@ if __name__ == "__main__":
             obs, info = env.reset()
             done = truncated = False
             cumulative_reward = 0
-            while not (done or truncated):
-                action, _ = BC_agent.policy.predict(obs)
-                obs, reward, done, truncated, info = env.step(action)
-                cumulative_reward += gamma * reward
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                env.render()
-            print("--------------------------------------------------------------------------------------")
+            with torch.no_grad():
+                BC_agent.policy.mlp_extractor.policy_net.eval()
+                BC_agent.policy.action_net.eval()
+                while not (done or truncated):
+                    action, _ = BC_agent.policy.predict(obs)
+                    obs, reward, done, truncated, info = env.step(action)
+                    cumulative_reward += gamma * reward
+                    print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                    env.render()
+                print("--------------------------------------------------------------------------------------")
 
