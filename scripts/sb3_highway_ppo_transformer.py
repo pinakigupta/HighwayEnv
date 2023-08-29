@@ -49,7 +49,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.BC
 
 
 
@@ -86,7 +86,6 @@ def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
                     artifact.add_dir("models_archive")
                     run.log_artifact(artifact)
 
-    wandb.finish()
 
 class DownSamplingSampler(SubsetRandomSampler):
     def __init__(self, class_weights, num_samples, seed=None):
@@ -165,7 +164,7 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
                                         shuffled_combined_train_dataset, 
                                         batch_size=kwargs['batch_size'], 
                                         # shuffle=True,
-                                        sampler=sampler,
+                                        # sampler=sampler,
                                         drop_last=True,
                                         num_workers=n_cpu,
                                         # pin_memory=True,
@@ -653,15 +652,6 @@ if __name__ == "__main__":
                 num_mini_epoch = 100 if last_epoch else 5 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
                 trainer.train(n_epochs=num_mini_epoch)  
-                # for mini_epoch in range(num_mini_epoch):
-                #     print("Training for mini_epoch ", mini_epoch , " of epoch ", epoch)
-                    # random.shuffle(train_data_loaders)
-                    # for data_loader in train_data_loaders:
-                    #     if len(data_loader) > 0:
-                    #         trainer.set_demonstrations(data_loader) 
-                    #         trainer.train(n_epochs=1)  
-                    #     else:
-                    #         print("No data at data loader ", data_loader)
                 if not last_epoch and DAGGER:
                     expert_data_collector(
                                             trainer.policy, # This is the exploration policy
@@ -744,7 +734,8 @@ if __name__ == "__main__":
                             epoch = None, 
                             trainer = bc_trainer,
                             metrics_plot_path = metrics_plot_path
-                        )        
+                        )
+        wandb.finish()        
 
         # def train_sweep(env, policy, config=None):
         #     with wandb.init(
