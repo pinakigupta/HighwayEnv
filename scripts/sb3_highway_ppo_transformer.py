@@ -88,7 +88,7 @@ def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
 
 
 class DownSamplingSampler(SubsetRandomSampler):
-    def __init__(self, class_weights, num_samples, seed=None):
+    def __init__(self, labels, class_weights, num_samples, seed=None):
         """
         Args:
             class_weights (list): List of class weights.
@@ -99,20 +99,27 @@ class DownSamplingSampler(SubsetRandomSampler):
         self.num_samples = num_samples
         self.generator = torch.Generator()
         self.generator.manual_seed(seed)
+        self.class_labels = labels
+        self.unique_labels = np.unique(self.class_labels)
+        self.num_samples_per_class = int(num_samples/ len(self.unique_labels))
         self.indices = self._select_samples()
 
     def _select_samples(self):
-        sampled_indices = []
-        total_samples = 0
-        for class_idx, weight in enumerate(self.class_weights):
-            num_class_samples = int(self.num_samples * weight)
-            class_indices = [i for i in range(len(self.class_weights)) if self.class_weights[i] == class_idx]
-            if class_idx == 1:  # Keep all samples for class_idx 1, downsample others
-                sampled_indices.extend(class_indices)
-            else:
-                sampled_indices.extend(class_indices[:num_class_samples])
-            total_samples += num_class_samples
-        return sampled_indices
+        # Calculate the downsampled indices for each class
+        self.downsampled_indices = []
+        for class_label in self.unique_labels:
+            class_indices = np.where(self.class_labels == class_label)[0]
+            downsampled_indices = np.random.choice(class_indices, size=self.num_samples_per_class, replace=False)
+            self.downsampled_indices.append(downsampled_indices)
+
+        # Combine the downsampled indices for all classes
+        return np.concatenate(self.downsampled_indices)
+    
+    def __iter__(self):
+        return iter(self.indices)
+
+    def __len__(self):
+        return len(self.indices)
 
 def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     # Extract the HDF5 files from the zip archive
@@ -158,13 +165,18 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     num_samples=int(least_represented_count * num_action_types )
     desired_num_samples = 10000  # Adjust this value as needed
     seed = 42
-    sampler = DownSamplingSampler(class_weights, num_samples= num_samples, seed=seed)
+    sampler = DownSamplingSampler(
+                                    labels = all_actions,
+                                    class_weights = class_weights, 
+                                    num_samples= num_samples, 
+                                    seed=seed
+                                 )
     print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
     train_data_loader = DataLoader(
                                         shuffled_combined_train_dataset, 
                                         batch_size=kwargs['batch_size'], 
                                         # shuffle=True,
-                                        # sampler=sampler,
+                                        sampler=sampler,
                                         drop_last=True,
                                         num_workers=n_cpu,
                                         # pin_memory=True,
