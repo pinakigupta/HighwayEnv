@@ -80,7 +80,6 @@ def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
                         run.log({f"metrics_plot": wandb.Image(metrics_plot_path)})
                     run.name = run_name
                     # Log the model as an artifact in wandb
-                    clear_and_makedirs("models_archive")
                     torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth") 
                     artifact = wandb.Artifact("trained_model_directory", type="model_directory")
                     artifact.add_dir("models_archive")
@@ -88,7 +87,7 @@ def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
 
 
 class DownSamplingSampler(SubsetRandomSampler):
-    def __init__(self, labels, class_weights, num_samples, seed=None):
+    def __init__(self, labels, class_weights, num_samples):
         """
         Args:
             class_weights (list): List of class weights.
@@ -97,8 +96,8 @@ class DownSamplingSampler(SubsetRandomSampler):
         """
         self.class_weights = class_weights
         self.num_samples = num_samples
-        self.generator = torch.Generator()
-        self.generator.manual_seed(seed)
+        # self.generator = torch.Generator()
+        # self.generator.manual_seed(seed)
         self.class_labels = labels
         self.unique_labels = np.unique(self.class_labels)
         self.num_samples_per_class = int(num_samples/ len(self.unique_labels))
@@ -109,7 +108,8 @@ class DownSamplingSampler(SubsetRandomSampler):
         self.downsampled_indices = []
         for class_label in self.unique_labels:
             class_indices = np.where(self.class_labels == class_label)[0]
-            downsampled_indices = np.random.choice(class_indices, size=self.num_samples_per_class, replace=False)
+            max_samples = min(len(class_indices), self.num_samples_per_class)
+            downsampled_indices = class_indices[:max_samples]
             self.downsampled_indices.append(downsampled_indices)
 
         # Combine the downsampled indices for all classes
@@ -151,10 +151,10 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     # Calculate the class frequencies
     all_actions = [sample['acts'] for sample in combined_train_dataset]
     action_frequencies = np.bincount(all_actions)
-    class_weights = 1.0 / np.cbrt(action_frequencies)
+    class_weights = 1.0 / np.sqrt(action_frequencies)
     # class_weights =  np.array([np.exp(-freq/action_frequencies.sum()) for freq in action_frequencies])
-    print(" class_weights after exp ", class_weights, " action_frequencies ", action_frequencies)
     class_weights = class_weights / class_weights.sum()
+    print(" class_weights at the end ", class_weights, " action_frequencies ", action_frequencies)
 
     # Calculate the least represented count
     least_represented_count = np.min(action_frequencies)
@@ -168,8 +168,7 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     sampler = DownSamplingSampler(
                                     labels = all_actions,
                                     class_weights = class_weights, 
-                                    num_samples= num_samples, 
-                                    seed=seed
+                                    num_samples= num_samples
                                  )
     print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
     train_data_loader = DataLoader(
@@ -661,9 +660,9 @@ if __name__ == "__main__":
                     plt.show()
 
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_epoch = 100 if last_epoch else 5 # Mini epoch here correspond to typical epoch
+                num_mini_batches = 150000 if last_epoch else 25000 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
-                trainer.train(n_epochs=num_mini_epoch)  
+                trainer.train(n_batches=num_mini_batches)  
                 if not last_epoch and DAGGER:
                     expert_data_collector(
                                             trainer.policy, # This is the exploration policy
@@ -748,7 +747,7 @@ if __name__ == "__main__":
                             metrics_plot_path = metrics_plot_path
                         )
         wandb.finish()        
-
+        clear_and_makedirs("models_archive")
         # def train_sweep(env, policy, config=None):
         #     with wandb.init(
         #                 project=project_name, 
