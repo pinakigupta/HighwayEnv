@@ -75,15 +75,17 @@ def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
                         project=project, 
                         magic=True,
                     ) as run:
-                    if epoch is None:
-                        epoch = "final"
-                        run.log({f"metrics_plot": wandb.Image(metrics_plot_path)})
+                    # if epoch is None:
+                    epoch = "final"
+                    run.log({f"metrics_plot": wandb.Image(metrics_plot_path)})
                     run.name = run_name
                     # Log the model as an artifact in wandb
                     torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth") 
                     artifact = wandb.Artifact("trained_model_directory", type="model_directory")
                     artifact.add_dir("models_archive")
                     run.log_artifact(artifact)
+    wandb.finish()
+    clear_and_makedirs("models_archive")
 
 
 class DownSamplingSampler(SubsetRandomSampler):
@@ -239,12 +241,13 @@ def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_fil
     plt.title("Confusion Matrix")
     plt.savefig(training_kwargs['plot_path'])
     # plt.show()  
+    print("saved confusion matrix")
     return accuracy, precision, recall, f1
 
 
 if __name__ == "__main__":
     
-    DAGGER = False
+    DAGGER = True
     policy_kwargs = dict(
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
@@ -603,6 +606,7 @@ if __name__ == "__main__":
                                         }
             trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
             print(" trainer policy ", trainer.policy)
+            epoch = None
             for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                 train_data_loader, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
                                                                                                       zip_filename,
@@ -687,18 +691,12 @@ if __name__ == "__main__":
                 # At the end of each epoch or desired interval
                 if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
                     print("saving check point ", epoch)
-                    save_checkpoint(
-                                     project = project, 
-                                     run_name=run_name,
-                                     epoch = epoch, 
-                                     trainer = trainer,
-                                     metrics_plot_path = metrics_plot_path
-                                    )
+                    torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth")
                 accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                                 trainer, 
                                                                                 hdf5_train_file_names, 
                                                                                 hdf5_val_file_names, 
-                                                                                plot_path=f"{extract_path}/tmp_{epoch}.png" 
+                                                                                plot_path=f"{extract_path}/heatmap_{epoch}.png" 
                                                                               )
                 _validation_metrics["accuracy"].append(accuracy)
                 _validation_metrics["precision"].append(precision)
@@ -711,7 +709,7 @@ if __name__ == "__main__":
                                                                             trainer, 
                                                                             hdf5_train_file_names, 
                                                                             hdf5_val_file_names, 
-                                                                            plot_path=f"{extract_path}/tmp_{epoch}.png" 
+                                                                            plot_path=f"{extract_path}/heatmap_{epoch}.png" 
                                                                             )
 
 
@@ -746,8 +744,8 @@ if __name__ == "__main__":
                             trainer = bc_trainer,
                             metrics_plot_path = metrics_plot_path
                         )
-        wandb.finish()        
-        clear_and_makedirs("models_archive")
+        # wandb.finish()        
+        # clear_and_makedirs("models_archive")
         # def train_sweep(env, policy, config=None):
         #     with wandb.init(
         #                 project=project_name, 
