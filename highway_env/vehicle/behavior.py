@@ -110,6 +110,7 @@ class IDMVehicle(ControlledVehicle):
                                                    rear_vehicle=rear_vehicle)
         
 
+
         self.discrete_action()
         # When changing lane, check both current and target lanes
         if self.lane_index != self.target_lane_index:
@@ -172,16 +173,23 @@ class IDMVehicle(ControlledVehicle):
         """
         if not ego_vehicle or not isinstance(ego_vehicle, Vehicle):
             return 0
-        ego_target_speed = getattr(ego_vehicle, "target_speed", 0)
+        if isinstance(self, MDPVehicle):
+            ego_target_speed = ego_vehicle.lane.speed_limit
+        else:
+            ego_target_speed = getattr(ego_vehicle, "target_speed", 0)
         if ego_vehicle.lane and ego_vehicle.lane.speed_limit is not None:
             ego_target_speed = np.clip(ego_target_speed, 0, ego_vehicle.lane.speed_limit)
         acceleration = self.COMFORT_ACC_MAX * (1 - np.power(
             max(ego_vehicle.speed, 0) / abs(utils.not_zero(ego_target_speed)), self.DELTA))
-
+        acceleration_lk = acceleration
         if front_vehicle:
             d = ego_vehicle.lane_distance_to(front_vehicle)
             acceleration -= self.COMFORT_ACC_MAX * \
                 np.power(self.desired_gap(ego_vehicle, front_vehicle) / utils.not_zero(d), 2)
+        if isinstance(self, MDPVehicle):
+            print("ego_target_speed ", ego_target_speed, "speed limit" , ego_vehicle.lane.speed_limit,
+                " current speed ", ego_vehicle.speed,
+                " acceleration w/o front considered ", acceleration_lk, " final acceleration ", acceleration)
         return acceleration
 
     def desired_gap(self, ego_vehicle: Vehicle, front_vehicle: Vehicle = None, projected: bool = True) -> float:

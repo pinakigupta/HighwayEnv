@@ -82,7 +82,7 @@ class Vehicle(RoadObject):
                 speed = road.np_random.uniform(0.7*lane.speed_limit, 0.8*lane.speed_limit)
             else:
                 speed = road.np_random.uniform(Vehicle.DEFAULT_INITIAL_SPEEDS[0], Vehicle.DEFAULT_INITIAL_SPEEDS[1])
-        default_spacing = 12+1.0*speed
+        default_spacing = 12 + 1.0*speed
         offset = spacing * default_spacing * np.exp(-5 / 40 * len(road.network.graph[_from][_to]))
         if x0 is None:
             if np.random.randint(2):
