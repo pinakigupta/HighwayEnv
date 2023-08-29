@@ -14,7 +14,7 @@ import json
 import wandb
 from datetime import datetime
 from torch import FloatTensor
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
 import shutil
 from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent, extract_post_processed_expert_data
@@ -32,6 +32,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import importlib
 import pandas as pd
 import random
+
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -107,17 +108,41 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
 
     # Create a combined dataset from the individual datasets
     combined_train_dataset = ConcatDataset(train_datasets)
+    # Create shuffled indices for the combined dataset
+    shuffled_indices = np.arange(len(combined_train_dataset))
+    np.random.shuffle(shuffled_indices)
 
+    # Create a shuffled version of the combined dataset using Subset
+    shuffled_combined_train_dataset = Subset(combined_train_dataset, shuffled_indices)
 
+    # Calculate the class frequencies
+    all_actions = [sample['acts'] for sample in combined_train_dataset]
+    action_frequencies = np.bincount(all_actions)
+    # class_weights = 1.0 / np.cbrt(action_frequencies)
+    class_weights =  np.array([np.exp(-freq/action_frequencies.sum()) for freq in action_frequencies])
+    print(" class_weights after exp ", class_weights, " action_frequencies ", action_frequencies)
+    class_weights = class_weights / class_weights.sum()
+
+    # Calculate the least represented count
+    least_represented_count = np.min(action_frequencies)
+
+    # Get the number of unique action types
+    num_action_types = len(np.unique(all_actions))
+
+    num_samples=int(least_represented_count * num_action_types * 2.5)
+    desired_num_samples = 10000  # Adjust this value as needed
+    sampler = WeightedRandomSampler(class_weights, num_samples= num_samples)
+    print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
     train_data_loader = DataLoader(
-                                combined_train_dataset, 
-                                batch_size=kwargs['batch_size'], 
-                                shuffle=True,
-                                drop_last=True,
-                                num_workers=n_cpu,
-                                # pin_memory=True,
-                                # pin_memory_device=device
-                            ) 
+                                        shuffled_combined_train_dataset, 
+                                        batch_size=kwargs['batch_size'], 
+                                        # shuffle=True,
+                                        sampler=sampler,
+                                        drop_last=True,
+                                        num_workers=n_cpu,
+                                        # pin_memory=True,
+                                        # pin_memory_device=device,
+                                 ) 
     return train_data_loader, hdf5_train_file_names, hdf5_val_file_names
 
 
@@ -539,6 +564,7 @@ if __name__ == "__main__":
                                             "f1"        : []
                                         }
             trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
+            print(" trainer policy ", trainer.policy)
             for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                 train_data_loader, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
                                                                                                       zip_filename,
@@ -596,7 +622,7 @@ if __name__ == "__main__":
                     plt.show()
 
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_epoch = 1 if last_epoch else 5 # Mini epoch here correspond to typical epoch
+                num_mini_epoch = 100 if last_epoch else 5 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
                 trainer.train(n_epochs=num_mini_epoch)  
                 # for mini_epoch in range(num_mini_epoch):

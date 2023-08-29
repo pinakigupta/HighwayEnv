@@ -18,6 +18,7 @@ import os, shutil
 from attention_network import EgoAttentionNetwork
 import gymnasium as gym
 
+
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
     if os.path.exists(directory):
@@ -77,13 +78,21 @@ def DefaultActorCriticPolicy(env, device):
                                     action_space=env.action_space,
                                     lr_schedule=lr_schedule
                                   )
+
         import torch
-        policy.net_arch =     PolicyNetwork(
+        policy_net =  torch.nn.Sequential(
+                                            torch.nn.Linear(state_dim, 2),
+                                            torch.nn.LeakyReLU(),
+                                            torch.nn.Linear(2, action_dim),
+                                         )
+        policy.action_net =     PolicyNetwork(
                                             state_dim=state_dim, 
                                             action_dim=action_dim, 
                                             discrete=True, 
                                             device=torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
-                                           )    
+                                            policy_net = policy_net
+                                           ) 
+        return policy   
 
 class CustomDataset(Dataset):
     def __init__(self, data_file, device, pad_value=0):
