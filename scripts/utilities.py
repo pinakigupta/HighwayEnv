@@ -81,17 +81,16 @@ def DefaultActorCriticPolicy(env, device):
 
         import torch
         policy_net =  torch.nn.Sequential(
-                                            torch.nn.Linear(state_dim, 2),
+                                            torch.nn.Linear(state_dim, 64),
+                                            torch.nn.Tanh(),
+                                         ).to(device)
+        policy.mlp_extractor.policy_net = policy_net
+        action_net =  torch.nn.Sequential(
+                                            torch.nn.Linear(64, 10),
                                             torch.nn.LeakyReLU(),
-                                            torch.nn.Linear(2, action_dim),
-                                         )
-        policy.action_net =     PolicyNetwork(
-                                            state_dim=state_dim, 
-                                            action_dim=action_dim, 
-                                            discrete=True, 
-                                            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"), 
-                                            policy_net = policy_net
-                                           ) 
+                                            torch.nn.Linear(10, action_dim),
+                                         ).to(device)
+        policy.action_net =     action_net
         return policy   
 
 class CustomDataset(Dataset):
