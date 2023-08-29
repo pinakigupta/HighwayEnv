@@ -4,6 +4,7 @@ import gymnasium as gym
 import seaborn as sns
 from stable_baselines3 import PPO
 import torch
+from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -48,7 +49,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 
 
 
@@ -87,6 +88,32 @@ def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
 
     wandb.finish()
 
+class DownSamplingSampler(SubsetRandomSampler):
+    def __init__(self, class_weights, num_samples, seed=None):
+        """
+        Args:
+            class_weights (list): List of class weights.
+            num_samples (int): Total number of samples to keep.
+            seed (int): Seed for the random number generator.
+        """
+        self.class_weights = class_weights
+        self.num_samples = num_samples
+        self.generator = torch.Generator()
+        self.generator.manual_seed(seed)
+        self.indices = self._select_samples()
+
+    def _select_samples(self):
+        sampled_indices = []
+        total_samples = 0
+        for class_idx, weight in enumerate(self.class_weights):
+            num_class_samples = int(self.num_samples * weight)
+            class_indices = [i for i in range(len(self.class_weights)) if self.class_weights[i] == class_idx]
+            if class_idx == 1:  # Keep all samples for class_idx 1, downsample others
+                sampled_indices.extend(class_indices)
+            else:
+                sampled_indices.extend(class_indices[:num_class_samples])
+            total_samples += num_class_samples
+        return sampled_indices
 
 def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     # Extract the HDF5 files from the zip archive
@@ -118,8 +145,8 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     # Calculate the class frequencies
     all_actions = [sample['acts'] for sample in combined_train_dataset]
     action_frequencies = np.bincount(all_actions)
-    # class_weights = 1.0 / np.cbrt(action_frequencies)
-    class_weights =  np.array([np.exp(-freq/action_frequencies.sum()) for freq in action_frequencies])
+    class_weights = 1.0 / np.cbrt(action_frequencies)
+    # class_weights =  np.array([np.exp(-freq/action_frequencies.sum()) for freq in action_frequencies])
     print(" class_weights after exp ", class_weights, " action_frequencies ", action_frequencies)
     class_weights = class_weights / class_weights.sum()
 
@@ -129,15 +156,16 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     # Get the number of unique action types
     num_action_types = len(np.unique(all_actions))
 
-    num_samples=int(least_represented_count * num_action_types * 2.5)
+    num_samples=int(least_represented_count * num_action_types )
     desired_num_samples = 10000  # Adjust this value as needed
-    sampler = WeightedRandomSampler(class_weights, num_samples= num_samples)
+    seed = 42
+    sampler = DownSamplingSampler(class_weights, num_samples= num_samples, seed=seed)
     print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
     train_data_loader = DataLoader(
                                         shuffled_combined_train_dataset, 
                                         batch_size=kwargs['batch_size'], 
                                         # shuffle=True,
-                                        # sampler=sampler,
+                                        sampler=sampler,
                                         drop_last=True,
                                         num_workers=n_cpu,
                                         # pin_memory=True,
@@ -775,7 +803,7 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         BC_agent                            = retrieve_agent(
                                                             artifact_version='trained_model_directory:latest',
-                                                            agent_model = 'BC_agent.pth',
+                                                            agent_model = 'BC_agent_5.pth',
                                                             project="BC_1"
                                                             )
         num_rollouts = 10
