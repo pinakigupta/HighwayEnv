@@ -66,8 +66,10 @@ def worker(
             # features_extractor, policy_net, action_net = oracle
             # ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
 
-
-            act = oracle.predict(ob)[0]
+            try:
+                act = oracle.predict(ob)[0]
+            except:
+                act = oracle.act(ob.flatten())
             # act = 4
             next_ob, rwd, done, _, _ = env.step(act)
             rollout_steps += 1

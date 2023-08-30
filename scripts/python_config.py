@@ -7,7 +7,7 @@ env_kwargs = {
         'simulation_frequency': 10,
         "lanes_count": 4,
         "vehicles_count": 100,
-        'politeness': 'random',
+        'politeness': 0,
         "action": {
                 "type": "DiscreteMetaAction",
             },
