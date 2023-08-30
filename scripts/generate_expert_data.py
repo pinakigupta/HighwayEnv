@@ -51,7 +51,7 @@ def worker(
             experts_to_consider = [env.vehicle]
         else:
             for v in env.road.vehicles:
-                if v is not env.vehicle or isinstance(v, MDPVehicle):
+                if v is not env.vehicle and ( not isinstance(v, MDPVehicle) ):
                     experts_to_consider.append(v) 
         ob=ob[0]
         done = False
@@ -108,6 +108,7 @@ def worker(
                 #     # print(" Discarding data as vehicle ", v, " crashed " )
                 # else:
                 # print("ep_obs ", ep_obs)
+
                 data_queue.put((ep_obs, ep_acts, ep_done))
                 steps_collected += len(ep_acts)
                 # print("steps_collected ", steps_collected)
@@ -195,12 +196,17 @@ def collect_expert_data(
     exp_acts = []
     
 
+
     with h5py.File(train_filename, 'a') as train_hf, h5py.File(validation_filename, 'a') as valid_hf:
         while steps_count < 0.9*num_steps_per_iter:
             ob, act, done = exp_data_queue.get()
-            steps_count += len(act)
-            ep_collected +=1
-                    # Stop collecting data
+            if ob is None:
+                continue
+            if len(set(map(len, (ob, act, done)))) != 1:
+                print(len(ob), len(act), len(done))
+                raise ValueError("Tuple members have different lengths")
+            
+
             
             # Save the data list as an HDF5 file
             if random.random() < train_ratio:
@@ -208,12 +214,25 @@ def collect_expert_data(
             else:
                 hf = valid_hf
 
-            episode_group = hf.create_group(f'episode_{ep_collected}')
+            group_name = f'episode_{ep_collected}'
+            if group_name not in hf:
+                episode_group = hf.create_group(group_name)
+            count = 0
             for i, (arr1, arr2, arr3) in enumerate(zip(ob, act, done)):
+                # if arr1 is None:
+                #     continue
+                count += 1
+                    # raise ValueError("arr1 is empty, dataset creation aborted")
                 episode_group.create_dataset(f'exp_obs{i}',  data=arr1,  dtype='float32')
                 episode_group.create_dataset(f'exp_acts{i}', data=arr2,  dtype='float32')
                 episode_group.create_dataset(f'exp_done{i}', data=arr3,  dtype=bool)
+            steps_count += count
+            if count > 0:
+                ep_collected +=1
+                    # Stop collecting data
             pbar_outer.update(steps_count - pbar_outer.n)
+
+    
 
     # print(" joining worker processes ", [worker.pid for worker in worker_processes], flush=True)
 
@@ -235,7 +254,7 @@ def collect_expert_data(
 def postprocess(inputfile,outputfile):
     exp_obs, exp_acts, exp_dones = extract_expert_data(inputfile)
     class_distribution = Counter(exp_acts)
-    # print(" Before post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs))
+    print(" Before post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs), len(exp_acts), len(exp_dones))
     exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
     class_distribution = Counter(exp_acts)
     # print(" After post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs))
@@ -291,9 +310,13 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
                 num_samples_to_copy = int(second_most_common_count - count)
                 indices_to_copy = [i for i, a in enumerate(exp_acts) if a == act]
                 for index in indices_to_copy[:num_samples_to_copy]:
-                    upsampled_exp_obs.append(exp_obs[index])
-                    upsampled_exp_acts.append(exp_acts[index])
-                    upsampled_exp_dones.append(exp_dones[index])
+                    try:
+                        upsampled_exp_obs.append(exp_obs[index])
+                        upsampled_exp_acts.append(exp_acts[index])
+                        upsampled_exp_dones.append(exp_dones[index])
+                    except:
+                        # print(index, len(exp_obs), len(exp_acts), len(exp_dones))
+                        pass
 
         final_exp_obs = downsampled_exp_obs + upsampled_exp_obs
         final_exp_acts = downsampled_exp_acts + upsampled_exp_acts
@@ -351,7 +374,8 @@ def extract_expert_data(filename):
                     elif dataset_name.startswith('exp_done'):
                         exp_done.extend([dataset[()]])
                 except Exception as e:
-                    pass
+                    print(dataset[:].shape)
+                    raise e
                     # print(e)
            
 
