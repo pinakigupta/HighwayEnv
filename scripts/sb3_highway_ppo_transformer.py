@@ -121,7 +121,7 @@ if __name__ == "__main__":
                                 oracle_agent,
                                 data_folder_path = extract_path,
                                 zip_filename=zip_filename,
-                                total_iterations = 100,
+                                delta_iterations = 10,
                                 **{**env_kwargs, **{'expert':None}}           
                              )
     elif train == TrainEnum.RLTRAIN: # training 
@@ -450,7 +450,7 @@ if __name__ == "__main__":
                                             trainer.policy, # This is the exploration policy
                                             data_folder_path = extract_path,
                                             zip_filename=zip_filename,
-                                            delta_iterations = 1,
+                                            delta_iterations = 100,
                                             **{
                                                 **env_kwargs, 
                                                 **{'expert':'MDPVehicle'}

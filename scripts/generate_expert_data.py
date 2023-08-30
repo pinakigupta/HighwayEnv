@@ -14,6 +14,7 @@ import wandb
 import json
 import zipfile
 import os
+from highway_env.vehicle.behavior import MDPVehicle
 
 from forward_simulation import append_key_to_dict_of_dict
 
@@ -50,7 +51,7 @@ def worker(
             experts_to_consider = [env.vehicle]
         else:
             for v in env.road.vehicles:
-                if v is not env.vehicle:
+                if v is not env.vehicle or isinstance(v, MDPVehicle):
                     experts_to_consider.append(v) 
         ob=ob[0]
         done = False
@@ -73,7 +74,6 @@ def worker(
             # act = 4
             next_ob, rwd, done, _, _ = env.step(act)
             rollout_steps += 1
-
 
             for v in experts_to_consider:
                 obs = v.observer
@@ -418,7 +418,7 @@ def expert_data_collector(
             total = env_kwargs['delta_iterations']
             total_iterations = highest_filenum + total +1 
         outer_bar = tqdm(total=total, desc="Outer Loop Progress")
-        # print("highest_filenum ", highest_filenum)
+        print("highest_filenum ", highest_filenum, " total_iterations ", total_iterations)
         for filenum in range(highest_filenum+1, total_iterations):
             collect_expert_data  (
                                         oracle=oracle_agent,
