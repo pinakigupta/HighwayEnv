@@ -17,7 +17,14 @@ import wandb
 import os, shutil
 from attention_network import EgoAttentionNetwork
 import gymnasium as gym
+import matplotlib.pyplot as plt
+from torch.utils.data.sampler import SubsetRandomSampler
+import zipfile
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
 
+from highway_env.envs.common.action import DiscreteMetaAction
+ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
@@ -223,6 +230,180 @@ class CustomExtractor(BaseFeaturesExtractor):
 
 
 
+def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
+
+    with wandb.init(
+                        project=project, 
+                        magic=True,
+                    ) as run:
+                    # if epoch is None:
+                    epoch = "final"
+                    run.log({f"metrics_plot": wandb.Image(metrics_plot_path)})
+                    run.name = run_name
+                    # Log the model as an artifact in wandb
+                    torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth") 
+                    artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+                    artifact.add_dir("models_archive")
+                    run.log_artifact(artifact)
+    wandb.finish()
+    clear_and_makedirs("models_archive")
+
+
+class DownSamplingSampler(SubsetRandomSampler):
+    def __init__(self, labels, class_weights, num_samples):
+        """
+        Args:
+            class_weights (list): List of class weights.
+            num_samples (int): Total number of samples to keep.
+            seed (int): Seed for the random number generator.
+        """
+        self.class_weights = class_weights
+        self.num_samples = num_samples
+        # self.generator = torch.Generator()
+        # self.generator.manual_seed(seed)
+        self.class_labels = labels
+        self.unique_labels = np.unique(self.class_labels)
+        self.num_samples_per_class = int(num_samples/ len(self.unique_labels))
+        self.indices = self._select_samples()
+
+    def _select_samples(self):
+        # Calculate the downsampled indices for each class
+        self.downsampled_indices = []
+        for class_label in self.unique_labels:
+            class_indices = np.where(self.class_labels == class_label)[0]
+            max_samples = min(len(class_indices), self.num_samples_per_class)
+            downsampled_indices = class_indices[:max_samples]
+            self.downsampled_indices.append(downsampled_indices)
+
+        # Combine the downsampled indices for all classes
+        return np.concatenate(self.downsampled_indices)
+    
+    def __iter__(self):
+        return iter(self.indices)
+
+    def __len__(self):
+        return len(self.indices)
+
+def create_dataloaders(zip_filename, extract_path, device, **kwargs):
+    # Extract the HDF5 files from the zip archive
+    # These files may be alredy existing because of a previous post process step.
+    with zipfile.ZipFile(zip_filename, 'r') as archive:
+        archive.extractall(extract_path)
+
+    # Extract the names of the HDF5 files from the zip archive
+    with zipfile.ZipFile(zip_filename, 'r') as archive:
+        hdf5_train_file_names = [os.path.join(extract_path, name) 
+                                    for name in archive.namelist() 
+                                    if name.endswith('.h5') and "train" in name]
+        hdf5_val_file_names = [os.path.join(extract_path, name) 
+                                    for name in archive.namelist() 
+                                    if name.endswith('.h5') and "val" in name]            
+
+    # Create separate datasets for each HDF5 file
+    train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
+
+    # Create a combined dataset from the individual datasets
+    combined_train_dataset = ConcatDataset(train_datasets)
+    # Create shuffled indices for the combined dataset
+    shuffled_indices = np.arange(len(combined_train_dataset))
+    np.random.shuffle(shuffled_indices)
+
+    # Create a shuffled version of the combined dataset using Subset
+    shuffled_combined_train_dataset = Subset(combined_train_dataset, shuffled_indices)
+
+    # Calculate the class frequencies
+    all_actions = [sample['acts'] for sample in combined_train_dataset]
+    action_frequencies = np.bincount(all_actions)
+    class_weights = 1.0 / np.sqrt(action_frequencies)
+    # class_weights =  np.array([np.exp(-freq/action_frequencies.sum()) for freq in action_frequencies])
+    class_weights = class_weights / class_weights.sum()
+    print(" class_weights at the end ", class_weights, " action_frequencies ", action_frequencies)
+
+    # Calculate the least represented count
+    least_represented_count = np.min(action_frequencies)
+
+    # Get the number of unique action types
+    num_action_types = len(np.unique(all_actions))
+
+    num_samples=int(least_represented_count * num_action_types )
+    desired_num_samples = 10000  # Adjust this value as needed
+    seed = 42
+    sampler = DownSamplingSampler(
+                                    labels = all_actions,
+                                    class_weights = class_weights, 
+                                    num_samples= num_samples
+                                 )
+    print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
+    train_data_loader = DataLoader(
+                                        shuffled_combined_train_dataset, 
+                                        batch_size=kwargs['batch_size'], 
+                                        # shuffle=True,
+                                        sampler=sampler,
+                                        drop_last=True,
+                                        num_workers=kwargs['n_cpu'],
+                                        # pin_memory=True,
+                                        # pin_memory_device=device,
+                                 ) 
+    return train_data_loader, hdf5_train_file_names, hdf5_val_file_names
+
+
+def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
+    true_labels = []
+    predicted_labels = []
+    # Iterate through the validation data and make predictions
+    with torch.no_grad():
+        for val_data_file in hdf5_val_file_names:
+            val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
+            predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
+            true_labels.extend(val_acts)
+
+    # Calculate evaluation metrics
+    accuracy = accuracy_score(true_labels, predicted_labels)
+    precision = precision_score(true_labels, predicted_labels, average=None)
+    recall = recall_score(true_labels, predicted_labels, average=None)
+    f1 = f1_score(true_labels, predicted_labels, average=None)
+    conf_matrix = confusion_matrix(true_labels, predicted_labels)
+
+    # Print the metrics
+    print("Accuracy:", accuracy, np.mean(accuracy))
+    print("Precision:", precision, np.mean(precision))
+    print("Recall:", recall, np.mean(recall))
+    print("F1 Score:", f1, np.mean(f1))
+
+
+    predicted_labels = []
+    true_labels = []
+    with torch.no_grad():
+        for val_data_file in hdf5_train_file_names:
+            val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
+            predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
+            true_labels.extend(val_acts)
+
+    # # Calculate evaluation metrics for training
+    # tr_accuracy = accuracy_score(true_labels, predicted_labels)
+    # tr_precision = precision_score(true_labels, predicted_labels, average=None)
+    # tr_recall = recall_score(true_labels, predicted_labels, average=None)
+    # tr_f1 = f1_score(true_labels, predicted_labels, average=None)
+
+
+
+    # print("--------  Training data metrics for reference---------------")
+    # print("Accuracy:", accuracy, np.mean(tr_accuracy))
+    # print("Precision:", precision,  np.mean(tr_precision))
+    # print("Recall:", recall, np.mean(tr_recall))
+    # print("F1 Score:", f1, np.mean(tr_f1))
+
+
+    plt.figure(figsize=(8, 6))
+    class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
+    sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
+    plt.xlabel("Predicted Labels")
+    plt.ylabel("True Labels")
+    plt.title("Confusion Matrix")
+    plt.savefig(training_kwargs['plot_path'])
+    # plt.show()  
+    print("saved confusion matrix")
+    return accuracy, precision, recall, f1
 
 
 
