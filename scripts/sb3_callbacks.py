@@ -57,9 +57,9 @@ class CustomCurriculamCallback(BaseCallback):
         # Calculate the average episode reward after training ends
         ep_rew_mean = statistics.mean(self.training_env.env_method("get_ep_reward"))
         print("Mean episode ep_rew_mean:", ep_rew_mean)
-        if ep_rew_mean > 0.25:
+        if ep_rew_mean > 0.3:
             config = self.training_env.env_method("get_config")[0]
-            config['duration'] += 10
+            config['duration'] += 5
             self.training_env.env_method("set_config", config)
             print("Updated env duration to ", self.training_env.env_method("get_config")[0]['duration'])
         print("----------------------------------------------------------------------------------------")
