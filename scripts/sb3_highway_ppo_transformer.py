@@ -47,7 +47,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLTRAIN
+train = TrainEnum.IRLDEPLOY
 
 
 
@@ -350,17 +350,16 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs,duration=40)
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         env_kwargs.update({'reward_oracle':None})
-        model = PPO(
-                    "MlpPolicy", 
-                    env.unwrapped,
-                    policy_kwargs=policy_kwargs,
-                    device=device
-                    )
-        with open('highway_attention_ppo/network_hierarchy.txt', 'w') as file:
-            file.write("-------------------------- Policy network  ---------------------------------\n")
-            write_module_hierarchy_to_file(model.policy, file)
-            file.write("-------------------------- Value function ----------------------------------\n")
-            write_module_hierarchy_to_file(model.policy.value_net, file)
+        # RL_agent                            = retrieve_agent(
+        #                                                     artifact_version='trained_model_directory:latest',
+        #                                                     agent_model = 'RL_agent_final.pth',
+        #                                                     project="RL"
+        #                                                     )
+        # with open('highway_attention_ppo/network_hierarchy.txt', 'w') as file:
+        #     file.write("-------------------------- Policy network  ---------------------------------\n")
+        #     write_module_hierarchy_to_file(model.policy, file)
+        #     file.write("-------------------------- Value function ----------------------------------\n")
+        #     write_module_hierarchy_to_file(model.policy.value_net, file)
         
         wandb.init(project="RL", name="inference")
         # Access the run containing the logged artifact
@@ -371,11 +370,11 @@ if __name__ == "__main__":
 
         # Load the model from the downloaded artifact
         rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
-        model.policy.load_state_dict(torch.load(rl_agent_path, map_location=device))
+        model = torch.load(rl_agent_path, map_location=device)
         wandb.finish()
         
         env.render()
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.policy.features_extractor))
+        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.features_extractor))
         gamma = 1.0
         num_rollouts = 10
         for _ in range(num_rollouts):
