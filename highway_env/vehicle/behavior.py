@@ -64,6 +64,7 @@ class IDMVehicle(ControlledVehicle):
              self.POLITENESS = self.kwargs['politeness']
         self.enable_lane_change = enable_lane_change
         self.timer = timer or (np.sum(self.position)*np.pi) % self.LANE_CHANGE_DELAY
+        self.target_speed_timer = 0.0
         self.observer = None
 
     def randomize_behavior(self):
@@ -177,6 +178,9 @@ class IDMVehicle(ControlledVehicle):
             ego_target_speed = ego_vehicle.lane.speed_limit
         else:
             ego_target_speed = getattr(ego_vehicle, "target_speed", 0)
+            if (self.timer-self.target_speed_timer)>2.0:
+                self.target_speed_timer = self.timer
+                ego_target_speed *= self.road.np_random.uniform(low=0.1, high=1.25)
         if ego_vehicle.lane and ego_vehicle.lane.speed_limit is not None:
             ego_target_speed = np.clip(ego_target_speed, 0, ego_vehicle.lane.speed_limit)
         acceleration = self.COMFORT_ACC_MAX * (1 - np.power(
