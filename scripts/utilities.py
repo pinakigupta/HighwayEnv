@@ -338,7 +338,7 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
                                         shuffled_combined_train_dataset, 
                                         batch_size=kwargs['batch_size'], 
                                         # shuffle=True,
-                                        sampler=sampler,
+                                        # sampler=sampler,
                                         drop_last=True,
                                         num_workers=kwargs['n_cpu'],
                                         # pin_memory=True,
