@@ -47,7 +47,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
+train = TrainEnum.RLTRAIN
 
 
 
@@ -124,8 +124,9 @@ if __name__ == "__main__":
                                 delta_iterations = 10,
                                 **{**env_kwargs, **{'expert':None}}           
                              )
-    elif train == TrainEnum.RLTRAIN: # training 
-        append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
+    elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
+        env_kwargs.update({'reward_oracle':None})
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
         env = make_vec_env(
                             make_configure_env, 
                             n_envs=n_cpu, 
@@ -140,7 +141,7 @@ if __name__ == "__main__":
                     "MlpPolicy", 
                     env,
                     n_steps=512 // n_cpu,
-                    batch_size=64,
+                    batch_size=batch_size,
                     learning_rate=2e-3,
                     policy_kwargs=policy_kwargs,
                     verbose=0,
@@ -177,7 +178,7 @@ if __name__ == "__main__":
                                         )
             
             # Log the model as an artifact in wandb
-            torch.save(model.policy.state_dict(), 'RL_agent.pth')
+            torch.save(model.policy, 'RL_agent.pth')
             
             artifact = wandb.Artifact("trained_model", type="model")
             artifact.add_file("RL_agent.pth")
