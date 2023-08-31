@@ -339,7 +339,7 @@ if __name__ == "__main__":
                                                                  )
         num_rollouts = 10
         reward = simulate_with_model(
-                                            agent=final_gail_agent, 
+                                            agent=optimal_gail_agent, 
                                             env_kwargs=env_kwargs, 
                                             render_mode='human', 
                                             num_workers= min(num_rollouts,n_cpu), 
