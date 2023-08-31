@@ -47,7 +47,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
+train = TrainEnum.IRLTRAIN
 
 
 
@@ -204,23 +204,23 @@ if __name__ == "__main__":
         # exp_obs, exp_acts, _ = extract_post_processed_expert_data(expert_data_file)
         # exp_obs = FloatTensor(exp_obs)
         # exp_acts = FloatTensor(exp_acts)
-
+        train_data_loader, _ , _                                     = create_dataloaders(
+                                                                                                zip_filename,
+                                                                                                extract_path, 
+                                                                                                device=device,
+                                                                                                batch_size=batch_size,
+                                                                                                n_cpu = n_cpu
+                                                                                            )
+        train_data_loaders = [train_data_loader]
         def train_gail_agent(
                                 # exp_obs=exp_obs, 
                                 # exp_acts=exp_acts,
-                                zip_filename, 
                                 gail_agent_path = None, 
                                 env_kwargs = None,
                                 train_config = None,
-                                ** training_kwargs
+                                train_data_loaders=train_data_loaders,
                             ):
-            train_data_loaders, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
-                                                                                                    zip_filename,
-                                                                                                    extract_path, 
-                                                                                                    device=training_kwargs['device'],
-                                                                                                    batch_size=training_kwargs['batch_size'],
-                                                                                                    n_cpu = n_cpu
-                                                                                                )
+
             env= make_configure_env(**env_kwargs).unwrapped
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             action_dim = env.action_space.n
@@ -253,71 +253,80 @@ if __name__ == "__main__":
         run_name = f"sweep_{month}{day}_{timenow()}"
         sweep_id = wandb.sweep(sweep_config, project=project_name)
 
-        def train_sweep(data_loaders, config=None):
-            with wandb.init(
-                            project=project_name,
-                            config=config,
-                           ) as run:
-                config = run.config
-                name = ""
-                for key, value in config.items():
-                    # Discard first 3 letters from the key
-                    key = key[3:]
 
-                    # Format the float value
-                    value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
+        rewards, disc_losses, advs, episode_count =       train_gail_agent(
+                                                                                gail_agent_path=None, 
+                                                                                env_kwargs = env_kwargs,
+                                                                                train_config = train_config,
+                                                                                train_data_loaders=train_data_loaders
+                                                                            )
+        
+        # def train_sweep(data_loaders, config=None):
+        #     with wandb.init(
+        #                     project=project_name,
+        #                     config=config,
+        #                    ) as run:
+        #         config = run.config
+        #         name = ""
+        #         for key, value in config.items():
+        #             # Discard first 3 letters from the key
+        #             key = key[3:]
 
-                    # Append the formatted key-value pair to the name
-                    name += f"{key}_{value_str}_"
-                run.name = run_name
-                append_key_to_dict_of_dict(env_kwargs,'config','duration',config.duration)
-                train_config.update({'gae_gamma':config.gae_gamma})
-                train_config.update({'discrm_lr':config.discrm_lr})
-                print(" config.duration ", env_kwargs['config']['duration'], " config.gae_gamma ", train_config['gae_gamma'])
+        #             # Format the float value
+        #             value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
+
+        #             # Append the formatted key-value pair to the name
+        #             name += f"{key}_{value_str}_"
+        #         run.name = run_name
+        #         append_key_to_dict_of_dict(env_kwargs,'config','duration',config.duration)
+        #         train_config.update({'gae_gamma':config.gae_gamma})
+        #         train_config.update({'discrm_lr':config.discrm_lr})
+        #         print(" config.duration ", env_kwargs['config']['duration'], " config.gae_gamma ", train_config['gae_gamma'])
                     
 
-                rewards, disc_losses, advs, episode_count =       train_gail_agent(
-                                                                                    # exp_obs=exp_obs, 
-                                                                                    # exp_acts=exp_acts,
-                                                                                    zip_filename ,
-                                                                                    gail_agent_path=gail_agent_path, 
-                                                                                    env_kwargs = env_kwargs,
-                                                                                    train_config = train_config,
-                                                                                    device=device,
-                                                                                    batch_size=batch_size
-                                                                                  )
+        #         rewards, disc_losses, advs, episode_count =       train_gail_agent(
+        #                                                                             # exp_obs=exp_obs, 
+        #                                                                             # exp_acts=exp_acts,
+        #                                                                             zip_filename ,
+        #                                                                             gail_agent_path=gail_agent_path, 
+        #                                                                             env_kwargs = env_kwargs,
+        #                                                                             train_config = train_config,
+        #                                                                             device=device,
+        #                                                                             batch_size=batch_size,
+        #                                                                             train_data_loaders=data_loaders
+        #                                                                           )
 
 
-                disc_losses = [ float(l.item()) for l in disc_losses]
-                advs = [ float(a.item()) for a in advs]
-                rewards = [float(r) for r in rewards]
-                # Log rewards against epochs as a single plot
-                xs=list(range(len(rewards)))
-                run.log({"rewards": wandb.plot.line_series(xs=xs, ys=[rewards] ,title="rewards_vs_epochs",keys = [name])})
-                run.log({"disc losses": wandb.plot.line_series(xs=xs, ys=[disc_losses], title="disc losses",keys = [name])})
-                run.log({"Mean advantages": wandb.plot.line_series(xs=xs, ys=[advs], title="Mean advantages_vs_epochs",keys = [name])})
-                run.log({"Episode_count": wandb.plot.line_series(xs=xs, ys=[episode_count], title="Episode_count_vs_epochs",keys = [name])})
+        #         disc_losses = [ float(l.item()) for l in disc_losses]
+        #         advs = [ float(a.item()) for a in advs]
+        #         rewards = [float(r) for r in rewards]
+        #         # Log rewards against epochs as a single plot
+        #         xs=list(range(len(rewards)))
+        #         run.log({"rewards": wandb.plot.line_series(xs=xs, ys=[rewards] ,title="rewards_vs_epochs",keys = [name])})
+        #         run.log({"disc losses": wandb.plot.line_series(xs=xs, ys=[disc_losses], title="disc losses",keys = [name])})
+        #         run.log({"Mean advantages": wandb.plot.line_series(xs=xs, ys=[advs], title="Mean advantages_vs_epochs",keys = [name])})
+        #         run.log({"Episode_count": wandb.plot.line_series(xs=xs, ys=[episode_count], title="Episode_count_vs_epochs",keys = [name])})
 
                 
-                # Create a directory for the models
-                clear_and_makedirs("models_archive")
+        #         # Create a directory for the models
+        #         clear_and_makedirs("models_archive")
 
-                shutil.move("optimal_gail_agent.pth", "models_archive/optimal_gail_agent.pth")
-                shutil.move("final_gail_agent.pth", "models_archive/final_gail_agent.pth")
+        #         shutil.move("optimal_gail_agent.pth", "models_archive/optimal_gail_agent.pth")
+        #         shutil.move("final_gail_agent.pth", "models_archive/final_gail_agent.pth")
 
-                # Log the model as an artifact in wandb
-                artifact = wandb.Artifact("trained_model_directory", type="model_directory")
-                artifact.add_dir("models_archive")
-                run.log_artifact(artifact)
+        #         # Log the model as an artifact in wandb
+        #         artifact = wandb.Artifact("trained_model_directory", type="model_directory")
+        #         artifact.add_dir("models_archive")
+        #         run.log_artifact(artifact)
 
                     
-        # rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
+        # # rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
 
-        wandb.agent(
-                     sweep_id=sweep_id, 
-                     function=lambda: train_sweep(data_loaders)
-                   )
-        wandb.finish()
+        # wandb.agent(
+        #              sweep_id=sweep_id, 
+        #              function= lambda: train_sweep(train_data_loaders)
+        #            )
+        # wandb.finish()
     elif train == TrainEnum.IRLDEPLOY:
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
