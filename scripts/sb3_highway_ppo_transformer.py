@@ -47,7 +47,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.IRLTRAIN
+train = TrainEnum.IRLDEPLOY
 
 
 
@@ -191,7 +191,6 @@ if __name__ == "__main__":
         # model.save("highway_attention_ppo/model")
     elif train == TrainEnum.IRLTRAIN:
         env_kwargs.update({'reward_oracle':None})
-
         project_name = f"random_env_gail_1"
         device = torch.device("cpu")
         
@@ -332,6 +331,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         env_kwargs.update({'reward_oracle':None})
+        append_key_to_dict_of_dict(env_kwargs,'config','mode',None)
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
         optimal_gail_agent                       = retrieve_agent(

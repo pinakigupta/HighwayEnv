@@ -51,7 +51,7 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
             with torch.no_grad():
                 try:  
                     print(type(agent))  
-                    action = agent.act(obs)
+                    action = agent.act(obs.flatten())
                 except:
                     try:
                         action = agent.predict(obs)
