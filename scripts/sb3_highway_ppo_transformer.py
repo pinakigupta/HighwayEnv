@@ -8,6 +8,7 @@ import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.policies import ActorCriticPolicy
 import os
 from enum import Enum
 import json
@@ -20,13 +21,12 @@ from generate_expert_data import expert_data_collector, retrieve_agent, extract_
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from utilities import *
+from utils import record_videos
 import warnings
 from imitation.algorithms import bc
 from python_config import sweep_config, env_kwargs
 import matplotlib.pyplot as plt
-import zipfile
 from imitation.algorithms import bc
-from tqdm import tqdm
 import importlib
 import pandas as pd
 import random
@@ -351,12 +351,13 @@ if __name__ == "__main__":
                                             agent=optimal_gail_agent, 
                                             env_kwargs=env_kwargs, 
                                             render_mode='human', 
-                                            num_workers= min(num_rollouts,n_cpu), 
+                                            num_workers= min(num_rollouts,1), 
                                             num_rollouts=num_rollouts
                                     )
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
         env = make_configure_env(**env_kwargs,duration=40)
+        env = record_videos(env)
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         env_kwargs.update({'reward_oracle':None})
         # RL_agent                            = retrieve_agent(
@@ -382,10 +383,11 @@ if __name__ == "__main__":
         model = torch.load(rl_agent_path, map_location=device)
         wandb.finish()
         
+        print(model)
         env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.features_extractor))
         gamma = 1.0
-        num_rollouts = 10
+        num_rollouts = 1
         for _ in range(num_rollouts):
             obs, info = env.reset()
             done = truncated = False
@@ -405,7 +407,7 @@ if __name__ == "__main__":
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         project = "BC_1"
         # device = 'cpu'
-        policy = DefaultActorCriticPolicy(env, device)
+        policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
         print("Default policy initialized ")
         
 

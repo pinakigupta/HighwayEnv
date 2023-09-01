@@ -1,26 +1,28 @@
 
-from pyvirtualdisplay import Display
 from gymnasium.wrappers import RecordVideo
+import gymnasium as gym
 from pathlib import Path
 import base64
-import torch.nn as nn
-import h5py
 
 
-display = Display(visible=0, size=(1400, 900))
-display.start()
+
+
 
 
 def record_videos(env, video_folder="videos"):
     wrapped = RecordVideo(env, video_folder=video_folder, episode_trigger=lambda e: True)
 
     # Capture intermediate frames
-    env.unwrapped.set_record_video_wrapper(wrapped)
+    env.unwrapped.set_record_video_wrapper(wrapped) 
 
     return wrapped
 
 
+
 def show_videos(path="videos"):
+    from pyvirtualdisplay import Display
+    display = Display(visible=0, size=(1400, 900))
+    display.start()
     from IPython import display as ipythondisplay
     html = []
     for mp4 in Path(path).glob("*.mp4"):

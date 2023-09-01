@@ -65,7 +65,7 @@ def write_module_hierarchy_to_file(model, file):
 
     write_module_recursive(model, file, processed_submodules=set())
 
-def DefaultActorCriticPolicy(env, device):
+def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
@@ -83,23 +83,24 @@ def DefaultActorCriticPolicy(env, device):
         policy = ActorCriticPolicy(
                                     observation_space=env.observation_space,
                                     action_space=env.action_space,
-                                    lr_schedule=lr_schedule
+                                    lr_schedule=lr_schedule,
+                                    **policy_kwargs
                                   )
 
-        import torch
-        policy_net =  torch.nn.Sequential(
-                                            torch.nn.Linear(state_dim, 64),
-                                            torch.nn.LeakyReLU(),
-                                            torch.nn.Dropout(0.2),
-                                         ).to(device)
-        policy.mlp_extractor.policy_net = policy_net
-        action_net =  torch.nn.Sequential(
-                                            torch.nn.Linear(64, 50),
-                                            torch.nn.Tanh(),
-                                            torch.nn.Dropout(0.3),
-                                            torch.nn.Linear(50, action_dim),
-                                         ).to(device)
-        policy.action_net =     action_net
+        # import torch
+        # policy_net =  torch.nn.Sequential(
+        #                                     torch.nn.Linear(state_dim, 64),
+        #                                     torch.nn.LeakyReLU(),
+        #                                     torch.nn.Dropout(0.2),
+        #                                  ).to(device)
+        # policy.mlp_extractor.policy_net = policy_net
+        # action_net =  torch.nn.Sequential(
+        #                                     torch.nn.Linear(64, 50),
+        #                                     torch.nn.Tanh(),
+        #                                     torch.nn.Dropout(0.3),
+        #                                     torch.nn.Linear(50, action_dim),
+        #                                  ).to(device)
+        # policy.action_net =     action_net
         return policy   
 
 class CustomDataset(Dataset):
