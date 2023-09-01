@@ -6,7 +6,8 @@ env_kwargs = {
     'config': {
         'simulation_frequency': 10,
         "lanes_count": 4,
-        "vehicles_count": 100,
+        "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
+        "vehicles_count": 'random',
         'politeness': 0,
         "action": {
                 "type": "DiscreteMetaAction",

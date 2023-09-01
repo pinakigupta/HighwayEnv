@@ -45,9 +45,12 @@ class Vehicle(RoadObject):
         self.log = []
         self.history = deque(maxlen=self.HISTORY_SIZE)
         self.kwargs = kwargs
+        if 'target_speed' in kwargs:
+            self.target_speed = kwargs['target_speed']
 
     @classmethod
-    def create_random(cls, road: Road,
+    def create_random(cls, 
+                      road: Road,
                       speed: float = None,
                       lane_from: Optional[str] = None,
                       lane_to: Optional[str] = None,
@@ -90,8 +93,9 @@ class Vehicle(RoadObject):
                 x0 -= offset * road.np_random.uniform(0.9, 1.1)
             else:
                 x0 = np.max([lane.local_coordinates(v.position)[0] for v in road.vehicles]) 
-                x0 += offset * road.np_random.uniform(0.9, 1.1)                
-        v = cls(road, lane.position(x0, 0), lane.heading_at(x0), speed, **kwargs)
+                x0 += offset * road.np_random.uniform(0.9, 1.1) 
+        target_speed = road.np_random.uniform(1.0, 1.25*lane.speed_limit)               
+        v = cls(road, lane.position(x0, 0), lane.heading_at(x0), speed, target_speed = target_speed, **kwargs)
         return v
 
     @classmethod
