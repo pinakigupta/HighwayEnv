@@ -168,7 +168,7 @@ class HighwayEnv(AbstractEnv):
         if front_vehicle:
             s = self.vehicle.lane_distance_to(front_vehicle)
             timegap = s/max(self.vehicle.speed,1)
-            if s < self.vehicle.LENGTH/2 or timegap < 1:
+            if s < self.vehicle.LENGTH/2 or timegap < 0.5:
                 terminated = True
                 self.vehicle.crashed = True
         return terminated
