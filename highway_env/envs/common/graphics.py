@@ -100,6 +100,9 @@ class EnvViewer(object):
         """Display the road and vehicles on a pygame window."""
         if not self.enabled:
             return
+        if hasattr(self.env.vehicle, 'actions'):
+            if self.env.vehicle.actions:
+                self.set_agent_action_sequence(self.env.vehicle.actions)
         pygame.display.set_caption(
                                    "Highway-env, ego v: "
                                    + f"{self.env.vehicle.speed:.2f}" 

@@ -47,7 +47,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLTRAIN
+train = TrainEnum.RLDEPLOY
 
 
 
@@ -387,13 +387,17 @@ if __name__ == "__main__":
         env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.features_extractor))
         gamma = 1.0
-        num_rollouts = 1
+        num_rollouts = 10
         for _ in range(num_rollouts):
             obs, info = env.reset()
+            env.step(4)
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
                 action, _ = model.predict(obs)
+                env.vehicle.actions = []
+                # for _ in range(10):
+                #     env.vehicle.actions.append(action.astype(int).tolist())
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
