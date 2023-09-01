@@ -64,6 +64,7 @@ class HighwayEnv(AbstractEnv):
         self._create_road()
         self._create_vehicles()
         self.ego_x0 = self.vehicle.position[0]
+        self.step(4)
 
     def _create_road(self) -> None:
         """Create a road composed of straight adjacent lanes."""
@@ -109,7 +110,7 @@ class HighwayEnv(AbstractEnv):
         weighed_reward = [self.config.get(name, 0) * reward for name, reward in rewards.items()]
         reward = sum(weighed_reward)
         obs = self.observation_type.observe()
-        if self.reward_oracle is not None:
+        if hasattr(self, 'reward_oracle') and self.reward_oracle is not None:
             import torch
             from torch import FloatTensor, squeeze, zeros
             obs = FloatTensor(obs)
