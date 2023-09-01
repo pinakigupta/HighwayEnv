@@ -8,6 +8,7 @@ import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.policies import ActorCriticPolicy
 import os
 from enum import Enum
 import json
@@ -46,7 +47,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLDEPLOY
+train = TrainEnum.BC
 
 
 
@@ -406,7 +407,7 @@ if __name__ == "__main__":
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         project = "BC_1"
         # device = 'cpu'
-        policy = DefaultActorCriticPolicy(env, device)
+        policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
         print("Default policy initialized ")
         
 
