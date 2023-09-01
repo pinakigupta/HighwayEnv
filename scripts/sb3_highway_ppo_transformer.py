@@ -390,6 +390,7 @@ if __name__ == "__main__":
         num_rollouts = 10
         for _ in range(num_rollouts):
             obs, info = env.reset()
+            env.step(4)
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
