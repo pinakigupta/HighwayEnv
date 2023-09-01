@@ -47,7 +47,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.IRLDEPLOY
+train = TrainEnum.RLTRAIN
 
 
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         model = PPO(
                     "MlpPolicy", 
                     env,
-                    n_steps=512 // n_cpu,
+                    n_steps=2048 // n_cpu,
                     batch_size=batch_size,
                     learning_rate=2e-3,
                     policy_kwargs=policy_kwargs,

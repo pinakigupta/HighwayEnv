@@ -12,7 +12,7 @@ from highway_env.vehicle.kinematics import Vehicle
 
 Observation = np.ndarray
 speed_reward_spd = [5, 10, 15, 20, 25, 30]
-speed_reward_rwd = [0.0 , 0.0, 0.0, 0.8, 1.0, 1.0]
+speed_reward_rwd = [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0]
 
 class HighwayEnv(AbstractEnv):
     """
