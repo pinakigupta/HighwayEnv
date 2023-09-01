@@ -147,7 +147,8 @@ class HighwayEnv(AbstractEnv):
             avg_speed = self.ego_travel/self.time
             travel_reward = np.clip(np.interp(avg_speed, speed_reward_spd, speed_reward_rwd),0,1)
             # print("travel_reward ", travel_reward)
-        
+    
+
         return {
             "collision_reward": float(self.vehicle.crashed),
             "right_lane_reward": 0 , #lane / max(len(neighbours) - 1, 1),
@@ -162,6 +163,13 @@ class HighwayEnv(AbstractEnv):
         """The episode is over if the ego vehicle crashed."""
         terminated = (self.vehicle.crashed or
                 self.config["offroad_terminal"] and not self.vehicle.on_road)
+        front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self.vehicle, self.vehicle.lane_index)
+        if front_vehicle:
+            s = self.vehicle.lane_distance_to(front_vehicle)
+            timegap = s/max(self.vehicle.speed,1)
+            if s < self.vehicle.LENGTH/2 or timegap < 1:
+                terminated = True
+                self.vehicle.crashed = True
         return terminated
 
     def _is_truncated(self) -> bool:
