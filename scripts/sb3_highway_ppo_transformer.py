@@ -17,7 +17,7 @@ from datetime import datetime
 from torch import FloatTensor
 import shutil
 from models.gail import GAIL
-from generate_expert_data import expert_data_collector, retrieve_agent, extract_post_processed_expert_data
+from generate_expert_data import expert_data_collector, retrieve_agent
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from utilities import *
@@ -47,7 +47,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLDEPLOY
+train = TrainEnum.EXPERT_DATA_COLLECTION
 
 
 
@@ -119,7 +119,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
         expert_data_collector(  
                                 oracle_agent,
-                                data_folder_path = extract_path,
+                                extract_path = extract_path,
                                 zip_filename=zip_filename,
                                 delta_iterations = 10,
                                 **{**env_kwargs, **{'expert':None}}           
@@ -201,7 +201,6 @@ if __name__ == "__main__":
         # expert_data_file = "expert_train_data_0.h5"
 
 
-        # exp_obs, exp_acts, _ = extract_post_processed_expert_data(expert_data_file)
         # exp_obs = FloatTensor(exp_obs)
         # exp_acts = FloatTensor(exp_acts)
         train_data_loader, _ , _                                     = create_dataloaders(
@@ -462,7 +461,7 @@ if __name__ == "__main__":
                 if not last_epoch and DAGGER:
                     expert_data_collector(
                                             trainer.policy, # This is the exploration policy
-                                            data_folder_path = extract_path,
+                                            extract_path = extract_path,
                                             zip_filename=zip_filename,
                                             delta_iterations = 100,
                                             **{

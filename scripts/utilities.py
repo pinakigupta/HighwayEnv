@@ -286,6 +286,10 @@ class DownSamplingSampler(SubsetRandomSampler):
         return len(self.indices)
 
 def create_dataloaders(zip_filename, extract_path, device, **kwargs):
+
+    # Create the extract_path if it doesn't exist
+    shutil.rmtree(extract_path)
+    os.makedirs(extract_path)
     # Extract the HDF5 files from the zip archive
     # These files may be alredy existing because of a previous post process step.
     with zipfile.ZipFile(zip_filename, 'r') as archive:
@@ -299,9 +303,9 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
         hdf5_val_file_names = [os.path.join(extract_path, name) 
                                     for name in archive.namelist() 
                                     if name.endswith('.h5') and "val" in name]            
-
-    # Create separate datasets for each HDF5 file
+        # Create separate datasets for each HDF5 file
     train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
+
 
     # Create a combined dataset from the individual datasets
     combined_train_dataset = ConcatDataset(train_datasets)
