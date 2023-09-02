@@ -169,7 +169,7 @@ class HighwayEnv(AbstractEnv):
         terminated = (self.vehicle.crashed or
                 self.config["offroad_terminal"] and not self.vehicle.on_road)
         front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self.vehicle, self.vehicle.lane_index)
-        if front_vehicle:
+        if front_vehicle and (not self.config['deploy']):
             s = self.vehicle.lane_distance_to(front_vehicle)
             timegap = s/max(self.vehicle.speed,1)
             if s < self.vehicle.LENGTH/2 or timegap < 0.5:
