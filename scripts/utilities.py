@@ -288,7 +288,8 @@ class DownSamplingSampler(SubsetRandomSampler):
 def create_dataloaders(zip_filename, extract_path, device, **kwargs):
 
     # Create the extract_path if it doesn't exist
-    shutil.rmtree(extract_path)
+    if os.path.exists(extract_path):
+        shutil.rmtree(extract_path)
     os.makedirs(extract_path)
     # Extract the HDF5 files from the zip archive
     # These files may be alredy existing because of a previous post process step.

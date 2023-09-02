@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
+train = TrainEnum.BC
 
 
 
@@ -118,6 +118,7 @@ if __name__ == "__main__":
                                                                 project="random_env_gail_1",
                                                              )
         append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
+        append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         expert_data_collector(  
                                 oracle_agent,
                                 extract_path = extract_path,
@@ -413,6 +414,8 @@ if __name__ == "__main__":
 
             print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.BC:
+        env_kwargs.update({'reward_oracle':None})
+        append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         env = make_configure_env(**env_kwargs)
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n

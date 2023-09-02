@@ -424,7 +424,8 @@ def expert_data_collector(
     validation_temp_data_file = f'expert_V_data_.h5'
     device = torch.device("cpu")    
     append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
-    shutil.rmtree(extract_path)
+    if os.path.exists(extract_path):
+        shutil.rmtree(extract_path)
     os.makedirs(extract_path)
     with zipfile.ZipFile(zip_filename, 'a') as zipf:
         # Create an outer tqdm progress bar
