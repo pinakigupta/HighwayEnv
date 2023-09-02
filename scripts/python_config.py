@@ -4,6 +4,7 @@ env_kwargs = {
     'render_mode': 'rgb_array',
     'expert': 'MDPVehicle',
     'config': {
+        'deploy': False,
         'simulation_frequency': 10,
         "lanes_count": 4,
         "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
