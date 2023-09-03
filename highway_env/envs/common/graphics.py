@@ -87,6 +87,7 @@ class EnvViewer(object):
                                                                           1 / 3 / self.env.config["policy_frequency"],
                                                                           1 / self.env.config["simulation_frequency"])
 
+
     def handle_events(self) -> None:
         """Handle pygame events by forwarding them to the display and environment vehicle."""
         for event in pygame.event.get():
@@ -107,7 +108,7 @@ class EnvViewer(object):
                                    "Highway-env, ego v: "
                                    + f"{self.env.vehicle.speed:.2f}" 
                                     " ACTION: " +   str(self.env.vehicle.mdp_action) 
-                                    + ":" + str(super(MDPVehicle,self.env.vehicle).discrete_action())
+                                    + ":" + str(self.env.vehicle.discrete_action()[0])
                                   )
                                    
         self.sim_surface.move_display_window_to(self.window_position())

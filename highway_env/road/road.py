@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 LaneIndex = Tuple[str, str, int]
 Route = List[LaneIndex]
 
-
 class RoadNetwork(object):
     graph: Dict[str, Dict[str, List[AbstractLane]]]
 
