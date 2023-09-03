@@ -334,11 +334,11 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     num_samples=int(least_represented_count * num_action_types )
     desired_num_samples = 10000  # Adjust this value as needed
     seed = 42
-    sampler = DownSamplingSampler(
-                                    labels = all_actions,
-                                    class_weights = class_weights, 
-                                    num_samples= num_samples
-                                 )
+    # sampler = DownSamplingSampler(
+    #                                 labels = all_actions,
+    #                                 class_weights = class_weights, 
+    #                                 num_samples= num_samples
+    #                              )
     print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
     train_data_loader = DataLoader(
                                         shuffled_combined_train_dataset, 

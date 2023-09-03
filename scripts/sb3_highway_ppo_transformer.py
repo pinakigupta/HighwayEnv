@@ -477,7 +477,7 @@ if __name__ == "__main__":
                                             trainer.policy, # This is the exploration policy
                                             extract_path = extract_path,
                                             zip_filename=zip_filename,
-                                            delta_iterations = 100,
+                                            delta_iterations = 2,
                                             **{
                                                 **env_kwargs, 
                                                 **{'expert':'MDPVehicle'}
