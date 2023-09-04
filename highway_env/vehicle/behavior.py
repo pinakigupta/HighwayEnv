@@ -571,6 +571,8 @@ class MDPVehicle(IDMVehicle):
         self.target_speeds = np.array(target_speeds) if target_speeds is not None else self.DEFAULT_TARGET_SPEEDS
         self.speed_index = self.speed_to_index(self.target_speed)
         self.target_speed = self.index_to_speed(self.speed_index)
+        self.LENGTH = kwargs['EGO_LENGTH']
+        self.WIDTH =  kwargs['EGO_WIDTH']
 
     def discrete_action(self):
         return super(MDPVehicle,self).discrete_action()
