@@ -8,7 +8,7 @@ import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.policies import ActorCriticPolicy
+from sb3_contrib import  RecurrentPPO
 import os
 from enum import Enum
 import json
@@ -74,6 +74,7 @@ if __name__ == "__main__":
     
     DAGGER = True
     policy_kwargs = dict(
+            # policy=MLPPolicy,
             features_extractor_class=CustomExtractor,
             features_extractor_kwargs=attention_network_kwargs,
         )
@@ -133,21 +134,22 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','EGO_WIDTH',4)
         env = make_vec_env(
                             make_configure_env, 
-                            n_envs=n_cpu, 
+                            n_envs=n_cpu*3, 
                             vec_env_cls=SubprocVecEnv, 
                             env_kwargs=env_kwargs
                           )
-        total_timesteps=200*1000
+
+        total_timesteps=200*10000
         # Set the checkpoint frequency
         checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
-        model = PPO(
-                    "MlpPolicy", 
-                    env,
-                    n_steps=2048 // n_cpu,
-                    batch_size=batch_size,
-                    learning_rate=2e-3,
-                    policy_kwargs=policy_kwargs,
-                    verbose=0,
+        model = RecurrentPPO(
+                        'MlpLstmPolicy',
+                        env,
+                        n_steps=2048 // n_cpu,
+                        batch_size=32,
+                        learning_rate=2e-3,
+                        policy_kwargs=policy_kwargs,
+                        verbose=0,
                     )
         
 
