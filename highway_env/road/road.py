@@ -321,12 +321,21 @@ class Road(object):
         if count:
             vehicles = vehicles[:2*count]
         front_vehicle, rear_vehicle = self.neighbour_vehicles(vehicle)
+        # print("front_vehicle ", front_vehicle, ' rear_vehicle ', rear_vehicle, vehicle.lane_index[2], front_vehicle.lane_index[2] , rear_vehicle.lane_index[2])
         for v in vehicles:
-            if v.lane_index is vehicle.lane_index:
-                if (v is not front_vehicle) or (v is not rear_vehicle):
-                    vehicles.remove(v)
-
-        vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), vehicle.lane_distance_to(v)))
+            if v.lane_index[2] is vehicle.lane_index[2]:
+                vehicles.remove(v)
+        if front_vehicle not in vehicles:
+            if front_vehicle is not None:
+                vehicles.append(front_vehicle)
+        if rear_vehicle not in vehicles:
+            if rear_vehicle is not None:
+                vehicles.append(rear_vehicle)
+        # print(" vehicles post ego lane clean up ", vehicles)
+        # for v in vehicles:
+        #     if v is None:
+        #         vehicles.remove(v)
+        vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), abs(vehicle.lane_distance_to(v))))
         if count:
             vehicles = vehicles[:count]
         # sort them according to y first. position[1] is y, sort them according to distance from ego then, for the same y

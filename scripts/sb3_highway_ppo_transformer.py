@@ -363,8 +363,9 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',30)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
         env_kwargs.update({'reward_oracle':None})
-        env = make_configure_env(**env_kwargs,duration=40)
+        env = make_configure_env(**env_kwargs)
         env = record_videos(env)
         # RL_agent                            = retrieve_agent(
         #                                                     artifact_version='trained_model_directory:latest',

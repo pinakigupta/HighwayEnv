@@ -543,7 +543,7 @@ class DefensiveVehicle(LinearVehicle):
 class MDPVehicle(IDMVehicle):
 
     """A controlled vehicle with a specified discrete range of allowed target speeds."""
-    DEFAULT_TARGET_SPEEDS = np.linspace(5, 35, 7)
+    DEFAULT_TARGET_SPEEDS = np.linspace(0, 35, 15)
 
     def __init__(self,
                  road: Road,
