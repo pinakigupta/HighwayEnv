@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BC
+train = TrainEnum.RLTRAIN
 
 
 
@@ -129,13 +129,14 @@ if __name__ == "__main__":
     elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
         env_kwargs.update({'reward_oracle':None})
         append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
+        append_key_to_dict_of_dict(env_kwargs,'config','EGO_LENGTH',8)
+        append_key_to_dict_of_dict(env_kwargs,'config','EGO_WIDTH',4)
         env = make_vec_env(
                             make_configure_env, 
                             n_envs=n_cpu, 
                             vec_env_cls=SubprocVecEnv, 
                             env_kwargs=env_kwargs
                           )
-
         total_timesteps=200*1000
         # Set the checkpoint frequency
         checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps

@@ -5,6 +5,8 @@ env_kwargs = {
     'expert': 'MDPVehicle',
     'config': {
         'deploy': False,
+        "EGO_LENGTH": 5,
+        "EGO_WIDTH": 2,
         'simulation_frequency': 10,
         "lanes_count": 4,
         "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
