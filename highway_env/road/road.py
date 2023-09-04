@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 LaneIndex = Tuple[str, str, int]
 Route = List[LaneIndex]
 
-
 class RoadNetwork(object):
     graph: Dict[str, Dict[str, List[AbstractLane]]]
 
@@ -321,7 +320,7 @@ class Road(object):
             vehicles = sorted(vehicles, key=lambda v: abs(vehicle.lane_distance_to(v)))
         if count:
             vehicles = vehicles[:count]
-        vehicles =  sorted(vehicles, key=lambda v: (v.lane_index[2]-vehicle.lane_index[2], vehicle.lane_distance_to(v)))
+        vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), vehicle.lane_distance_to(v)))
         # sort them according to y first. position[1] is y, sort them according to distance from ego then, for the same y
         # vehicles = sorted(vehicles, key=lambda v: vehicle.lane_distance_to(v)) # 
         return vehicles

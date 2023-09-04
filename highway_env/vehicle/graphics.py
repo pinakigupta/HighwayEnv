@@ -23,12 +23,14 @@ class VehicleGraphics(object):
     PURPLE = (200, 0, 150)
     DEFAULT_COLOR = YELLOW
     EGO_COLOR = GREEN
+    SCALING_FACTOR = 1.3
+    scaling = 5.5
 
     @classmethod
     def display(cls, vehicle: Vehicle, surface: "WorldSurface",
                 transparent: bool = False,
                 offscreen: bool = False,
-                label: bool = False,
+                label: bool = True,
                 draw_roof: bool = False,
                 color = None) -> None:
         """
@@ -105,8 +107,8 @@ class VehicleGraphics(object):
 
         # Label
         if label:
-            font = pygame.font.Font(None, 15)
-            text = "#{}".format(id(v) % 1000)
+            font = pygame.font.Font(None, int(5*cls.scaling))
+            text = "{}".format(id(v) % 1000)
             text = font.render(text, 1, (10, 10, 10), (255, 255, 255))
             surface.blit(text, position)
 
@@ -149,6 +151,7 @@ class VehicleGraphics(object):
         """
         for vehicle in states:
             cls.display(vehicle, surface, transparent=True, offscreen=offscreen)
+            
 
     @classmethod
     def display_history(cls, vehicle: Vehicle, surface: "WorldSurface", frequency: float = 3, duration: float = 2,
@@ -178,10 +181,10 @@ class VehicleGraphics(object):
             color = cls.RED
         elif isinstance(vehicle, LinearVehicle):
             color = cls.YELLOW
-        elif isinstance(vehicle, IDMVehicle):
-            color = cls.BLUE
         elif isinstance(vehicle, MDPVehicle):
             color = cls.EGO_COLOR
+        elif isinstance(vehicle, IDMVehicle):
+            color = cls.BLUE
         if transparent:
             color = (color[0], color[1], color[2], 30)
         return color
@@ -201,3 +204,20 @@ class VehicleGraphics(object):
             min(int(color[1] / ratio), 255),
             min(int(color[2] / ratio), 255),
         ) + color[3:]
+
+
+    def handle_event(self, event: pygame.event.EventType) -> None:
+        """
+        Handle pygame events for moving and zooming in the displayed area.
+
+        :param event: a pygame event
+        """
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_l:
+                self.scaling *= 1 / self.SCALING_FACTOR
+            if event.key == pygame.K_o:
+                self.scaling *= self.SCALING_FACTOR
+            if event.key == pygame.K_m:
+                self.centering_position[0] -= self.MOVING_FACTOR
+            if event.key == pygame.K_k:
+                self.centering_position[0] += self.MOVING_FACTOR
