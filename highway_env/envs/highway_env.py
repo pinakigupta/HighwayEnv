@@ -75,7 +75,7 @@ class HighwayEnv(AbstractEnv):
         """Create some new random vehicles of a given type, and add them on the road."""
         other_vehicles_type = utils.class_from_path(self.config["other_vehicles_type"])
         if self.config["vehicles_count"] == 'random':
-            self.config["vehicles_count"] = self.np_random.integers(0, 100)
+            self.config["vehicles_count"] = self.np_random.integers(0, self.config['max_vehicles_count'])
         if self.config["vehicles_density"] == 'random':
             self.config["vehicles_density"] = self.np_random.uniform(low=0.5, high=10)
         other_per_controlled = near_split(self.config["vehicles_count"], num_bins=self.config["controlled_vehicles"])
@@ -171,8 +171,8 @@ class HighwayEnv(AbstractEnv):
         front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self.vehicle, self.vehicle.lane_index)
         if front_vehicle and (not self.config['deploy']):
             s = self.vehicle.lane_distance_to(front_vehicle)
-            timegap = s/max(self.vehicle.speed,1)
-            if s < self.vehicle.LENGTH/2 or timegap < 0.5:
+            timegap = s/max(self.vehicle.speed,1.0)
+            if s < self.vehicle.LENGTH/2 or timegap < self.config['headway_timegap']:
                 terminated = True
                 self.vehicle.crashed = True
         return terminated

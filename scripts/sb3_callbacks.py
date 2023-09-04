@@ -60,6 +60,7 @@ class CustomCurriculamCallback(BaseCallback):
         if ep_rew_mean > 0.5:
             config = self.training_env.env_method("get_config")[0]
             config['duration'] += 5
+            config['max_vehicles_count'] = int(1.15 *  config['max_vehicles_count'])
             self.training_env.env_method("set_config", config)
             print("Updated env duration to ", self.training_env.env_method("get_config")[0]['duration'])
         print("----------------------------------------------------------------------------------------")

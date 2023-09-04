@@ -9,7 +9,9 @@ env_kwargs = {
         "lanes_count": 4,
         "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
         "vehicles_count": 'random',
+        "max_vehicles_count": 10,
         'politeness': 0,
+        'headway_timegap': 1.0,
         "action": {
                 "type": "DiscreteMetaAction",
             },
