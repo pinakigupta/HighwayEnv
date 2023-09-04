@@ -14,6 +14,7 @@ import wandb
 import json
 import zipfile
 import os
+import shutil
 from highway_env.vehicle.behavior import MDPVehicle
 
 from forward_simulation import append_key_to_dict_of_dict
@@ -413,7 +414,7 @@ def retrieve_agent( artifact_version, agent_model ,project = None):
 
 def expert_data_collector(
                             oracle_agent,
-                            data_folder_path,
+                            extract_path,
                             zip_filename,
                             **env_kwargs
                             ):
@@ -423,17 +424,23 @@ def expert_data_collector(
     validation_temp_data_file = f'expert_V_data_.h5'
     device = torch.device("cpu")    
     append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
+    if os.path.exists(extract_path):
+        shutil.rmtree(extract_path)
+    os.makedirs(extract_path)
     with zipfile.ZipFile(zip_filename, 'a') as zipf:
         # Create an outer tqdm progress bar
-        highest_filenum = max(
-                                (
-                                    int(filename.split('_')[3].split('.')[0])
-                                    for filename in os.listdir(data_folder_path)
-                                    if filename.startswith('expert_train_data_') and filename.endswith('.h5')
-                                    and filename.split('_')[3].split('.')[0].isdigit()
-                                ),
-                                default=-1
-                                )
+        highest_filenum = 0
+        if os.path.exists(extract_path):
+            zipf.extractall(extract_path)
+            highest_filenum = max(
+                                    (
+                                        int(filename.split('_')[3].split('.')[0])
+                                        for filename in os.listdir(extract_path)
+                                        if filename.startswith('expert_train_data_') and filename.endswith('.h5')
+                                        and filename.split('_')[3].split('.')[0].isdigit()
+                                    ),
+                                    default=-1
+                                    )
         total = 0
         if 'total_iterations' in env_kwargs:
             total_iterations = env_kwargs['total_iterations']  # The total number of loop iterations
@@ -443,6 +450,8 @@ def expert_data_collector(
             total_iterations = highest_filenum + total +1 
         outer_bar = tqdm(total=total, desc="Outer Loop Progress")
         print("highest_filenum ", highest_filenum, " total_iterations ", total_iterations)
+        if not os.path.exists(extract_path):
+            os.makedirs(extract_path)
         for filenum in range(highest_filenum+1, total_iterations):
             collect_expert_data  (
                                         oracle=oracle_agent,
@@ -452,8 +461,8 @@ def expert_data_collector(
                                         **env_kwargs
                                     )
             # print("collect data complete")
-            exp_file = f'{data_folder_path}/expert_train_data_{filenum}.h5'
-            val_file = f'{data_folder_path}/expert_val_data_{filenum}.h5'
+            exp_file = f'{extract_path}/expert_train_data_{filenum}.h5'
+            val_file = f'{extract_path}/expert_val_data_{filenum}.h5'
             exp_zip_file = f'expert_train_data_{filenum}.h5'
             val_zip_file = f'expert_val_data_{filenum}.h5'
             postprocess(expert_temp_data_file, exp_file)
@@ -462,3 +471,4 @@ def expert_data_collector(
             zipf.write(val_file, val_zip_file)
             outer_bar.update(1)
         outer_bar.close()
+        shutil.rmtree(extract_path)
