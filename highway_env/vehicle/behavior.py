@@ -55,7 +55,7 @@ class IDMVehicle(ControlledVehicle):
         # Lateral policy parameters
         self.LANE_CHANGE_MIN_ACC_GAIN = 0.2  # [m/s2]
         self.LANE_CHANGE_MAX_BRAKING_IMPOSED = 2.0  # [m/s2]
-        self.LANE_CHANGE_DELAY = 1.0  # [s]
+        self.LANE_CHANGE_DELAY = 3.0  # [s]
         self._discrete_action = "Reset"
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         if ('politeness' in self.kwargs) and (self.kwargs['politeness'] is 'random'):

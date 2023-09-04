@@ -28,7 +28,7 @@ class ControlledVehicle(Vehicle):
     KP_A = 1 / TAU_ACC
     KP_HEADING = 1 / TAU_HEADING
     KP_LATERAL = 1 / TAU_LATERAL  # [1/s]
-    MAX_STEERING_ANGLE = np.pi / 3  # [rad]
+    MAX_STEERING_ANGLE = np.pi / 15  # [rad]
     DELTA_SPEED = 5  # [m/s]
 
     def __init__(self,
