@@ -319,8 +319,16 @@ class Road(object):
         if sort:
             vehicles = sorted(vehicles, key=lambda v: abs(vehicle.lane_distance_to(v)))
         if count:
-            vehicles = vehicles[:count]
+            vehicles = vehicles[:2*count]
+        front_vehicle, rear_vehicle = self.neighbour_vehicles(vehicle)
+        for v in vehicles:
+            if v.lane_index is vehicle.lane_index:
+                if (v is not front_vehicle) or (v is not rear_vehicle):
+                    vehicles.remove(v)
+
         vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), vehicle.lane_distance_to(v)))
+        if count:
+            vehicles = vehicles[:count]
         # sort them according to y first. position[1] is y, sort them according to distance from ego then, for the same y
         # vehicles = sorted(vehicles, key=lambda v: vehicle.lane_distance_to(v)) # 
         return vehicles

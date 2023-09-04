@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLTRAIN
+train = TrainEnum.BCDEPLOY
 
 
 
@@ -362,7 +362,7 @@ if __name__ == "__main__":
                                     )
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
-        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',30)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env_kwargs.update({'reward_oracle':None})
@@ -411,11 +411,11 @@ if __name__ == "__main__":
                 # action = [key for key, val in ACTIONS_ALL.items() if val == env.vehicle.discrete_action()[0]][0]
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
-                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 env.render()
                 end_time = time.time()
                 # time.sleep(max(0.0, 1/env.config['simulation_frequency'] - (end_time - start_time))) # smart sleep
 
+            print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
             print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.BC:
         env_kwargs.update({'reward_oracle':None})
@@ -607,7 +607,7 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',10)
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',100)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         env = make_configure_env(**env_kwargs)
@@ -626,6 +626,7 @@ if __name__ == "__main__":
         #                                 num_rollouts=num_rollouts
         #                             )
         # print(" Mean reward ", reward)
+        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=BC_agent.policy.features_extractor))
         for _ in range(num_rollouts):
             obs, info = env.reset()
             done = truncated = False
@@ -637,8 +638,8 @@ if __name__ == "__main__":
                     action, _ = BC_agent.policy.predict(obs)
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                     env.render()
+                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.ANALYSIS:
         train_data_loader, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(

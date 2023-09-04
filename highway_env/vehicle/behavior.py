@@ -55,7 +55,7 @@ class IDMVehicle(ControlledVehicle):
         # Lateral policy parameters
         self.LANE_CHANGE_MIN_ACC_GAIN = 0.2  # [m/s2]
         self.LANE_CHANGE_MAX_BRAKING_IMPOSED = 2.0  # [m/s2]
-        self.LANE_CHANGE_DELAY = 1.0  # [s]
+        self.LANE_CHANGE_DELAY = 3.0  # [s]
         self._discrete_action = "Reset"
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         if ('politeness' in self.kwargs) and (self.kwargs['politeness'] is 'random'):
@@ -66,6 +66,7 @@ class IDMVehicle(ControlledVehicle):
         self.timer = timer or (np.sum(self.position)*np.pi) % self.LANE_CHANGE_DELAY
         self.target_speed_timer = 0.0
         self.observer = None
+        self.side_lanes = []
 
     def randomize_behavior(self):
         self.DELTA = self.road.np_random.uniform(low=self.DELTA_RANGE[0], high=self.DELTA_RANGE[1])
@@ -243,10 +244,10 @@ class IDMVehicle(ControlledVehicle):
         self.timer = 0
 
         # decide to make a lane change
-        side_lanes = self.road.network.side_lanes(self.lane_index)
+        self.side_lanes = self.road.network.side_lanes(self.lane_index)
         # if isinstance(self, MDPVehicle):
         #     print(" side_lanes ", [ indices[2] for indices in side_lanes])
-        for lane_index in side_lanes:
+        for lane_index in self.side_lanes:
             # Is the candidate lane close enough?
             if not self.road.network.get_lane(lane_index).is_reachable_from(self.position):
                 continue
