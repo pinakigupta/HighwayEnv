@@ -30,8 +30,8 @@ env_kwargs = {
         },
         "policy_frequency": 2,
         "duration": 40,
-        "screen_width": 960,
-        "screen_height": 180,
+        "screen_width": 960*3,
+        "screen_height": 180*2,
         "real_time_rendering": False
     }
 }

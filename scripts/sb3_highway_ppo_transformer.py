@@ -359,7 +359,7 @@ if __name__ == "__main__":
                                     )
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
-        # append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         env_kwargs.update({'reward_oracle':None})
@@ -380,7 +380,7 @@ if __name__ == "__main__":
         # Access the run containing the logged artifact
 
         # Download the artifact
-        artifact = wandb.use_artifact("trained_model:v9")
+        artifact = wandb.use_artifact("trained_model:latest")
         artifact_dir = artifact.download()
 
         # Load the model from the downloaded artifact
@@ -405,9 +405,10 @@ if __name__ == "__main__":
                 env.vehicle.actions = []
                 # for _ in range(10):
                 #     env.vehicle.actions.append(action.astype(int).tolist())
+                # action = [key for key, val in ACTIONS_ALL.items() if val == env.vehicle.discrete_action()[0]][0]
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                # print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 env.render()
                 end_time = time.time()
                 # time.sleep(max(0.0, 1/env.config['simulation_frequency'] - (end_time - start_time))) # smart sleep
@@ -601,7 +602,7 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
+        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',10)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         env = make_configure_env(**env_kwargs)

@@ -243,7 +243,10 @@ class IDMVehicle(ControlledVehicle):
         self.timer = 0
 
         # decide to make a lane change
-        for lane_index in self.road.network.side_lanes(self.lane_index):
+        side_lanes = self.road.network.side_lanes(self.lane_index)
+        # if isinstance(self, MDPVehicle):
+        #     print(" side_lanes ", [ indices[2] for indices in side_lanes])
+        for lane_index in side_lanes:
             # Is the candidate lane close enough?
             if not self.road.network.get_lane(lane_index).is_reachable_from(self.position):
                 continue
@@ -271,8 +274,18 @@ class IDMVehicle(ControlledVehicle):
         new_following_pred_a = self.acceleration(ego_vehicle=new_following, front_vehicle=self)
         old_preceding, old_following = self.road.neighbour_vehicles(self)
         self_pred_a = self.acceleration(ego_vehicle=self, front_vehicle=new_preceding)
-        if isinstance(self, MDPVehicle):
-            print("self.route ", self.route)
+        self_a = self.acceleration(ego_vehicle=self, front_vehicle=old_preceding)
+        old_following_a = self.acceleration(ego_vehicle=old_following, front_vehicle=self)
+        old_following_pred_a = self.acceleration(ego_vehicle=old_following, front_vehicle=old_preceding)
+        jerk = self_pred_a - self_a + self.POLITENESS * (new_following_pred_a - new_following_a ) 
+                                                        #    + (old_following_pred_a - old_following_a)
+        delta_idx = lane_index[2] - self.lane_index[2]
+        # if isinstance(self, MDPVehicle):
+        #     print(f'jerk: {jerk:0.2f}, lane index: {lane_index[2]:0.2f} , current_lane index: {self.lane_index[2]:0.2f} , delta_idx: {delta_idx:0.2f}, self_a: {self_a:0.2f} , self_pred_a : {self_pred_a:0.2f}')
+        #     print(f'new_following_a: {new_following_a:0.2f}, new_following_pred_a:{new_following_pred_a:0.2f}, politeness: {self.POLITENESS:0.2f}')
+        #     print(f' ego id : {id(self)%1000},  old_preceding: {id(old_preceding)% 1000}, new_following : {id(new_following)% 1000} , new_preceding: {id(new_preceding)% 1000}')
+        #     print("------------------------------------------------------------------")
+
             
         if new_following_pred_a < -self.LANE_CHANGE_MAX_BRAKING_IMPOSED:
             return False
@@ -288,15 +301,6 @@ class IDMVehicle(ControlledVehicle):
 
         # Is there an acceleration advantage for me and/or my followers to change lane?
         else:
-            self_a = self.acceleration(ego_vehicle=self, front_vehicle=old_preceding)
-            old_following_a = self.acceleration(ego_vehicle=old_following, front_vehicle=self)
-            old_following_pred_a = self.acceleration(ego_vehicle=old_following, front_vehicle=old_preceding)
-            jerk = self_pred_a - self_a + self.POLITENESS * (new_following_pred_a - new_following_a ) 
-                                                         #    + (old_following_pred_a - old_following_a)
-            if isinstance(self, MDPVehicle):
-                print(f'jerk: {jerk:0.2f}, lane index: {lane_index[2]:0.2f} , self_a: {self_a:0.2f} , self_pred_a : {self_pred_a:0.2f} , \
-                       new_following_a: {new_following_a:0.2f}, new_following_pred_a:{new_following_pred_a:0.2f}, politeness: {self.POLITENESS:0.2f}' )
-            
             if jerk < self.LANE_CHANGE_MIN_ACC_GAIN:
                 return False
 
