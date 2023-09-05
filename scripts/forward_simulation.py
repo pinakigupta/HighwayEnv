@@ -50,7 +50,7 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
         while not (done or truncated):
             with torch.no_grad():
                 try:  
-                    print(type(agent))  
+                    # print(type(agent))  
                     action = agent.act(obs.flatten())
                 except:
                     try:

@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BC
+train = TrainEnum.IRLDEPLOY
 
 
 
@@ -110,6 +110,7 @@ if __name__ == "__main__":
 
     batch_size = sweep_config['parameters']['batch_size']['values'][0]
     num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
+    num_deploy_rollouts = 5
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
@@ -285,9 +286,9 @@ if __name__ == "__main__":
         reward = simulate_with_model(
                                             agent=optimal_gail_agent, 
                                             env_kwargs=env_kwargs, 
-                                            render_mode='human', 
-                                            num_workers= min(num_rollouts,1), 
-                                            num_rollouts=num_rollouts
+                                            render_mode=None, 
+                                            num_workers= 1, 
+                                            num_rollouts=num_deploy_rollouts
                                     )
         print(" Mean reward ", reward)
     elif train == TrainEnum.RLDEPLOY:
@@ -303,11 +304,6 @@ if __name__ == "__main__":
         #                                                     agent_model = 'RL_agent_final.pth',
         #                                                     project="RL"
         #                                                     )
-        # with open('highway_attention_ppo/network_hierarchy.txt', 'w') as file:
-        #     file.write("-------------------------- Policy network  ---------------------------------\n")
-        #     write_module_hierarchy_to_file(model.policy, file)
-        #     file.write("-------------------------- Value function ----------------------------------\n")
-        #     write_module_hierarchy_to_file(model.policy.value_net, file)
         
         wandb.init(project="RL", name="inference")
         # Access the run containing the logged artifact
@@ -325,8 +321,7 @@ if __name__ == "__main__":
         env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.features_extractor))
         gamma = 1.0
-        num_rollouts = 10
-        for _ in range(num_rollouts):
+        for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
             env.step(4)
             done = truncated = False
@@ -336,15 +331,10 @@ if __name__ == "__main__":
                 start_time = time.time()
                 action, _ = model.predict(obs)
                 env.vehicle.actions = []
-                # for _ in range(10):
-                #     env.vehicle.actions.append(action.astype(int).tolist())
-                # action = [key for key, val in ACTIONS_ALL.items() if val == env.vehicle.discrete_action()[0]][0]
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 env.render()
                 end_time = time.time()
-                # time.sleep(max(0.0, 1/env.config['simulation_frequency'] - (end_time - start_time))) # smart sleep
-
             print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
             print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.BC:
@@ -483,7 +473,7 @@ if __name__ == "__main__":
                         )
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
-        env_kwargs.update({'render_mode': 'human'})
+        # env_kwargs.update({'render_mode': 'human'})
         append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',350)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
@@ -495,7 +485,6 @@ if __name__ == "__main__":
                                                             agent_model = 'BC_agent_final.pth',
                                                             project="BC_1"
                                                             )
-        num_rollouts = 10
         gamma = 1.0
         # reward = simulate_with_model(
         #                                 agent=policy, 
@@ -505,14 +494,16 @@ if __name__ == "__main__":
         #                                 num_rollouts=num_rollouts
         #                             )
         # print(" Mean reward ", reward)
+        env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=BC_agent.policy.features_extractor))
-        for _ in range(num_rollouts):
+        for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
             env.step(4)
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
                 action, _ = BC_agent.policy.predict(obs)
+                env.vehicle.actions = []
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 env.render()
