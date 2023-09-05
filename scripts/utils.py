@@ -9,8 +9,8 @@ import base64
 
 
 
-def record_videos(env, video_folder="videos"):
-    wrapped = RecordVideo(env, video_folder=video_folder, episode_trigger=lambda e: True)
+def record_videos(env, name_prefix, video_folder="videos"):
+    wrapped = RecordVideo(env, video_folder=video_folder, name_prefix = name_prefix, episode_trigger=lambda e: True)
 
     # Capture intermediate frames
     env.unwrapped.set_record_video_wrapper(wrapped) 
