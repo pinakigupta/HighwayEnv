@@ -465,7 +465,7 @@ if __name__ == "__main__":
             print(" trainer policy ", trainer.policy)
             epoch = None
             for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
-                train_data_loader, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
+                train_data_loader                                            = create_dataloaders(
                                                                                                       zip_filename,
                                                                                                       extract_path, 
                                                                                                       device=device,
@@ -482,7 +482,7 @@ if __name__ == "__main__":
                                             trainer.policy, # This is the exploration policy
                                             extract_path = extract_path,
                                             zip_filename=zip_filename,
-                                            delta_iterations = 2,
+                                            delta_iterations = 1,
                                             **{
                                                 **env_kwargs, 
                                                 **{'expert':'MDPVehicle'}
@@ -504,9 +504,8 @@ if __name__ == "__main__":
                     torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth")
                 accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                                 trainer, 
-                                                                                hdf5_train_file_names, 
-                                                                                hdf5_val_file_names, 
-                                                                                plot_path=f"{extract_path}/heatmap_{epoch}.png" 
+                                                                                zip_filename=zip_filename,
+                                                                                plot_path=f"heatmap_{epoch}.png" 
                                                                               )
                 _validation_metrics["accuracy"].append(accuracy)
                 _validation_metrics["precision"].append(precision)
@@ -517,9 +516,8 @@ if __name__ == "__main__":
 
             accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                             trainer, 
-                                                                            hdf5_train_file_names, 
-                                                                            hdf5_val_file_names, 
-                                                                            plot_path=f"{extract_path}/heatmap_{epoch}.png" 
+                                                                            zip_filename=zip_filename, 
+                                                                            plot_path=f"heatmap_{epoch}.png" 
                                                                             )
 
 
@@ -644,7 +642,7 @@ if __name__ == "__main__":
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.ANALYSIS:
-        train_data_loader, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
+        train_data_loader                                             = create_dataloaders(
                                                                                                 zip_filename,
                                                                                                 extract_path, 
                                                                                                 device=device,

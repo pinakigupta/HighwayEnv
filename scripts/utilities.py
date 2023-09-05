@@ -20,6 +20,7 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
 import zipfile
+import io
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
 
@@ -350,18 +351,23 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
                                         # pin_memory=True,
                                         # pin_memory_device=device,
                                  ) 
-    return train_data_loader, hdf5_train_file_names, hdf5_val_file_names
+    return train_data_loader
 
 
-def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, **training_kwargs):
+def calculate_validation_metrics(bc_trainer,zip_filename, **training_kwargs):
     true_labels = []
     predicted_labels = []
     # Iterate through the validation data and make predictions
     with torch.no_grad():
-        for val_data_file in hdf5_val_file_names:
-            val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
-            predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
-            true_labels.extend(val_acts)
+        with zipfile.ZipFile(zip_filename, 'r') as zipf:
+            hdf5_val_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "val" in file_name]
+            for val_data_file in hdf5_val_file_names:
+                with zipf.open(val_data_file) as file_in_zip:
+                    hdf5_data = file_in_zip.read()
+                    in_memory_file = io.BytesIO(hdf5_data)
+                    val_obs, val_acts, val_dones = extract_post_processed_expert_data(in_memory_file)
+                    predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
+                    true_labels.extend(val_acts)
 
     # Calculate evaluation metrics
     accuracy = accuracy_score(true_labels, predicted_labels)
@@ -377,13 +383,18 @@ def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_fil
     print("F1 Score:", f1, np.mean(f1))
 
 
-    predicted_labels = []
-    true_labels = []
-    with torch.no_grad():
-        for val_data_file in hdf5_train_file_names:
-            val_obs, val_acts, val_dones = extract_post_processed_expert_data(val_data_file)
-            predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
-            true_labels.extend(val_acts)
+    # predicted_labels = []
+    # true_labels = []
+    # with torch.no_grad():
+    #     with zipfile.ZipFile(zip_filename, 'r') as zipf:
+    #         hdf5_val_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
+    #         for val_data_file in hdf5_val_file_names:
+    #             with zipf.open(val_data_file) as file_in_zip:
+    #                 hdf5_data = file_in_zip.read()
+    #                 in_memory_file = io.BytesIO(hdf5_data)
+    #                 val_obs, val_acts, val_dones = extract_post_processed_expert_data(in_memory_file)
+    #                 predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
+    #                 true_labels.extend(val_acts)
 
     # # Calculate evaluation metrics for training
     # tr_accuracy = accuracy_score(true_labels, predicted_labels)
@@ -406,9 +417,13 @@ def calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_fil
     plt.xlabel("Predicted Labels")
     plt.ylabel("True Labels")
     plt.title("Confusion Matrix")
-    plt.savefig(training_kwargs['plot_path'])
+    heatmap_png = 'heatmap.png'
+    plt.savefig(heatmap_png)
+
+    with zipfile.ZipFile(zip_filename, 'a') as zipf:
+        zipf.write(heatmap_png, arcname=training_kwargs['plot_path'])
     # plt.show()  
-    print("saved confusion matrix")
+    # print("saved confusion matrix")
     return accuracy, precision, recall, f1
 
 
