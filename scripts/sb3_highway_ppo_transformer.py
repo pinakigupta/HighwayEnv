@@ -465,7 +465,7 @@ if __name__ == "__main__":
             print(" trainer policy ", trainer.policy)
             epoch = None
             for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
-                train_data_loader, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
+                train_data_loader                                            = create_dataloaders(
                                                                                                       zip_filename,
                                                                                                       extract_path, 
                                                                                                       device=device,
@@ -482,7 +482,7 @@ if __name__ == "__main__":
                                             trainer.policy, # This is the exploration policy
                                             extract_path = extract_path,
                                             zip_filename=zip_filename,
-                                            delta_iterations = 2,
+                                            delta_iterations = 1,
                                             **{
                                                 **env_kwargs, 
                                                 **{'expert':'MDPVehicle'}
@@ -504,9 +504,8 @@ if __name__ == "__main__":
                     torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth")
                 accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                                 trainer, 
-                                                                                hdf5_train_file_names, 
-                                                                                hdf5_val_file_names, 
-                                                                                plot_path=f"{extract_path}/heatmap_{epoch}.png" 
+                                                                                zip_filename=zip_filename,
+                                                                                plot_path=f"heatmap_{epoch}.png" 
                                                                               )
                 _validation_metrics["accuracy"].append(accuracy)
                 _validation_metrics["precision"].append(precision)
@@ -517,9 +516,8 @@ if __name__ == "__main__":
 
             accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                             trainer, 
-                                                                            hdf5_train_file_names, 
-                                                                            hdf5_val_file_names, 
-                                                                            plot_path=f"{extract_path}/heatmap_{epoch}.png" 
+                                                                            zip_filename=zip_filename, 
+                                                                            plot_path=f"heatmap_{epoch}.png" 
                                                                             )
 
 
@@ -608,9 +606,10 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',100)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',150)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',100)
         env = make_configure_env(**env_kwargs)
         BC_agent                            = retrieve_agent(
                                                             artifact_version='trained_model_directory:latest',

@@ -78,7 +78,8 @@ def worker(
 
             for v in experts_to_consider:
                 obs = v.observer
-                discrete_action = v.discrete_action()
+                discrete_action = v.discrete_action()[0]
+                # print('env.action_type.actions_indexes ', env.action_type.actions_indexes, ' discrete_action ', discrete_action)
                 acts = env.action_type.actions_indexes[discrete_action]
                 if v not in all_obs:
                     all_obs[v] = []
