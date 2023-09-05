@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.ANALYSIS
 
 
 
@@ -643,7 +643,7 @@ if __name__ == "__main__":
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.ANALYSIS:
-        train_data_loader, hdf5_train_file_names, hdf5_val_file_names = create_dataloaders(
+        train_data_loader                                             = create_dataloaders(
                                                                                                 zip_filename,
                                                                                                 extract_path, 
                                                                                                 device=device,
