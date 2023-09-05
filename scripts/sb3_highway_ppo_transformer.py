@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLDEPLOY
+train = TrainEnum.BCDEPLOY
 
 
 
@@ -340,6 +340,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','mode',None)
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
+        record_videos(env=env,video_folder='videos/GAIL')
         optimal_gail_agent                       = retrieve_agent(
                                                                     # env=env,
                                                                     artifact_version='trained_model_directory:latest',
@@ -368,7 +369,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
         env_kwargs.update({'reward_oracle':None})
         env = make_configure_env(**env_kwargs)
-        env = record_videos(env)
+        env = record_videos(env=env,video_folder='videos/RL')
         # RL_agent                            = retrieve_agent(
         #                                                     artifact_version='trained_model_directory:latest',
         #                                                     agent_model = 'RL_agent_final.pth',
@@ -606,11 +607,12 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',150)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',350)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-        append_key_to_dict_of_dict(env_kwargs,'config','duration',100)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
         env = make_configure_env(**env_kwargs)
+        env = record_videos(env=env,video_folder='videos/BC')
         BC_agent                            = retrieve_agent(
                                                             artifact_version='trained_model_directory:latest',
                                                             agent_model = 'BC_agent_final.pth',
@@ -629,18 +631,16 @@ if __name__ == "__main__":
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=BC_agent.policy.features_extractor))
         for _ in range(num_rollouts):
             obs, info = env.reset()
+            env.step(4)
             done = truncated = False
             cumulative_reward = 0
-            with torch.no_grad():
-                BC_agent.policy.mlp_extractor.policy_net.eval()
-                BC_agent.policy.action_net.eval()
-                while not (done or truncated):
-                    action, _ = BC_agent.policy.predict(obs)
-                    obs, reward, done, truncated, info = env.step(action)
-                    cumulative_reward += gamma * reward
-                    env.render()
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                print("--------------------------------------------------------------------------------------")
+            while not (done or truncated):
+                action, _ = BC_agent.policy.predict(obs)
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                env.render()
+            print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+            print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.ANALYSIS:
         train_data_loader                                             = create_dataloaders(
                                                                                                 zip_filename,
