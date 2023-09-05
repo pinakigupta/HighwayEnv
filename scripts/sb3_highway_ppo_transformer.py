@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.RLDEPLOY
 
 
 
@@ -608,9 +608,10 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',100)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',150)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',100)
         env = make_configure_env(**env_kwargs)
         BC_agent                            = retrieve_agent(
                                                             artifact_version='trained_model_directory:latest',
