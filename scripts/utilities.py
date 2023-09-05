@@ -420,8 +420,9 @@ def calculate_validation_metrics(bc_trainer,zip_filename, **training_kwargs):
     heatmap_png = 'heatmap.png'
     plt.savefig(heatmap_png)
 
-    with zipfile.ZipFile(zip_filename, 'a') as zipf:
-        zipf.write(heatmap_png, arcname=training_kwargs['plot_path'])
+    if False: # For now keep this local as the remote artifact size is growing too much
+        with zipfile.ZipFile(zip_filename, 'a') as zipf:
+            zipf.write(heatmap_png, arcname=training_kwargs['plot_path'])
     # plt.show()  
     # print("saved confusion matrix")
     return accuracy, precision, recall, f1

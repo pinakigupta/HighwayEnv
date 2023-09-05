@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLDEPLOY
+train = TrainEnum.BC
 
 
 
@@ -203,12 +203,8 @@ if __name__ == "__main__":
         with open("config.json") as f:
             train_config = json.load(f)
 
-        # expert_data_file = "expert_train_data_0.h5"
 
-
-        # exp_obs = FloatTensor(exp_obs)
-        # exp_acts = FloatTensor(exp_acts)
-        train_data_loader, _ , _                                     = create_dataloaders(
+        train_data_loader                                              = create_dataloaders(
                                                                                                 zip_filename,
                                                                                                 extract_path, 
                                                                                                 device=device,
@@ -217,8 +213,6 @@ if __name__ == "__main__":
                                                                                             )
         train_data_loaders = [train_data_loader]
         def train_gail_agent(
-                                # exp_obs=exp_obs, 
-                                # exp_acts=exp_acts,
                                 gail_agent_path = None, 
                                 env_kwargs = None,
                                 train_config = None,
@@ -239,9 +233,7 @@ if __name__ == "__main__":
                              ).to(device=device)
             if gail_agent_path is not None:
                 gail_agent.load_state_dict(torch.load(gail_agent_path))
-            return gail_agent.train(
-                                        # exp_obs=exp_obs, 
-                                        # exp_acts=exp_acts, 
+            return gail_agent.train( 
                                         data_loaders=train_data_loaders,
                                         **env_kwargs
                                     )
@@ -258,6 +250,7 @@ if __name__ == "__main__":
         sweep_id = wandb.sweep(sweep_config, project=project_name)
 
 
+
         rewards, disc_losses, advs, episode_count =       train_gail_agent(
                                                                                 gail_agent_path=None, 
                                                                                 env_kwargs = env_kwargs,
@@ -265,72 +258,7 @@ if __name__ == "__main__":
                                                                                 train_data_loaders=train_data_loaders
                                                                             )
         
-        # def train_sweep(data_loaders, config=None):
-        #     with wandb.init(
-        #                     project=project_name,
-        #                     config=config,
-        #                    ) as run:
-        #         config = run.config
-        #         name = ""
-        #         for key, value in config.items():
-        #             # Discard first 3 letters from the key
-        #             key = key[3:]
 
-        #             # Format the float value
-        #             value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
-
-        #             # Append the formatted key-value pair to the name
-        #             name += f"{key}_{value_str}_"
-        #         run.name = run_name
-        #         append_key_to_dict_of_dict(env_kwargs,'config','duration',config.duration)
-        #         train_config.update({'gae_gamma':config.gae_gamma})
-        #         train_config.update({'discrm_lr':config.discrm_lr})
-        #         print(" config.duration ", env_kwargs['config']['duration'], " config.gae_gamma ", train_config['gae_gamma'])
-                    
-
-        #         rewards, disc_losses, advs, episode_count =       train_gail_agent(
-        #                                                                             # exp_obs=exp_obs, 
-        #                                                                             # exp_acts=exp_acts,
-        #                                                                             zip_filename ,
-        #                                                                             gail_agent_path=gail_agent_path, 
-        #                                                                             env_kwargs = env_kwargs,
-        #                                                                             train_config = train_config,
-        #                                                                             device=device,
-        #                                                                             batch_size=batch_size,
-        #                                                                             train_data_loaders=data_loaders
-        #                                                                           )
-
-
-        #         disc_losses = [ float(l.item()) for l in disc_losses]
-        #         advs = [ float(a.item()) for a in advs]
-        #         rewards = [float(r) for r in rewards]
-        #         # Log rewards against epochs as a single plot
-        #         xs=list(range(len(rewards)))
-        #         run.log({"rewards": wandb.plot.line_series(xs=xs, ys=[rewards] ,title="rewards_vs_epochs",keys = [name])})
-        #         run.log({"disc losses": wandb.plot.line_series(xs=xs, ys=[disc_losses], title="disc losses",keys = [name])})
-        #         run.log({"Mean advantages": wandb.plot.line_series(xs=xs, ys=[advs], title="Mean advantages_vs_epochs",keys = [name])})
-        #         run.log({"Episode_count": wandb.plot.line_series(xs=xs, ys=[episode_count], title="Episode_count_vs_epochs",keys = [name])})
-
-                
-        #         # Create a directory for the models
-        #         clear_and_makedirs("models_archive")
-
-        #         shutil.move("optimal_gail_agent.pth", "models_archive/optimal_gail_agent.pth")
-        #         shutil.move("final_gail_agent.pth", "models_archive/final_gail_agent.pth")
-
-        #         # Log the model as an artifact in wandb
-        #         artifact = wandb.Artifact("trained_model_directory", type="model_directory")
-        #         artifact.add_dir("models_archive")
-        #         run.log_artifact(artifact)
-
-                    
-        # # rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
-
-        # wandb.agent(
-        #              sweep_id=sweep_id, 
-        #              function= lambda: train_sweep(train_data_loaders)
-        #            )
-        # wandb.finish()
     elif train == TrainEnum.IRLDEPLOY:
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
@@ -552,57 +480,6 @@ if __name__ == "__main__":
                             trainer = bc_trainer,
                             metrics_plot_path = metrics_plot_path
                         )
-        # wandb.finish()        
-        # clear_and_makedirs("models_archive")
-        # def train_sweep(env, policy, config=None):
-        #     with wandb.init(
-        #                 project=project_name, 
-        #                 config=config,
-        #                 mode="disabled"
-        #                 # magic=True,
-        #             ) as run:
-        #         config = run.config
-        #         print("config ", config)
-        #         run.name = f"sweep_{month}{day}_{timenow()}"
-        #         name = ""
-        #         for key, value in config.items():
-        #             # Discard first 3 letters from the key
-        #             key = key[3:]
-
-        #             # Format the float value
-        #             value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
-
-        #             # Append the formatted key-value pair to the name
-        #             name += f"{key}_{value_str}_"
-        #         plot_path = f"plot_{name}.png"
-        #         batch_size = config.batch_size
-        #         num_epochs = config.num_epochs 
-        #         bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs)
-        #         hdf5_train_file_names, hdf5_val_file_names = _train(
-        #                                                              bc_trainer, 
-        #                                                              zip_filename,
-        #                                                              extract_path,
-        #                                                              num_epochs=num_epochs, 
-        #                                                              batch_size=batch_size
-        #                                                             )
-        #         calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path=plot_path )
-
-        #         clear_and_makedirs("models_archive")
-        #         torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
-
-        #         # Log the model as an artifact in wandb
-        #         artifact = wandb.Artifact("trained_model_directory", type="model_directory")
-        #         artifact.add_dir("models_archive")
-        #         run.log_artifact(artifact)
-        #         # Log the saved plot to WandB
-        #         run.log({f"plot_{name}": wandb.Image(plot_path)})
-
-        # wandb.agent(
-        #             sweep_id=sweep_id, 
-        #             function=lambda: train_sweep(env, policy)
-        #         )
-
-        # wandb.finish()
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         env_kwargs.update({'render_mode': 'human'})
