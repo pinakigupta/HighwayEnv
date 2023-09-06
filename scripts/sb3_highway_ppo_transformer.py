@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLTRAIN
+train = TrainEnum.BCDEPLOY
 
 
 
@@ -235,10 +235,11 @@ if __name__ == "__main__":
                              ).to(device=device)
             if gail_agent_path is not None:
                 gail_agent.load_state_dict(torch.load(gail_agent_path))
-            return gail_agent.train( 
+            gail_agent.train( 
                                         data_loaders=train_data_loaders,
                                         **env_kwargs
                                     )
+            return gail_agent
         
         gail_agent_path = None
         if WARM_START:
@@ -253,12 +254,22 @@ if __name__ == "__main__":
 
 
 
-        rewards, disc_losses, advs, episode_count =       train_gail_agent(
+        trained_gail_agent                        =       train_gail_agent(
                                                                                 gail_agent_path=None, 
                                                                                 env_kwargs = env_kwargs,
                                                                                 train_config = train_config,
                                                                                 train_data_loaders=train_data_loaders
                                                                             )
+        expert_data_collector(
+                                trained_gail_agent.pi, # This is the exploration policy
+                                extract_path = extract_path,
+                                zip_filename=zip_filename,
+                                delta_iterations = 1,
+                                **{
+                                    **env_kwargs, 
+                                    **{'expert':'MDPVehicle'}
+                                    }           
+                            )
     elif train == TrainEnum.IRLDEPLOY:
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
@@ -486,14 +497,14 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',100)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',75)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         env = make_configure_env(**env_kwargs)
         env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
         BC_agent                            = retrieve_agent(
-                                                            artifact_version='trained_model_directory:v80',
+                                                            artifact_version='trained_model_directory:latest',
                                                             agent_model = 'BC_agent_final.pth',
                                                             project="BC_1"
                                                             )
