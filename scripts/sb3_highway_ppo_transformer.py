@@ -259,8 +259,6 @@ if __name__ == "__main__":
                                                                                 train_config = train_config,
                                                                                 train_data_loaders=train_data_loaders
                                                                             )
-        
-
     elif train == TrainEnum.IRLDEPLOY:
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
@@ -270,7 +268,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','mode',None)
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
-        record_videos(env=env,video_folder='videos/GAIL')
+        record_videos(env=env, name_prefix = 'GAIL', video_folder='videos/GAIL')
         artifact_version= f'trained_model_directory:latest',
         agent_model = f'final_gail_agent.pth',
         project= f"random_env_gail_1"
@@ -280,14 +278,31 @@ if __name__ == "__main__":
                                                                     project = project
                                                                  )
         num_rollouts = 10
-        reward = simulate_with_model(
-                                            agent=optimal_gail_agent, 
-                                            env_kwargs=env_kwargs, 
-                                            render_mode=None, 
-                                            num_workers= 1, 
-                                            num_rollouts=num_deploy_rollouts
-                                    )
-        print(" Mean reward ", reward)
+        # reward = simulate_with_model(
+        #                                     agent=optimal_gail_agent, 
+        #                                     env_kwargs=env_kwargs, 
+        #                                     render_mode=None, 
+        #                                     num_workers= 1, 
+        #                                     num_rollouts=num_deploy_rollouts
+        #                             )
+        # print(" Mean reward ", reward)
+        gamma = 1.0
+        env.render()
+        agent = optimal_gail_agent
+        # env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=agent.policy.features_extractor))
+        for _ in range(num_deploy_rollouts):
+            obs, info = env.reset()
+            env.step(4)
+            done = truncated = False
+            cumulative_reward = 0
+            while not (done or truncated):
+                action = agent.act(obs.flatten())
+                env.vehicle.actions = []
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                env.render()
+            print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+            print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.RLDEPLOY:
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',30)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
@@ -295,7 +310,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
         env_kwargs.update({'reward_oracle':None})
         env = make_configure_env(**env_kwargs)
-        env = record_videos(env=env,video_folder='videos/RL')
+        env = record_videos(env=env, name_prefix = 'RL', video_folder='videos/RL')
         # RL_agent                            = retrieve_agent(
         #                                                     artifact_version='trained_model_directory:latest',
         #                                                     agent_model = 'RL_agent_final.pth',
@@ -306,7 +321,7 @@ if __name__ == "__main__":
         # Access the run containing the logged artifact
 
         # Download the artifact
-        artifact = wandb.use_artifact("trained_model:latest")
+        artifact = wandb.use_artifact("trained_model:v16")
         artifact_dir = artifact.download()
 
         # Load the model from the downloaded artifact
@@ -471,14 +486,14 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',350)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',100)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-        append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         env = make_configure_env(**env_kwargs)
-        env = record_videos(env=env,video_folder='videos/BC')
+        env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
         BC_agent                            = retrieve_agent(
-                                                            artifact_version='trained_model_directory:latest',
+                                                            artifact_version='trained_model_directory:v80',
                                                             agent_model = 'BC_agent_final.pth',
                                                             project="BC_1"
                                                             )
