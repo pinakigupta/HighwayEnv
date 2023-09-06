@@ -338,6 +338,7 @@ class Road(object):
         vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), abs(vehicle.lane_distance_to(v))))
         if count:
             vehicles = vehicles[:count]
+        vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), vehicle.lane_distance_to(v))) # Again present them as -ve to +ve
         # sort them according to y first. position[1] is y, sort them according to distance from ego then, for the same y
         # vehicles = sorted(vehicles, key=lambda v: vehicle.lane_distance_to(v)) # 
         return vehicles

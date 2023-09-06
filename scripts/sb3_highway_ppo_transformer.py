@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.IRLDEPLOY
+train = TrainEnum.RLTRAIN
 
 
 
@@ -133,6 +133,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
         append_key_to_dict_of_dict(env_kwargs,'config','EGO_LENGTH',8)
         append_key_to_dict_of_dict(env_kwargs,'config','EGO_WIDTH',4)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',40)
         env = make_vec_env(
                             make_configure_env, 
                             n_envs=n_cpu*3, 
@@ -270,17 +271,13 @@ if __name__ == "__main__":
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
         record_videos(env=env,video_folder='videos/GAIL')
+        artifact_version= f'trained_model_directory:latest',
+        agent_model = f'final_gail_agent.pth',
+        project= f"random_env_gail_1"
         optimal_gail_agent                       = retrieve_agent(
-                                                                    # env=env,
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'optimal_gail_agent.pth',
-                                                                    project="random_env_gail_1"
-                                                                 )
-        final_gail_agent                         = retrieve_agent(
-                                                                    # env=env,
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'final_gail_agent.pth',
-                                                                    project="random_env_gail_1"
+                                                                    artifact_version = artifact_version,
+                                                                    agent_model = agent_model,
+                                                                    project = project
                                                                  )
         num_rollouts = 10
         reward = simulate_with_model(

@@ -48,7 +48,7 @@ sweep_config = {
     },
     "parameters": {
         "duration": {
-            "values": [40]  # Values for the "duration" field to be swept
+            "values": [40]  # Values for the "duration" field to be sappend_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)wept
         },
         "gae_gamma": {
             "values": [0.995]  # Values for the "duration" field to be swept
@@ -60,7 +60,7 @@ sweep_config = {
             "values": [ 128 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [10]  # Values for the "duration" field to be swept
+            "values": [15]  # Values for the "duration" field to be swept
         },    
     }
 }
