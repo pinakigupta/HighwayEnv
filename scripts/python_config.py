@@ -60,7 +60,7 @@ sweep_config = {
             "values": [ 128 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [15]  # Values for the "duration" field to be swept
+            "values": [1]  # Values for the "duration" field to be swept
         },    
     }
 }

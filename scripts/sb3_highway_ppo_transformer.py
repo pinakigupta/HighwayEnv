@@ -55,7 +55,7 @@ train = TrainEnum.BCDEPLOY
 attention_network_kwargs = dict(
     # in_size=5*15,
     embedding_layer_kwargs={"in_size": 7, "layer_sizes": [64, 64], "reshape": False},
-    attention_layer_kwargs={"feature_size": 64, "heads": 2},
+    attention_layer_kwargs={"feature_size": 64, "heads": 2, "dropout_factor" :0.2},
     # num_layers = 3,
 )
 
@@ -519,13 +519,15 @@ if __name__ == "__main__":
         # print(" Mean reward ", reward)
         env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=BC_agent.policy.features_extractor))
+        policy = BC_agent.policy
+        policy.eval()
         for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
             env.step(4)
             done = truncated = False
             cumulative_reward = 0
             while not (done or truncated):
-                action, _ = BC_agent.policy.predict(obs)
+                action, _ = policy.predict(obs)
                 env.vehicle.actions = []
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
