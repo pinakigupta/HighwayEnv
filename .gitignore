@@ -46,3 +46,5 @@ model_config.json
 **/*.orig
 
 *.png
+
+videos
