@@ -4,6 +4,7 @@ import gymnasium as gym
 from highway_env.utils import print_overwrite
 import concurrent.futures
 import statistics
+from utils import record_videos
 
 # ==================================
 #     Environment configuration
@@ -43,6 +44,7 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
     
     env = make_configure_env(**env_kwargs)
+    record_videos(env=env, name_prefix = 'GAIL', video_folder='videos/GAIL')
     for _ in range(rollouts_per_worker):
         obs, info = env.reset()
         done = truncated = False
@@ -50,7 +52,7 @@ def worker_rollout(worker_id, agent, render_mode, env_kwargs, gamma = 1.0, num_r
         while not (done or truncated):
             with torch.no_grad():
                 try:  
-                    print(type(agent))  
+                    # print(type(agent))  
                     action = agent.act(obs.flatten())
                 except:
                     try:

@@ -48,14 +48,22 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
+<<<<<<< HEAD
 train = TrainEnum.ANALYSIS
+=======
+train = TrainEnum.IRLTRAIN
+>>>>>>> cd4cb55bade443d12088d68cf94a918be8050dd6
 
 
 
 attention_network_kwargs = dict(
     # in_size=5*15,
     embedding_layer_kwargs={"in_size": 7, "layer_sizes": [64, 64], "reshape": False},
-    attention_layer_kwargs={"feature_size": 64, "heads": 2},
+    attention_layer_kwargs={
+                                "feature_size": 64, 
+                                "heads": 2, 
+                                # "dropout_factor" :0.2
+                           },
     # num_layers = 3,
 )
 
@@ -110,6 +118,7 @@ if __name__ == "__main__":
 
     batch_size = sweep_config['parameters']['batch_size']['values'][0]
     num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
+    num_deploy_rollouts = 5
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
@@ -132,6 +141,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
         append_key_to_dict_of_dict(env_kwargs,'config','EGO_LENGTH',8)
         append_key_to_dict_of_dict(env_kwargs,'config','EGO_WIDTH',4)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',40)
         env = make_vec_env(
                             make_configure_env, 
                             n_envs=n_cpu*3, 
@@ -197,18 +207,14 @@ if __name__ == "__main__":
     elif train == TrainEnum.IRLTRAIN:
         env_kwargs.update({'reward_oracle':None})
         project_name = f"random_env_gail_1"
-        device = torch.device("cpu")
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # IDM + MOBIL is treated as expert.
         with open("config.json") as f:
             train_config = json.load(f)
 
-        # expert_data_file = "expert_train_data_0.h5"
 
-
-        # exp_obs = FloatTensor(exp_obs)
-        # exp_acts = FloatTensor(exp_acts)
-        train_data_loader, _ , _                                     = create_dataloaders(
+        train_data_loader                                              = create_dataloaders(
                                                                                                 zip_filename,
                                                                                                 extract_path, 
                                                                                                 device=device,
@@ -217,8 +223,6 @@ if __name__ == "__main__":
                                                                                             )
         train_data_loaders = [train_data_loader]
         def train_gail_agent(
-                                # exp_obs=exp_obs, 
-                                # exp_acts=exp_acts,
                                 gail_agent_path = None, 
                                 env_kwargs = None,
                                 train_config = None,
@@ -237,14 +241,12 @@ if __name__ == "__main__":
                                 # **policy_kwargs, 
                                 observation_space= env.observation_space
                              ).to(device=device)
-            if gail_agent_path is not None:
-                gail_agent.load_state_dict(torch.load(gail_agent_path))
-            return gail_agent.train(
-                                        # exp_obs=exp_obs, 
-                                        # exp_acts=exp_acts, 
+
+            gail_agent.train( 
                                         data_loaders=train_data_loaders,
                                         **env_kwargs
-                                    )
+                            )
+            return gail_agent
         
         gail_agent_path = None
         if WARM_START:
@@ -258,79 +260,23 @@ if __name__ == "__main__":
         sweep_id = wandb.sweep(sweep_config, project=project_name)
 
 
-        rewards, disc_losses, advs, episode_count =       train_gail_agent(
+
+        trained_gail_agent                        =       train_gail_agent(
                                                                                 gail_agent_path=None, 
                                                                                 env_kwargs = env_kwargs,
                                                                                 train_config = train_config,
                                                                                 train_data_loaders=train_data_loaders
                                                                             )
-        
-        # def train_sweep(data_loaders, config=None):
-        #     with wandb.init(
-        #                     project=project_name,
-        #                     config=config,
-        #                    ) as run:
-        #         config = run.config
-        #         name = ""
-        #         for key, value in config.items():
-        #             # Discard first 3 letters from the key
-        #             key = key[3:]
-
-        #             # Format the float value
-        #             value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
-
-        #             # Append the formatted key-value pair to the name
-        #             name += f"{key}_{value_str}_"
-        #         run.name = run_name
-        #         append_key_to_dict_of_dict(env_kwargs,'config','duration',config.duration)
-        #         train_config.update({'gae_gamma':config.gae_gamma})
-        #         train_config.update({'discrm_lr':config.discrm_lr})
-        #         print(" config.duration ", env_kwargs['config']['duration'], " config.gae_gamma ", train_config['gae_gamma'])
-                    
-
-        #         rewards, disc_losses, advs, episode_count =       train_gail_agent(
-        #                                                                             # exp_obs=exp_obs, 
-        #                                                                             # exp_acts=exp_acts,
-        #                                                                             zip_filename ,
-        #                                                                             gail_agent_path=gail_agent_path, 
-        #                                                                             env_kwargs = env_kwargs,
-        #                                                                             train_config = train_config,
-        #                                                                             device=device,
-        #                                                                             batch_size=batch_size,
-        #                                                                             train_data_loaders=data_loaders
-        #                                                                           )
-
-
-        #         disc_losses = [ float(l.item()) for l in disc_losses]
-        #         advs = [ float(a.item()) for a in advs]
-        #         rewards = [float(r) for r in rewards]
-        #         # Log rewards against epochs as a single plot
-        #         xs=list(range(len(rewards)))
-        #         run.log({"rewards": wandb.plot.line_series(xs=xs, ys=[rewards] ,title="rewards_vs_epochs",keys = [name])})
-        #         run.log({"disc losses": wandb.plot.line_series(xs=xs, ys=[disc_losses], title="disc losses",keys = [name])})
-        #         run.log({"Mean advantages": wandb.plot.line_series(xs=xs, ys=[advs], title="Mean advantages_vs_epochs",keys = [name])})
-        #         run.log({"Episode_count": wandb.plot.line_series(xs=xs, ys=[episode_count], title="Episode_count_vs_epochs",keys = [name])})
-
-                
-        #         # Create a directory for the models
-        #         clear_and_makedirs("models_archive")
-
-        #         shutil.move("optimal_gail_agent.pth", "models_archive/optimal_gail_agent.pth")
-        #         shutil.move("final_gail_agent.pth", "models_archive/final_gail_agent.pth")
-
-        #         # Log the model as an artifact in wandb
-        #         artifact = wandb.Artifact("trained_model_directory", type="model_directory")
-        #         artifact.add_dir("models_archive")
-        #         run.log_artifact(artifact)
-
-                    
-        # # rewards, optimal_agent = train_gail_agent(exp_obs=exp_obs, exp_acts=exp_acts, **env_kwargs)
-
-        # wandb.agent(
-        #              sweep_id=sweep_id, 
-        #              function= lambda: train_sweep(train_data_loaders)
-        #            )
-        # wandb.finish()
+        expert_data_collector(
+                                trained_gail_agent.pi, # This is the exploration policy
+                                extract_path = extract_path,
+                                zip_filename=zip_filename,
+                                delta_iterations = 1,
+                                **{
+                                    **env_kwargs, 
+                                    **{'expert':'MDPVehicle'}
+                                    }           
+                            )
     elif train == TrainEnum.IRLDEPLOY:
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
@@ -340,27 +286,41 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','mode',None)
         # env_kwargs.update({'render_mode': None})
         env = make_configure_env(**env_kwargs)
+        record_videos(env=env, name_prefix = 'GAIL', video_folder='videos/GAIL')
+        artifact_version= f'trained_model_directory:latest',
+        agent_model = f'final_gail_agent.pth',
+        project= f"random_env_gail_1"
         optimal_gail_agent                       = retrieve_agent(
-                                                                    # env=env,
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'optimal_gail_agent.pth',
-                                                                    project="random_env_gail_1"
-                                                                 )
-        final_gail_agent                         = retrieve_agent(
-                                                                    # env=env,
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'final_gail_agent.pth',
-                                                                    project="random_env_gail_1"
+                                                                    artifact_version = artifact_version,
+                                                                    agent_model = agent_model,
+                                                                    project = project
                                                                  )
         num_rollouts = 10
-        reward = simulate_with_model(
-                                            agent=optimal_gail_agent, 
-                                            env_kwargs=env_kwargs, 
-                                            render_mode='human', 
-                                            num_workers= min(num_rollouts,1), 
-                                            num_rollouts=num_rollouts
-                                    )
-        print(" Mean reward ", reward)
+        # reward = simulate_with_model(
+        #                                     agent=optimal_gail_agent, 
+        #                                     env_kwargs=env_kwargs, 
+        #                                     render_mode=None, 
+        #                                     num_workers= 1, 
+        #                                     num_rollouts=num_deploy_rollouts
+        #                             )
+        # print(" Mean reward ", reward)
+        gamma = 1.0
+        env.render()
+        agent = optimal_gail_agent
+        # env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=agent.policy.features_extractor))
+        for _ in range(num_deploy_rollouts):
+            obs, info = env.reset()
+            env.step(4)
+            done = truncated = False
+            cumulative_reward = 0
+            while not (done or truncated):
+                action = agent.act(obs.flatten())
+                env.vehicle.actions = []
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                env.render()
+            print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+            print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.RLDEPLOY:
         append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',30)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
@@ -368,23 +328,18 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
         env_kwargs.update({'reward_oracle':None})
         env = make_configure_env(**env_kwargs)
-        env = record_videos(env)
+        env = record_videos(env=env, name_prefix = 'RL', video_folder='videos/RL')
         # RL_agent                            = retrieve_agent(
         #                                                     artifact_version='trained_model_directory:latest',
         #                                                     agent_model = 'RL_agent_final.pth',
         #                                                     project="RL"
         #                                                     )
-        # with open('highway_attention_ppo/network_hierarchy.txt', 'w') as file:
-        #     file.write("-------------------------- Policy network  ---------------------------------\n")
-        #     write_module_hierarchy_to_file(model.policy, file)
-        #     file.write("-------------------------- Value function ----------------------------------\n")
-        #     write_module_hierarchy_to_file(model.policy.value_net, file)
         
         wandb.init(project="RL", name="inference")
         # Access the run containing the logged artifact
 
         # Download the artifact
-        artifact = wandb.use_artifact("trained_model:latest")
+        artifact = wandb.use_artifact("trained_model:v16")
         artifact_dir = artifact.download()
 
         # Load the model from the downloaded artifact
@@ -396,8 +351,7 @@ if __name__ == "__main__":
         env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.features_extractor))
         gamma = 1.0
-        num_rollouts = 10
-        for _ in range(num_rollouts):
+        for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
             env.step(4)
             done = truncated = False
@@ -407,15 +361,10 @@ if __name__ == "__main__":
                 start_time = time.time()
                 action, _ = model.predict(obs)
                 env.vehicle.actions = []
-                # for _ in range(10):
-                #     env.vehicle.actions.append(action.astype(int).tolist())
-                # action = [key for key, val in ACTIONS_ALL.items() if val == env.vehicle.discrete_action()[0]][0]
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 env.render()
                 end_time = time.time()
-                # time.sleep(max(0.0, 1/env.config['simulation_frequency'] - (end_time - start_time))) # smart sleep
-
             print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
             print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.BC:
@@ -552,71 +501,20 @@ if __name__ == "__main__":
                             trainer = bc_trainer,
                             metrics_plot_path = metrics_plot_path
                         )
-        # wandb.finish()        
-        # clear_and_makedirs("models_archive")
-        # def train_sweep(env, policy, config=None):
-        #     with wandb.init(
-        #                 project=project_name, 
-        #                 config=config,
-        #                 mode="disabled"
-        #                 # magic=True,
-        #             ) as run:
-        #         config = run.config
-        #         print("config ", config)
-        #         run.name = f"sweep_{month}{day}_{timenow()}"
-        #         name = ""
-        #         for key, value in config.items():
-        #             # Discard first 3 letters from the key
-        #             key = key[3:]
-
-        #             # Format the float value
-        #             value_str = "{:.2f}".format(value).rstrip('0').rstrip('.') if value and '.' in str(value) else str(value)
-
-        #             # Append the formatted key-value pair to the name
-        #             name += f"{key}_{value_str}_"
-        #         plot_path = f"plot_{name}.png"
-        #         batch_size = config.batch_size
-        #         num_epochs = config.num_epochs 
-        #         bc_trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs)
-        #         hdf5_train_file_names, hdf5_val_file_names = _train(
-        #                                                              bc_trainer, 
-        #                                                              zip_filename,
-        #                                                              extract_path,
-        #                                                              num_epochs=num_epochs, 
-        #                                                              batch_size=batch_size
-        #                                                             )
-        #         calculate_validation_metrics(bc_trainer, hdf5_train_file_names, hdf5_val_file_names, plot_path=plot_path )
-
-        #         clear_and_makedirs("models_archive")
-        #         torch.save(bc_trainer, 'models_archive/BC_agent.pth') 
-
-        #         # Log the model as an artifact in wandb
-        #         artifact = wandb.Artifact("trained_model_directory", type="model_directory")
-        #         artifact.add_dir("models_archive")
-        #         run.log_artifact(artifact)
-        #         # Log the saved plot to WandB
-        #         run.log({f"plot_{name}": wandb.Image(plot_path)})
-
-        # wandb.agent(
-        #             sweep_id=sweep_id, 
-        #             function=lambda: train_sweep(env, policy)
-        #         )
-
-        # wandb.finish()
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
-        env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',150)
+        # env_kwargs.update({'render_mode': 'human'})
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-        append_key_to_dict_of_dict(env_kwargs,'config','duration',100)
+        append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
         env = make_configure_env(**env_kwargs)
+        env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
         BC_agent                            = retrieve_agent(
                                                             artifact_version='trained_model_directory:latest',
                                                             agent_model = 'BC_agent_final.pth',
                                                             project="BC_1"
                                                             )
-        num_rollouts = 10
         gamma = 1.0
         # reward = simulate_with_model(
         #                                 agent=policy, 
@@ -626,21 +524,23 @@ if __name__ == "__main__":
         #                                 num_rollouts=num_rollouts
         #                             )
         # print(" Mean reward ", reward)
+        env.render()
         env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=BC_agent.policy.features_extractor))
-        for _ in range(num_rollouts):
+        policy = BC_agent.policy
+        policy.eval()
+        for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
+            env.step(4)
             done = truncated = False
             cumulative_reward = 0
-            with torch.no_grad():
-                BC_agent.policy.mlp_extractor.policy_net.eval()
-                BC_agent.policy.action_net.eval()
-                while not (done or truncated):
-                    action, _ = BC_agent.policy.predict(obs)
-                    obs, reward, done, truncated, info = env.step(action)
-                    cumulative_reward += gamma * reward
-                    env.render()
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                print("--------------------------------------------------------------------------------------")
+            while not (done or truncated):
+                action, _ = policy.predict(obs)
+                env.vehicle.actions = []
+                obs, reward, done, truncated, info = env.step(action)
+                cumulative_reward += gamma * reward
+                env.render()
+            print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+            print("--------------------------------------------------------------------------------------")
     elif train == TrainEnum.ANALYSIS:
         train_data_loader                                             = create_dataloaders(
                                                                                                 zip_filename,
