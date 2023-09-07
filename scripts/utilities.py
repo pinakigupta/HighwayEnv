@@ -191,7 +191,8 @@ def display_vehicles_attention(agent_surface, sim_surface, env, fe, min_attentio
             sim_surface.blit(attention_surface, (0, 0))
 
 def compute_vehicles_attention(env,fe):
-    obs = env.unwrapped.observation_type.observe()
+    observer = env.unwrapped.observation_type
+    obs = observer.observe()
     obs_t = torch.tensor(obs[None, ...], dtype=torch.float)
     attention = fe.extractor.get_attention_matrix(obs_t)
     attention = attention.squeeze(0).squeeze(1).detach().cpu().numpy()
@@ -210,9 +211,15 @@ def compute_vehicles_attention(env,fe):
             v_feature = lmap(v_feature, [-1, 1], obs_type.features_range[feature])
             v_position[feature] = v_feature
         v_position = np.array([v_position["x"], v_position["y"]])
+        env = env.unwrapped
         if not obs_type.absolute and v_index > 0:
-            v_position += env.unwrapped.vehicle.position # This is ego
-        vehicle = min(env.unwrapped.road.vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
+            v_position += env.vehicle.position # This is ego
+        close_vehicles =       env.road.close_vehicles_to(env.vehicle,
+                                                          env.PERCEPTION_DISTANCE,
+                                                         count=observer.vehicles_count - 1,
+                                                         see_behind=observer.see_behind,
+                                                         sort=observer.order == "sorted")        
+        vehicle = min(close_vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
         v_attention[vehicle] = attention[:, v_index]
     return v_attention
 
