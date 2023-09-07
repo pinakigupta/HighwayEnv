@@ -17,20 +17,28 @@ env_kwargs = {
         "action": {
                 "type": "DiscreteMetaAction",
             },
+        "offscreen_rendering": True,
+        # "observation": {
+        #     "type": "Kinematics",
+        #     "vehicles_count": 10,
+        #     "features": [
+        #         "presence",
+        #         "x",
+        #         "y",
+        #         "vx",
+        #         "vy",
+        #         "cos_h",
+        #         "sin_h"
+        #     ],
+        #     "absolute": False,
+        #     "relative_features": ['x']
+        # },
         "observation": {
-            "type": "Kinematics",
-            "vehicles_count": 10,
-            "features": [
-                "presence",
-                "x",
-                "y",
-                "vx",
-                "vy",
-                "cos_h",
-                "sin_h"
-            ],
-            "absolute": False,
-            "relative_features": ['x']
+            "type": "GrayscaleObservation",
+            "observation_shape": (128, 64),
+            "stack_size": 4,
+            "weights": [0.2989, 0.5870, 0.1140],  # weights for RGB conversion
+            "scaling": 1.75,
         },
         "policy_frequency": 2,
         "duration": 40,

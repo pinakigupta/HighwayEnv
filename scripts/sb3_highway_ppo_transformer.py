@@ -8,6 +8,7 @@ import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from sb3_contrib import  RecurrentPPO
 import os
 from enum import Enum
@@ -37,8 +38,42 @@ warnings.filterwarnings("ignore")
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
+class CustomImageExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space, hidden_dim=64):
+        super(CustomImageExtractor, self).__init__(observation_space, hidden_dim)
+        
+        if not isinstance(observation_space, gym.spaces.Box):
+            raise ValueError("Observation space must be continuous (e.g., image-based)")
+        
+        # Define a pretrained ResNet model as the feature extractor trunk
+        self.resnet = torch.hub.load('pytorch/vision', 'resnet18', pretrained=True)
+        self.resnet.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        
+        # Adjust the last fully connected layer for feature dimension control
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_dim)
+        
+        # Additional fully connected layer for custom hidden feature dimension
+        self.fc_hidden = nn.Linear(hidden_dim, hidden_dim)
+        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
+    
+    def forward(self, observations):
+
+        # Reshape observations to [batch_size, channels, height, width]
+        observations = observations.view(observations.size(0), -1, self.height, self.width)
+        # Normalize pixel values to the range [0, 1] (if necessary)
+        observations = observations / 255.0
+
+        # Forward pass through the ResNet trunk for feature extraction
+        resnet_features = self.resnet(observations)
+        
+        # Apply a fully connected layer for the custom hidden feature dimension
+        hidden_features = torch.nn.functional.relu(self.fc_hidden(resnet_features))
+        
+        return hidden_features  # Return the extracted features
 
 class TrainEnum(Enum):
+
+
     RLTRAIN = 0
     RLDEPLOY = 1
     IRLTRAIN = 2
@@ -48,7 +83,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.IRLTRAIN
+train = TrainEnum.RLTRAIN
 
 
 
@@ -140,7 +175,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',40)
         env = make_vec_env(
                             make_configure_env, 
-                            n_envs=n_cpu*3, 
+                            n_envs=n_cpu, 
                             vec_env_cls=SubprocVecEnv, 
                             env_kwargs=env_kwargs
                           )
@@ -148,14 +183,20 @@ if __name__ == "__main__":
         total_timesteps=200*10000
         # Set the checkpoint frequency
         checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
-        model = RecurrentPPO(
-                        'MlpLstmPolicy',
+        policy_kwargs = dict(
+                                features_extractor_class=CustomImageExtractor,
+                                features_extractor_kwargs=dict(hidden_dim=64),
+                            )
+        # policy = CustomMLPPolicy(env.observation_space, env.action_space)
+        model = PPO(
+                        'MlpPolicy',
                         env,
                         n_steps=2048 // n_cpu,
-                        batch_size=32,
+                        batch_size=2048,
                         learning_rate=2e-3,
                         policy_kwargs=policy_kwargs,
-                        verbose=0,
+                        # device="cpu",
+                        verbose=1,
                     )
         
 
@@ -245,12 +286,7 @@ if __name__ == "__main__":
             return gail_agent
         
         gail_agent_path = None
-        if WARM_START:
-            # Download the artifact in case you want to initialize with pre - trained 
-            artifact = wandb.use_artifact("trained_model:v7")
-            artifact_dir = artifact.download()
-            # Load the model from the downloaded artifact
-            gail_agent_path = os.path.join(artifact_dir, "optimal_gail_agent.pth")
+
 
         run_name = f"sweep_{month}{day}_{timenow()}"
         sweep_id = wandb.sweep(sweep_config, project=project_name)

@@ -32,7 +32,10 @@ class EnvViewer(object):
         self.directory = None
 
         pygame.init()
-        pygame.display.set_caption("Highway-env "+ str(self.env.vehicle.speed))
+        caption = "Highway-env "
+        if self.env and self.env.vehicle and (self.env != None) and(self.env.vehicle != None):
+            caption += str(self.env.vehicle.speed)
+        pygame.display.set_caption(caption)
         panel_size = (self.config["screen_width"], self.config["screen_height"])
 
         # A display is not mandatory to draw things. Ignoring the display.set_mode()
