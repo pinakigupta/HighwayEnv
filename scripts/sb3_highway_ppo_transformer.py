@@ -55,7 +55,11 @@ train = TrainEnum.BC
 attention_network_kwargs = dict(
     # in_size=5*15,
     embedding_layer_kwargs={"in_size": 7, "layer_sizes": [64, 64], "reshape": False},
-    attention_layer_kwargs={"feature_size": 64, "heads": 2, "dropout_factor" :0.2},
+    attention_layer_kwargs={
+                                "feature_size": 64, 
+                                "heads": 2, 
+                                # "dropout_factor" :0.2
+                           },
     # num_layers = 3,
 )
 
