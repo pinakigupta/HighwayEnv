@@ -48,7 +48,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.IRLTRAIN
 
 
 
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     elif train == TrainEnum.IRLTRAIN:
         env_kwargs.update({'reward_oracle':None})
         project_name = f"random_env_gail_1"
-        device = torch.device("cpu")
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # IDM + MOBIL is treated as expert.
         with open("config.json") as f:
@@ -233,12 +233,11 @@ if __name__ == "__main__":
                                 # **policy_kwargs, 
                                 observation_space= env.observation_space
                              ).to(device=device)
-            if gail_agent_path is not None:
-                gail_agent.load_state_dict(torch.load(gail_agent_path))
+
             gail_agent.train( 
                                         data_loaders=train_data_loaders,
                                         **env_kwargs
-                                    )
+                            )
             return gail_agent
         
         gail_agent_path = None
@@ -497,7 +496,7 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',75)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
