@@ -375,7 +375,7 @@ def extract_expert_data(filename):
                     if dataset_name.startswith('exp_kin_obs'):
                         exp_kin_obs.extend([dataset[:]])
                     elif dataset_name.startswith('exp_obs'):
-                        exp_kin_obs.extend([dataset[:]])
+                        exp_obs.extend([dataset[:]])
                     elif dataset_name.startswith('exp_acts'):
                         exp_acts.extend([dataset[()]])
                     elif dataset_name.startswith('exp_done'):
