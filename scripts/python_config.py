@@ -18,21 +18,21 @@ env_kwargs = {
                 "type": "DiscreteMetaAction",
             },
         "offscreen_rendering": True,
-        # "observation": {
-        #     "type": "Kinematics",
-        #     "vehicles_count": 10,
-        #     "features": [
-        #         "presence",
-        #         "x",
-        #         "y",
-        #         "vx",
-        #         "vy",
-        #         "cos_h",
-        #         "sin_h"
-        #     ],
-        #     "absolute": False,
-        #     "relative_features": ['x']
-        # },
+        "KinematicObservation": {
+            "type": "Kinematics",
+            "vehicles_count": 10,
+            "features": [
+                "presence",
+                "x",
+                "y",
+                "vx",
+                "vy",
+                "cos_h",
+                "sin_h"
+            ],
+            "absolute": False,
+            "relative_features": ['x']
+        },
         "observation": {
             "type": "GrayscaleObservation",
             "observation_shape": (128, 64),

@@ -1,4 +1,5 @@
 import torch.multiprocessing as mp
+from highway_env.envs.common.observation import  observation_factory
 import functools
 import gymnasium as gym
 import seaborn as sns
@@ -83,7 +84,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLTRAIN
+train = TrainEnum.RLDEPLOY
 
 
 
@@ -557,7 +558,10 @@ if __name__ == "__main__":
         #                             )
         # print(" Mean reward ", reward)
         env.render()
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=BC_agent.policy.features_extractor))
+        try:
+            env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=BC_agent.policy.features_extractor))
+        except Exception as e:
+            print(e)
         policy = BC_agent.policy
         policy.eval()
         for _ in range(num_deploy_rollouts):
@@ -565,6 +569,7 @@ if __name__ == "__main__":
             env.step(4)
             done = truncated = False
             cumulative_reward = 0
+            observation_factory(env, env.config["KinematicObservation"])
             while not (done or truncated):
                 action, _ = policy.predict(obs)
                 env.vehicle.actions = []
