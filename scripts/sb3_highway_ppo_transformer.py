@@ -118,19 +118,6 @@ if __name__ == "__main__":
             features_extractor_kwargs=attention_network_kwargs,
         )
 
-    if False:
-        optimal_gail_agent                       = retrieve_agent(
-                                                                    # env= make_configure_env(**env_kwargs).unwrapped, # need only certain parameters
-                                                                    artifact_version='trained_model_directory:v2',
-                                                                    agent_model='optimal_gail_agent.pth'
-                                                                    )
-        final_gail_agent                         = retrieve_agent(
-                                                                    # env= make_configure_env(**env_kwargs).unwrapped, # need only certain parameters
-                                                                    artifact_version='trained_model_directory:v2',
-                                                                    agent_model='final_gail_agent.pth'
-                                                                    )
-        reward_oracle = final_gail_agent.d
-        env_kwargs.update({'reward_oracle':reward_oracle})
 
     WARM_START = False
     # Get the current date and time
@@ -139,7 +126,7 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     zip_filename = 'expert_data_trial.zip'
     n_cpu =  mp.cpu_count()
-    device = torch.device("cpu")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     extract_path = 'data'
 
     import python_config
@@ -153,15 +140,12 @@ if __name__ == "__main__":
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
-        # oracle_agent                       = retrieve_agent(
-        #                                                         artifact_version='trained_model_directory:latest',
-        #                                                         agent_model = 'optimal_gail_agent.pth',
-        #                                                         project="random_env_gail_1",
-        #                                                      )
+        project= f"RL"                           
         oracle_agent                            = retrieve_agent(
                                                         artifact_version='trained_model_directory:latest',
                                                         agent_model = 'agent_final.pth',
-                                                        project="RL"
+                                                        device=device,
+                                                        project=project
                                                     )
         append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
@@ -169,9 +153,10 @@ if __name__ == "__main__":
                                 oracle_agent,
                                 extract_path = extract_path,
                                 zip_filename=zip_filename,
-                                delta_iterations = 10,
+                                delta_iterations = 3,
                                 **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                              )
+        print(" finished collecting data for ALL THE files ")
     elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
         env_kwargs.update({'reward_oracle':None})
         append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
@@ -316,6 +301,7 @@ if __name__ == "__main__":
         optimal_gail_agent                       = retrieve_agent(
                                                                     artifact_version = artifact_version,
                                                                     agent_model = agent_model,
+                                                                    device=device,
                                                                     project = project
                                                                  )
         num_rollouts = 10
@@ -356,6 +342,7 @@ if __name__ == "__main__":
         # RL_agent                            = retrieve_agent(
         #                                                     artifact_version='trained_model_directory:latest',
         #                                                     agent_model = 'RL_agent_final.pth',
+                                                            #   device = device,
         #                                                     project="RL"
         #                                                     )
         
@@ -540,6 +527,7 @@ if __name__ == "__main__":
         BC_agent                            = retrieve_agent(
                                                                 artifact_version='trained_model_directory:latest',
                                                                 agent_model = 'BC_agent_final.pth',
+                                                                device=device,
                                                                 project="BC_1"
                                                             )
         gamma = 1.0

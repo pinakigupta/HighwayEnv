@@ -252,20 +252,21 @@ def postprocess(inputfile,outputfile):
     exp_obs, exp_kin_obs , exp_acts, exp_dones = extract_expert_data(inputfile)
     class_distribution = Counter(exp_acts)
     print(" Before post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs), len(exp_acts), len(exp_dones))
-    exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
+    exp_obs, exp_kin_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=1.25)
     class_distribution = Counter(exp_acts)
-    # print(" After post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs))
+    print(" After post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs))
     # Convert the list of arrays into a NumPy array
     numpy_exp_obs = np.array(exp_obs)
+    numpy_exp_kin_obs = np.array(exp_kin_obs)
     numpy_exp_acts = np.array(exp_acts)
     numpy_exp_dones = np.array(exp_dones)
     with h5py.File(outputfile, 'w') as hf:
         hf.create_dataset('obs',  data=numpy_exp_obs)
-        hf.create_dataset('kin_obs',  data=numpy_exp_obs)
+        hf.create_dataset('kin_obs',  data=numpy_exp_kin_obs)
         hf.create_dataset('act',  data=numpy_exp_acts)
         hf.create_dataset('dones',  data=numpy_exp_dones)
 
-def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
+def downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=2.0):
     # Calculate the distribution of classes
     class_distribution = Counter(exp_acts)
     actions_indexes = {'LANE_LEFT': 0, 'IDLE': 1, 'LANE_RIGHT': 2, 'FASTER': 3, 'SLOWER': 4}
@@ -275,7 +276,7 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
     most_common_class, most_common_count = class_distribution.most_common(1)[0]
     second_most_common_class, second_most_common_count = class_distribution.most_common(2)[1]
     if second_most_common_count == 0:
-        return exp_obs, exp_acts, exp_dones
+        return exp_obs, exp_kin_obs, exp_acts, exp_dones
     desired_samples = factor * second_most_common_count
     # Determine whether downsampling is needed
     if most_common_count > factor * second_most_common_count:
@@ -284,10 +285,11 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
 
         # Perform downsampling on the most common class
         downsampled_exp_obs = []
+        downsampled_exp_kin_obs = []
         downsampled_exp_acts = []
         downsampled_exp_dones = []
 
-        for ob, act, done in zip(exp_obs, exp_acts, exp_dones):
+        for ob, kin_ob, act, done in zip(exp_obs, exp_kin_obs, exp_acts, exp_dones):
             # print(class_distribution, desired_samples)
             if act == most_common_class and class_distribution[act] > desired_samples:
                 class_distribution[act] -= 1
@@ -295,11 +297,13 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
 
             else:
                 downsampled_exp_obs.append(ob)
+                downsampled_exp_kin_obs.append(kin_ob)
                 downsampled_exp_acts.append(act)
                 downsampled_exp_dones.append(done)
 
       # Upsample less dominant classes by copying their indices
         upsampled_exp_obs = []
+        upsampled_exp_kin_obs = []
         upsampled_exp_acts = []
         upsampled_exp_dones = []
 
@@ -310,6 +314,7 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
                 for index in indices_to_copy[:num_samples_to_copy]:
                     try:
                         upsampled_exp_obs.append(exp_obs[index])
+                        upsampled_exp_kin_obs.append(exp_kin_obs[index])
                         upsampled_exp_acts.append(exp_acts[index])
                         upsampled_exp_dones.append(exp_dones[index])
                     except:
@@ -317,13 +322,14 @@ def downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=2.0):
                         pass
 
         final_exp_obs = downsampled_exp_obs + upsampled_exp_obs
+        final_exp_kin_obs = downsampled_exp_kin_obs + upsampled_exp_kin_obs
         final_exp_acts = downsampled_exp_acts + upsampled_exp_acts
         final_exp_dones = downsampled_exp_dones + upsampled_exp_dones
 
-        return final_exp_obs, final_exp_acts, final_exp_dones
+        return final_exp_obs, final_exp_kin_obs, final_exp_acts, final_exp_dones
     else:
         # No downsampling needed, return original data
-        return exp_obs, exp_acts, exp_dones
+        return exp_obs, exp_kin_obs, exp_acts, exp_dones
 
 def softmax(x):
     e_x = np.exp(x - np.max(x))
@@ -367,7 +373,7 @@ def extract_expert_data(filename):
                 # Append the data to the corresponding list
                 try:
                     if dataset_name.startswith('exp_kin_obs'):
-                        exp_kin_obs.extend([dataset[()]])
+                        exp_kin_obs.extend([dataset[:]])
                     elif dataset_name.startswith('exp_obs'):
                         exp_kin_obs.extend([dataset[:]])
                     elif dataset_name.startswith('exp_acts'):
@@ -394,7 +400,7 @@ def extract_post_processed_expert_data(filename):
 
     return obs_array, act_array, done_array
 
-def retrieve_agent( artifact_version, agent_model ,project = None):
+def retrieve_agent( artifact_version, agent_model , device, project = None):
     # Initialize wandb
     wandb.init(project=project, name="inference")
     # Access the run containing the logged artifact
@@ -409,7 +415,7 @@ def retrieve_agent( artifact_version, agent_model ,project = None):
     # final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
     # final_gail_agent = torch.load(final_gail_agent_path)
     print(" optimal_agent_path ", optimal_agent_path)
-    optimal_agent_path = torch.load(optimal_agent_path)
+    optimal_agent_path = torch.load(optimal_agent_path, map_location=device)
     return optimal_agent_path
 
 def expert_data_collector(
@@ -453,6 +459,7 @@ def expert_data_collector(
         if not os.path.exists(extract_path):
             os.makedirs(extract_path)
         for filenum in range(highest_filenum+1, total_iterations):
+            print(" Beginning collecting data for file ", filenum)
             collect_expert_data  (
                                         oracle=oracle_agent,
                                         num_steps_per_iter=config["num_expert_steps"],
@@ -470,5 +477,6 @@ def expert_data_collector(
             zipf.write(exp_file, exp_zip_file)
             zipf.write(val_file, val_zip_file)
             outer_bar.update(1)
+            print(" finished collecting data for file ", filenum)
         outer_bar.close()
-        shutil.rmtree(extract_path)
+        # shutil.rmtree(extract_path)
