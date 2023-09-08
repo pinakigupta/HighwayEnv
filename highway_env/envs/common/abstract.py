@@ -14,6 +14,7 @@ from highway_env.envs.common.finite_mdp import finite_mdp
 from highway_env.envs.common.graphics import EnvViewer
 from highway_env.vehicle.behavior import IDMVehicle, LinearVehicle
 from highway_env.vehicle.kinematics import Vehicle
+from highway_env.envs.common.observation import KinematicObservation
 
 Observation = TypeVar("Observation")
 
@@ -235,15 +236,15 @@ class AbstractEnv(gym.Env):
         self.time += 1 / self.config["policy_frequency"]
         self._simulate(action)
 
+        obs = self.observation_type.observe()
         if 'mode' in self.config and (self.config['mode'] == 'expert'):
             for v in self.road.vehicles:
-                if v is not self.vehicle and isinstance(v, IDMVehicle):
+                if v is not self.vehicle and isinstance(v, IDMVehicle) and isinstance(self.observation_type, KinematicObservation):
                     v.observer = self.observation_type.observe(v)
         elif 'mode' in self.config and (self.config['mode'] == 'MDPVehicle'):
-            self.vehicle.observer = self.observation_type.observe()
+            self.vehicle.observer = obs
 
 
-        obs = self.observation_type.observe()
         reward = self._reward(action)
         if hasattr(self, 'ep_rward'):
             self.ep_rward += reward

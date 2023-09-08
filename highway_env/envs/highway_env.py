@@ -116,20 +116,6 @@ class HighwayEnv(AbstractEnv):
         rewards = self._rewards(action)
         weighed_reward = [self.config.get(name, 0) * reward for name, reward in rewards.items()]
         reward = sum(weighed_reward)
-        obs = self.observation_type.observe()
-        if hasattr(self, 'reward_oracle') and self.reward_oracle is not None:
-            import torch
-            from torch import FloatTensor, squeeze, zeros
-            obs = FloatTensor(obs)
-            obs = obs.view(1, -1) 
-            action = torch.tensor(action, dtype=torch.int64) 
-            action = action.view(1)
-            # print(self.reward_oracle, "obs.shape ",obs.shape, " action.shape ", action.shape)
-            expert_reward = self.reward_oracle(obs , action )
-            expert_reward = expert_reward[0].item()
-            print(" expert_reward ", expert_reward)
-            # if expert_reward < 0.2:
-            #     reward += 0.1
         # if self.config["normalize_reward"]:
         #     reward = utils.lmap(reward,
         #                         [

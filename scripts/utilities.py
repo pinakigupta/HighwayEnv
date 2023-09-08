@@ -239,7 +239,7 @@ class CustomExtractor(BaseFeaturesExtractor):
 
 
 
-def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
+def save_checkpoint(project, run_name, epoch, model, **kwargs):
 
     with wandb.init(
                         project=project, 
@@ -247,10 +247,11 @@ def save_checkpoint(project, run_name, epoch, trainer, metrics_plot_path):
                     ) as run:
                     # if epoch is None:
                     epoch = "final"
-                    run.log({f"metrics_plot": wandb.Image(metrics_plot_path)})
+                    if 'metrics_plot_path' in kwargs:
+                        run.log({f"metrics_plot": wandb.Image(kwargs['metrics_plot_path'])})
                     run.name = run_name
                     # Log the model as an artifact in wandb
-                    torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth") 
+                    torch.save(model , f"models_archive/agent_{epoch}.pth") 
                     artifact = wandb.Artifact("trained_model_directory", type="model_directory")
                     artifact.add_dir("models_archive")
                     run.log_artifact(artifact)

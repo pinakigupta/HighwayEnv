@@ -1,5 +1,4 @@
 import torch.multiprocessing as mp
-from highway_env.envs.common.observation import  observation_factory
 import functools
 import gymnasium as gym
 import seaborn as sns
@@ -84,7 +83,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.RLDEPLOY
+train = TrainEnum.EXPERT_DATA_COLLECTION
 
 
 
@@ -138,7 +137,7 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    zip_filename = 'expert_data.zip'
+    zip_filename = 'expert_data_trial.zip'
     n_cpu =  mp.cpu_count()
     device = torch.device("cpu")
     extract_path = 'data'
@@ -154,19 +153,24 @@ if __name__ == "__main__":
 
     
     if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
-        oracle_agent                       = retrieve_agent(
-                                                                artifact_version='trained_model_directory:latest',
-                                                                agent_model = 'optimal_gail_agent.pth',
-                                                                project="random_env_gail_1",
-                                                             )
-        append_key_to_dict_of_dict(env_kwargs,'config','mode','expert')
+        # oracle_agent                       = retrieve_agent(
+        #                                                         artifact_version='trained_model_directory:latest',
+        #                                                         agent_model = 'optimal_gail_agent.pth',
+        #                                                         project="random_env_gail_1",
+        #                                                      )
+        oracle_agent                            = retrieve_agent(
+                                                        artifact_version='trained_model_directory:latest',
+                                                        agent_model = 'agent_final.pth',
+                                                        project="RL"
+                                                    )
+        append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         expert_data_collector(  
                                 oracle_agent,
                                 extract_path = extract_path,
                                 zip_filename=zip_filename,
                                 delta_iterations = 10,
-                                **{**env_kwargs, **{'expert':None}}           
+                                **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                              )
     elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
         env_kwargs.update({'reward_oracle':None})
@@ -181,7 +185,7 @@ if __name__ == "__main__":
                             env_kwargs=env_kwargs
                           )
 
-        total_timesteps=200*10000
+        total_timesteps=100*1000
         # Set the checkpoint frequency
         checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
         policy_kwargs = dict(
@@ -193,7 +197,7 @@ if __name__ == "__main__":
                         'MlpPolicy',
                         env,
                         n_steps=2048 // n_cpu,
-                        batch_size=2048,
+                        batch_size=128,
                         learning_rate=2e-3,
                         policy_kwargs=policy_kwargs,
                         # device="cpu",
@@ -202,43 +206,29 @@ if __name__ == "__main__":
         
 
         checkptcallback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
-        # Train the model
-        with wandb.init(
-                        project="RL", 
-                        magic=True,
-                        ) as run:
-            run.name = f"sweep_{month}{day}_{timenow()}"
-            # Create the custom callback
-            metrics_callback = CustomMetricsCallback()
-            curriculamcallback = CustomCurriculamCallback()
+        project= f"RL"
+        run_name = f"sweep_{month}{day}_{timenow()}"
+        # Create the custom callback
+        metrics_callback = CustomMetricsCallback()
+        curriculamcallback = CustomCurriculamCallback()
 
-            if WARM_START:
-                # Download the artifact in case you want to initialize with pre - trained 
-                artifact = wandb.use_artifact("trained_model:v6")
-                artifact_dir = artifact.download()
 
-                # Load the model from the downloaded artifact
-                rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
-                # if rl_agent_path in locals():
-                model.policy.load_state_dict(torch.load(rl_agent_path))
-
-            training_info = model.learn(
-                                        total_timesteps=total_timesteps,
-                                        callback=[
-                                                    checkptcallback, 
-                                                    curriculamcallback,
-                                                 ]
-                                        )
+        training_info = model.learn(
+                                    total_timesteps=total_timesteps,
+                                    callback=[
+                                                checkptcallback, 
+                                                curriculamcallback,
+                                             ]
+                                    )
             
-            # Log the model as an artifact in wandb
-            torch.save(model.policy, 'RL_agent.pth')
-            
-            artifact = wandb.Artifact("trained_model", type="model")
-            artifact.add_file("RL_agent.pth")
-            run.log_artifact(artifact)
 
-        wandb.finish()
-        model.save("highway_attention_ppo/model_new")
+        save_checkpoint(
+                            project = project, 
+                            run_name=run_name,
+                            epoch = None, 
+                            model = model.policy,
+                        )
+        # model.save("highway_attention_ppo/model_new")
 
         # Save the final model
         # model.save("highway_attention_ppo/model")
@@ -359,6 +349,7 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
+        append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
         env_kwargs.update({'reward_oracle':None})
         env = make_configure_env(**env_kwargs)
         env = record_videos(env=env, name_prefix = 'RL', video_folder='videos/RL')
@@ -372,7 +363,7 @@ if __name__ == "__main__":
         # Access the run containing the logged artifact
 
         # Download the artifact
-        artifact = wandb.use_artifact("trained_model:v16")
+        artifact = wandb.use_artifact("trained_model:latest")
         artifact_dir = artifact.download()
 
         # Load the model from the downloaded artifact
@@ -382,7 +373,10 @@ if __name__ == "__main__":
         
         print(model)
         env.render()
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.features_extractor))
+        
+        # env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.features_extractor))
+
+              
         gamma = 1.0
         for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
@@ -531,7 +525,7 @@ if __name__ == "__main__":
                             project = project, 
                             run_name=run_name,
                             epoch = None, 
-                            trainer = bc_trainer,
+                            model = bc_trainer,
                             metrics_plot_path = metrics_plot_path
                         )
     elif train == TrainEnum.BCDEPLOY:
@@ -544,9 +538,9 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
         BC_agent                            = retrieve_agent(
-                                                            artifact_version='trained_model_directory:latest',
-                                                            agent_model = 'BC_agent_final.pth',
-                                                            project="BC_1"
+                                                                artifact_version='trained_model_directory:latest',
+                                                                agent_model = 'BC_agent_final.pth',
+                                                                project="BC_1"
                                                             )
         gamma = 1.0
         # reward = simulate_with_model(
@@ -569,7 +563,6 @@ if __name__ == "__main__":
             env.step(4)
             done = truncated = False
             cumulative_reward = 0
-            observation_factory(env, env.config["KinematicObservation"])
             while not (done or truncated):
                 action, _ = policy.predict(obs)
                 env.vehicle.actions = []

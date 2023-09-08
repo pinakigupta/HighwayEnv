@@ -16,6 +16,7 @@ import zipfile
 import os
 import shutil
 from highway_env.vehicle.behavior import MDPVehicle
+from highway_env.envs.common.observation import  observation_factory
 
 from forward_simulation import append_key_to_dict_of_dict
 
@@ -29,7 +30,6 @@ def make_configure_env(**kwargs):
 
 
 def worker(
-                placeholder, 
                 data_queue, 
                 episode_rewards, 
                 steps_per_worker, 
@@ -46,7 +46,7 @@ def worker(
     oracle = torch.load('oracle.pth', map_location='cpu')
 
     while True:
-        ob = env.reset()
+        # ob = env.reset()
         experts_to_consider = []
         if('expert' in env_kwargs) and (env_kwargs['expert']=='MDPVehicle'):
             experts_to_consider = [env.vehicle]
@@ -54,25 +54,26 @@ def worker(
             for v in env.road.vehicles:
                 if v is not env.vehicle and ( not isinstance(v, MDPVehicle) ):
                     experts_to_consider.append(v) 
-        ob=ob[0]
+        # ob=ob[0]
         done = False
         ep_rwds = []
         all_obs = {}
         all_acts = {}
         all_done = {}
+        all_kinematic_obs = {}
         rollout_steps = 0
-        
+        act = 4
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
         while rollout_steps < steps_per_worker:
             # Extract features from observations using the feature extractor
             # features_extractor, policy_net, action_net = oracle
             # ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
-
-            try:
-                act = oracle.predict(ob)[0]
-            except:
-                act = oracle.act(ob.flatten())
-            # act = 4
+            if rollout_steps > 0:
+                try:
+                    act, _  = oracle.predict(ob)
+                except:
+                    act = oracle.act(ob.flatten())
+            # act = \
             next_ob, rwd, done, _, _ = env.step(act)
             rollout_steps += 1
 
@@ -85,12 +86,14 @@ def worker(
                     all_obs[v] = []
                     all_acts[v] = []
                     all_done[v] = []
+                    all_kinematic_obs[v] = []
                 all_obs[v].append(obs)
                 all_acts[v].append(acts)
                 all_done[v].append(False)
-            # print(type(all_done[-1]), len(all_done[-1]))
+                all_kinematic_obs[v].append(observation_factory(env, env.config['KinematicObservation']).observe())
             
-            # print(id(env.vehicle), " all_obs ", len(all_obs[env.vehicle]), discrete_action, done)
+            # print('rollout_steps ', rollout_steps, all_acts)
+            
             if done:
                 for v in all_done:
                     all_done[v][-1] = True
@@ -100,26 +103,18 @@ def worker(
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
         # print("all_obs. worker ",worker_id," : ", len(all_obs[env.vehicle]), len(all_acts[env.vehicle]), len(all_done[env.vehicle]))
+        
         # Update progress value
         if lock.acquire(timeout=1):
-            for (v , ep_obs), (v_, ep_acts), (v_, ep_done) in zip(all_obs.items(), all_acts.items(), all_done.items()):
-                # print(" ep_acts length ", len(ep_acts), id1, id2, " steps_collected ", steps_collected, 
-                #       " obs_collected ", obs_collected, " steps_per_worker ", steps_per_worker, " done ", done)
-                # if v.crashed:
-                #     pass
-                #     # print(" Discarding data as vehicle ", v, " crashed " )
-                # else:
-                # print("ep_obs ", ep_obs)
-
-                data_queue.put((ep_obs, ep_acts, ep_done))
+            for (v , ep_obs), (v , ep_K_obs), (v_, ep_acts), (v_, ep_done) in zip(all_obs.items(), all_kinematic_obs.items(), all_acts.items(), all_done.items()):
+                data_queue.put((ep_obs, ep_K_obs, ep_acts, ep_done))
                 steps_collected += len(ep_acts)
                 # print("steps_collected ", steps_collected)
             lock.release()
         else:
             print("lock time out occurred")
-            # progress.value += obs_collecected
-            # print("worker ", worker_id, " steps_collected ", steps_collected,   flush=True)
-        episode_rewards.append(np.sum(ep_rwds))
+
+        # episode_rewards.append(np.sum(ep_rwds))
         # time.sleep(0.001)
 
 def collect_expert_data(
@@ -157,7 +152,7 @@ def collect_expert_data(
     episode_rewards = manager.list()
 
     # Determine the number of workers based on available CPU cores
-    num_workers =  max(multiprocessing.cpu_count()-3,1)
+    num_workers =   max(multiprocessing.cpu_count()-3,1)
 
     # Calculate the number of steps per worker
     num_steps_per_worker = min(num_steps_per_iter , 1 * (num_steps_per_iter// num_workers))
@@ -175,7 +170,7 @@ def collect_expert_data(
         worker_process = multiprocessing.Process(
                                                     target=worker, 
                                                     args=(
-                                                            oracle, 
+                                                            # oracle, 
                                                             exp_data_queue, 
                                                             episode_rewards, 
                                                             num_steps_per_worker, 
@@ -201,11 +196,11 @@ def collect_expert_data(
 
     with h5py.File(train_filename, 'a') as train_hf, h5py.File(validation_filename, 'a') as valid_hf:
         while steps_count < 0.9*num_steps_per_iter:
-            ob, act, done = exp_data_queue.get()
+            ob, K_ob, act, done = exp_data_queue.get()
             if ob is None:
                 continue
-            if len(set(map(len, (ob, act, done)))) != 1:
-                print(len(ob), len(act), len(done))
+            if len(set(map(len, (ob, K_ob, act, done)))) != 1:
+                print(len(ob), len(K_ob), len(act), len(done))
                 raise ValueError("Tuple members have different lengths")
             
 
@@ -220,14 +215,14 @@ def collect_expert_data(
             if group_name not in hf:
                 episode_group = hf.create_group(group_name)
             count = 0
-            for i, (arr1, arr2, arr3) in enumerate(zip(ob, act, done)):
-                # if arr1 is None:
-                #     continue
+            for i, (arr1, arr2, arr3, arr4) in enumerate(zip(ob, K_ob, act, done)):
                 count += 1
+                # print(' arr1 and arr2 ', arr1)
                     # raise ValueError("arr1 is empty, dataset creation aborted")
-                episode_group.create_dataset(f'exp_obs{i}',  data=arr1,  dtype='float32')
-                episode_group.create_dataset(f'exp_acts{i}', data=arr2,  dtype='float32')
-                episode_group.create_dataset(f'exp_done{i}', data=arr3,  dtype=bool)
+                episode_group.create_dataset(f'exp_obs{i}',     data=arr1,  dtype='float32')
+                episode_group.create_dataset(f'exp_kin_obs{i}', data=arr2,  dtype='float32')
+                episode_group.create_dataset(f'exp_acts{i}',    data=arr3,  dtype='float32')
+                episode_group.create_dataset(f'exp_done{i}',    data=arr4,  dtype=bool)
             steps_count += count
             if count > 0:
                 ep_collected +=1
@@ -254,7 +249,7 @@ def collect_expert_data(
 
 
 def postprocess(inputfile,outputfile):
-    exp_obs, exp_acts, exp_dones = extract_expert_data(inputfile)
+    exp_obs, exp_kin_obs , exp_acts, exp_dones = extract_expert_data(inputfile)
     class_distribution = Counter(exp_acts)
     print(" Before post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs), len(exp_acts), len(exp_dones))
     exp_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_acts, exp_dones, factor=1.25)
@@ -266,6 +261,7 @@ def postprocess(inputfile,outputfile):
     numpy_exp_dones = np.array(exp_dones)
     with h5py.File(outputfile, 'w') as hf:
         hf.create_dataset('obs',  data=numpy_exp_obs)
+        hf.create_dataset('kin_obs',  data=numpy_exp_obs)
         hf.create_dataset('act',  data=numpy_exp_acts)
         hf.create_dataset('dones',  data=numpy_exp_dones)
 
@@ -353,6 +349,7 @@ def extract_expert_data(filename):
     exp_obs  = []
     exp_acts = []
     exp_done = []
+    exp_kin_obs = []
     with h5py.File(filename, 'r') as hf:
         # List all the episode groups in the HDF5 file
         episode_groups = list(hf.keys())
@@ -369,19 +366,21 @@ def extract_expert_data(filename):
 
                 # Append the data to the corresponding list
                 try:
-                    if dataset_name.startswith('exp_obs'):
-                        exp_obs.extend([dataset[:]])
+                    if dataset_name.startswith('exp_kin_obs'):
+                        exp_kin_obs.extend([dataset[()]])
+                    elif dataset_name.startswith('exp_obs'):
+                        exp_kin_obs.extend([dataset[:]])
                     elif dataset_name.startswith('exp_acts'):
                         exp_acts.extend([dataset[()]])
                     elif dataset_name.startswith('exp_done'):
                         exp_done.extend([dataset[()]])
                 except Exception as e:
-                    print(dataset[:].shape)
+                    print('dataset[:].shape ', dataset_name, dataset)
                     raise e
                     # print(e)
            
 
-    return  exp_obs, exp_acts, exp_done
+    return  exp_obs, exp_kin_obs, exp_acts, exp_done
 
 
 def extract_post_processed_expert_data(filename):
