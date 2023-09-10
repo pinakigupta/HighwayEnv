@@ -1,0 +1,5 @@
+outs:
+- md5: 0195ff3c84d50abda133e8f4b1152afa
+  size: 606846306
+  hash: md5
+  path: expert_data_trial.zip
