@@ -420,7 +420,7 @@ def retrieve_agent( artifact_version, agent_model , device, project = None):
     # final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
     # final_gail_agent = torch.load(final_gail_agent_path)
     print(" optimal_agent_path ", optimal_agent_path)
-    optimal_agent_path = torch.load(optimal_agent_path, map_location=device)
+    optimal_agent_path = torch.jit.load(optimal_agent_path, map_location=device)
     return optimal_agent_path
 
 def expert_data_collector(

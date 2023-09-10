@@ -83,7 +83,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 
 
 
@@ -531,11 +531,12 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
+        append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
         env = make_configure_env(**env_kwargs)
         env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
         BC_agent                            = retrieve_agent(
                                                                 artifact_version='trained_model_directory:latest',
-                                                                agent_model = 'BC_agent_final.pth',
+                                                                agent_model = 'agent_final.pt',
                                                                 device=device,
                                                                 project="BC_1"
                                                             )
@@ -553,7 +554,8 @@ if __name__ == "__main__":
             env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=BC_agent.policy.features_extractor))
         except Exception as e:
             print(e)
-        policy = BC_agent.policy
+        policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
+        policy.load_state_dict(BC_agent.state_dict())
         policy.eval()
         for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
