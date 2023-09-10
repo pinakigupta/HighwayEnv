@@ -361,7 +361,7 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     return train_data_loader
 
 
-def calculate_validation_metrics(bc_trainer,zip_filename, **training_kwargs):
+def calculate_validation_metrics(policy,zip_filename, **training_kwargs):
     true_labels = []
     predicted_labels = []
     # Iterate through the validation data and make predictions
@@ -373,7 +373,7 @@ def calculate_validation_metrics(bc_trainer,zip_filename, **training_kwargs):
                     hdf5_data = file_in_zip.read()
                     in_memory_file = io.BytesIO(hdf5_data)
                     val_obs, val_acts, val_dones = extract_post_processed_expert_data(in_memory_file)
-                    predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
+                    predicted_labels.extend([policy.predict(obs)[0] for obs in val_obs])
                     true_labels.extend(val_acts)
 
     # Calculate evaluation metrics

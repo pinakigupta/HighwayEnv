@@ -61,7 +61,7 @@ sweep_config = {
             "values": [ 128 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [1]  # Values for the "duration" field to be swept
+            "values": [2]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -76,4 +76,4 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.BC

@@ -93,7 +93,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     zip_filename = 'expert_data.zip'
     n_cpu =  mp.cpu_count()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -390,7 +391,7 @@ if __name__ == "__main__":
                                 )        
     
 
-        def _train(zip_filename, extract_path, device=device, **training_kwargs):
+        def _train(env, policy, zip_filename, extract_path, device=device, **training_kwargs):
             num_epochs = training_kwargs['num_epochs']
             checkpoint_interval = num_epochs//2
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
@@ -413,12 +414,14 @@ if __name__ == "__main__":
                                                                                                   )
                 
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_batches = 1500 if last_epoch else 25000 # Mini epoch here correspond to typical epoch
+                num_mini_batches = 5000 if last_epoch else 2000 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
-                trainer.train(n_batches=num_mini_batches)  
+                trainer.train(n_batches=num_mini_batches)
+                policy = trainer.policy
+                policy.eval()  
                 if not last_epoch and DAGGER:
                     expert_data_collector(
-                                            trainer.policy, # This is the exploration policy
+                                            policy, # This is the exploration policy
                                             extract_path = extract_path,
                                             zip_filename=zip_filename,
                                             delta_iterations = 1,
@@ -428,21 +431,11 @@ if __name__ == "__main__":
                                                 }           
                                         )
 
-                # num_rollouts = 10
-                # reward = simulate_with_model(
-                #                                     agent=trainer.policy, 
-                #                                     env_kwargs=env_kwargs, 
-                #                                     render_mode='none', 
-                #                                     num_workers= min(num_rollouts,n_cpu), 
-                #                                     num_rollouts=num_rollouts
-                #                             )
-                # print(f"Reward after training epoch {epoch}: {reward}")
-                # At the end of each epoch or desired interval
                 if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
                     print("saving check point ", epoch)
-                    torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth")
+                    torch.save(policy , f"models_archive/BC_agent_{epoch}.pth")
                 accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                                trainer, 
+                                                                                policy, 
                                                                                 zip_filename=zip_filename,
                                                                                 plot_path=f"heatmap_{epoch}.png" 
                                                                               )
@@ -450,11 +443,13 @@ if __name__ == "__main__":
                 _validation_metrics["precision"].append(precision)
                 _validation_metrics["recall"].append(recall)
                 _validation_metrics["f1"].append(f1)
-            epochs = range(num_epochs)
+                policy.to(device)
+                policy.train()
+            
 
 
             accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                            trainer, 
+                                                                            policy, 
                                                                             zip_filename=zip_filename, 
                                                                             plot_path=f"heatmap_{epoch}.png" 
                                                                             )
@@ -462,7 +457,7 @@ if __name__ == "__main__":
 
             # Plotting
             plt.figure(figsize=(10, 6))
-
+            epochs = range(num_epochs)
             for metric_name, metric_values in _validation_metrics.items():
                 plt.plot(epochs, metric_values, label=metric_name)
 
@@ -479,8 +474,11 @@ if __name__ == "__main__":
 
         
         bc_trainer                                  = _train(
+                                                                env,
+                                                                policy,
                                                                 zip_filename,
                                                                 extract_path,
+                                                                device=device,
                                                                 num_epochs=num_epochs, 
                                                                 batch_size=batch_size,
                                                             )
@@ -512,7 +510,7 @@ if __name__ == "__main__":
                                         functools.partial(
                                                             display_vehicles_attention, 
                                                             env=env, 
-                                                            fe=BC_agent.policy.features_extractor,
+                                                            fe=BC_agent.features_extractor,
                                                             device=device
                                                          )
                                     )
