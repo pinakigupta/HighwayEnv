@@ -479,9 +479,9 @@ def expert_data_collector(
             val_zip_file = f'expert_val_data_{filenum}.h5'
             postprocess(expert_temp_data_file, exp_file)
             postprocess(validation_temp_data_file, val_file)
-            # zipf.write(exp_file, exp_zip_file)
-            # zipf.write(val_file, val_zip_file)
+            zipf.write(exp_file, exp_zip_file)
+            zipf.write(val_file, val_zip_file)
             outer_bar.update(1)
             print(" finished collecting data for file ", filenum)
         outer_bar.close()
-        # shutil.rmtree(extract_path)
+        shutil.rmtree(extract_path)

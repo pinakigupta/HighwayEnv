@@ -83,7 +83,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.BC
 
 
 
@@ -434,11 +434,11 @@ if __name__ == "__main__":
                                                                                                       extract_path, 
                                                                                                       device=device,
                                                                                                       batch_size=training_kwargs['batch_size'],
-                                                                                                      n_cpu = 2*n_cpu
+                                                                                                      n_cpu = n_cpu
                                                                                                   )
                 
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_batches = 50 if last_epoch else 2000 # Mini epoch here correspond to typical epoch
+                num_mini_batches = 500 if last_epoch else 200 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
                 trainer.train(n_batches=num_mini_batches) 
                 print('BC Training complete') 
