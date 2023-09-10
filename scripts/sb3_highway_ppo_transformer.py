@@ -83,7 +83,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 
 
 
@@ -438,7 +438,7 @@ if __name__ == "__main__":
                                                                                                   )
                 
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_batches = 5000 if last_epoch else 2000 # Mini epoch here correspond to typical epoch
+                num_mini_batches = 50 if last_epoch else 2000 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
                 trainer.train(n_batches=num_mini_batches) 
                 print('BC Training complete') 
@@ -535,7 +535,7 @@ if __name__ == "__main__":
         env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
         BC_agent                            = retrieve_agent(
                                                                 artifact_version='trained_model_directory:latest',
-                                                                agent_model = 'BC_agent_final.pth',
+                                                                agent_model = 'agent_final.pt',
                                                                 device=device,
                                                                 project="BC_1"
                                                             )
