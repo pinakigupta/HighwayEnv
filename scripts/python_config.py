@@ -1,3 +1,4 @@
+from enum import Enum
 
 env_kwargs = {
     'id': 'highway-v0',
@@ -64,3 +65,15 @@ sweep_config = {
         },    
     }
 }
+
+class TrainEnum(Enum):
+    RLTRAIN = 0
+    RLDEPLOY = 1
+    IRLTRAIN = 2
+    IRLDEPLOY = 3
+    EXPERT_DATA_COLLECTION =4
+    BC = 5
+    BCDEPLOY = 6
+    ANALYSIS = 7
+
+train = TrainEnum.BCDEPLOY

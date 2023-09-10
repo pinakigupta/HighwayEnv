@@ -10,7 +10,6 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
 from sb3_contrib import  RecurrentPPO
 import os
-from enum import Enum
 import json
 import wandb
 from datetime import datetime
@@ -25,7 +24,7 @@ from utilities import *
 from utils import record_videos
 import warnings
 from imitation.algorithms import bc
-from python_config import sweep_config, env_kwargs
+from python_config import sweep_config, env_kwargs, TrainEnum, train
 import matplotlib.pyplot as plt
 from imitation.algorithms import bc
 import importlib
@@ -38,21 +37,7 @@ from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
 
-class TrainEnum(Enum):
-    RLTRAIN = 0
-    RLDEPLOY = 1
-    IRLTRAIN = 2
-    IRLDEPLOY = 3
-    EXPERT_DATA_COLLECTION =4
-    BC = 5
-    BCDEPLOY = 6
-    ANALYSIS = 7
 
-<<<<<<< HEAD
-train = TrainEnum.ANALYSIS
-=======
-train = TrainEnum.IRLTRAIN
->>>>>>> cd4cb55bade443d12088d68cf94a918be8050dd6
 
 
 
@@ -108,7 +93,7 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     zip_filename = 'expert_data.zip'
     n_cpu =  mp.cpu_count()
-    device = torch.device("cpu")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     extract_path = 'data'
 
     import python_config
@@ -207,7 +192,7 @@ if __name__ == "__main__":
     elif train == TrainEnum.IRLTRAIN:
         env_kwargs.update({'reward_oracle':None})
         project_name = f"random_env_gail_1"
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
         
         # IDM + MOBIL is treated as expert.
         with open("config.json") as f:
@@ -349,7 +334,14 @@ if __name__ == "__main__":
         
         print(model)
         env.render()
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=model.features_extractor))
+        env.viewer.set_agent_display(
+                                        functools.partial(
+                                                            display_vehicles_attention, 
+                                                            env=env, 
+                                                            fe=model.features_extractor,
+                                                            device=device
+                                                         )
+                                    )
         gamma = 1.0
         for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
@@ -374,9 +366,7 @@ if __name__ == "__main__":
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         rng=np.random.default_rng()
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         project = "BC_1"
-        # device = 'cpu'
         policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
         print("Default policy initialized ")
         
@@ -423,7 +413,7 @@ if __name__ == "__main__":
                                                                                                   )
                 
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_batches = 150000 if last_epoch else 25000 # Mini epoch here correspond to typical epoch
+                num_mini_batches = 1500 if last_epoch else 25000 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
                 trainer.train(n_batches=num_mini_batches)  
                 if not last_epoch and DAGGER:
@@ -513,19 +503,19 @@ if __name__ == "__main__":
         BC_agent                            = retrieve_agent(
                                                             artifact_version='trained_model_directory:latest',
                                                             agent_model = 'BC_agent_final.pth',
+                                                            device=device,
                                                             project="BC_1"
                                                             )
         gamma = 1.0
-        # reward = simulate_with_model(
-        #                                 agent=policy, 
-        #                                 env_kwargs=env_kwargs, 
-        #                                 render_mode='human', 
-        #                                 num_workers= min(num_rollouts, 1), 
-        #                                 num_rollouts=num_rollouts
-        #                             )
-        # print(" Mean reward ", reward)
         env.render()
-        env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=BC_agent.policy.features_extractor))
+        env.viewer.set_agent_display(
+                                        functools.partial(
+                                                            display_vehicles_attention, 
+                                                            env=env, 
+                                                            fe=BC_agent.policy.features_extractor,
+                                                            device=device
+                                                         )
+                                    )
         policy = BC_agent.policy
         policy.eval()
         for _ in range(num_deploy_rollouts):

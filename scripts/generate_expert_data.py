@@ -395,7 +395,7 @@ def extract_post_processed_expert_data(filename):
 
     return obs_array, act_array, done_array
 
-def retrieve_agent( artifact_version, agent_model ,project = None):
+def retrieve_agent( artifact_version, agent_model ,device, project = None):
     # Initialize wandb
     wandb.init(project=project, name="inference")
     # Access the run containing the logged artifact
@@ -410,7 +410,7 @@ def retrieve_agent( artifact_version, agent_model ,project = None):
     # final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
     # final_gail_agent = torch.load(final_gail_agent_path)
     print(" optimal_agent_path ", optimal_agent_path)
-    optimal_agent_path = torch.load(optimal_agent_path)
+    optimal_agent_path = torch.load(optimal_agent_path, map_location= device)
     return optimal_agent_path
 
 def expert_data_collector(
