@@ -43,7 +43,12 @@ def worker(
     steps_collected = 0
     # oracle = env.controlled_vehicles[0]
 
-    oracle = torch.load('oracle.pth', map_location='cpu')
+    if lock.acquire(timeout=100):
+        oracle = torch.load('oracle.pth', map_location='cpu')
+        lock.release()
+    else:
+        return
+
 
     while True:
         # ob = env.reset()
@@ -194,7 +199,7 @@ def collect_expert_data(
     
 
 
-    with h5py.File(train_filename, 'a') as train_hf, h5py.File(validation_filename, 'a') as valid_hf:
+    with h5py.File(train_filename, 'w') as train_hf, h5py.File(validation_filename, 'w') as valid_hf:
         while steps_count < 0.9*num_steps_per_iter:
             ob, K_ob, act, done = exp_data_queue.get()
             if ob is None:
@@ -430,9 +435,9 @@ def expert_data_collector(
     validation_temp_data_file = f'expert_V_data_.h5'
     device = torch.device("cpu")    
     append_key_to_dict_of_dict(env_kwargs,'config','duration',20)
-    if os.path.exists(extract_path):
-        shutil.rmtree(extract_path)
-    os.makedirs(extract_path)
+    # if os.path.exists(extract_path):
+    #     shutil.rmtree(extract_path)
+    os.makedirs(extract_path, exist_ok=True)
     with zipfile.ZipFile(zip_filename, 'a') as zipf:
         # Create an outer tqdm progress bar
         highest_filenum = 0
@@ -474,8 +479,8 @@ def expert_data_collector(
             val_zip_file = f'expert_val_data_{filenum}.h5'
             postprocess(expert_temp_data_file, exp_file)
             postprocess(validation_temp_data_file, val_file)
-            zipf.write(exp_file, exp_zip_file)
-            zipf.write(val_file, val_zip_file)
+            # zipf.write(exp_file, exp_zip_file)
+            # zipf.write(val_file, val_zip_file)
             outer_bar.update(1)
             print(" finished collecting data for file ", filenum)
         outer_bar.close()

@@ -83,7 +83,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
+train = TrainEnum.BC
 
 
 
@@ -112,11 +112,15 @@ def timenow():
 if __name__ == "__main__":
     
     DAGGER = True
+    # policy_kwargs = dict(
+    #         # policy=MLPPolicy,
+    #         features_extractor_class=CustomExtractor,
+    #         features_extractor_kwargs=attention_network_kwargs,
+    #     )
     policy_kwargs = dict(
-            # policy=MLPPolicy,
-            features_extractor_class=CustomExtractor,
-            features_extractor_kwargs=attention_network_kwargs,
-        )
+                            features_extractor_class=CustomImageExtractor,
+                            features_extractor_kwargs=dict(hidden_dim=64),
+                        )
 
 
     WARM_START = False
@@ -153,7 +157,7 @@ if __name__ == "__main__":
                                 oracle_agent,
                                 extract_path = extract_path,
                                 zip_filename=zip_filename,
-                                delta_iterations = 3,
+                                delta_iterations = 2,
                                 **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                              )
         print(" finished collecting data for ALL THE files ")
@@ -173,16 +177,13 @@ if __name__ == "__main__":
         total_timesteps=100*1000
         # Set the checkpoint frequency
         checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
-        policy_kwargs = dict(
-                                features_extractor_class=CustomImageExtractor,
-                                features_extractor_kwargs=dict(hidden_dim=64),
-                            )
+
         # policy = CustomMLPPolicy(env.observation_space, env.action_space)
         model = PPO(
                         'MlpPolicy',
                         env,
                         n_steps=2048 // n_cpu,
-                        batch_size=128,
+                        batch_size=32,
                         learning_rate=2e-3,
                         policy_kwargs=policy_kwargs,
                         # device="cpu",
@@ -433,14 +434,16 @@ if __name__ == "__main__":
                                                                                                       extract_path, 
                                                                                                       device=device,
                                                                                                       batch_size=training_kwargs['batch_size'],
-                                                                                                      n_cpu = n_cpu
+                                                                                                      n_cpu = 2*n_cpu
                                                                                                   )
                 
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_batches = 150000 if last_epoch else 25000 # Mini epoch here correspond to typical epoch
+                num_mini_batches = 5000 if last_epoch else 2000 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
-                trainer.train(n_batches=num_mini_batches)  
+                trainer.train(n_batches=num_mini_batches) 
+                print('BC Training complete') 
                 if not last_epoch and DAGGER:
+                    print('Began Dagger data collection')
                     expert_data_collector(
                                             trainer.policy, # This is the exploration policy
                                             extract_path = extract_path,
@@ -451,6 +454,7 @@ if __name__ == "__main__":
                                                 **{'expert':'MDPVehicle'}
                                                 }           
                                         )
+                    print('End Dagger data collection')
 
                 # num_rollouts = 10
                 # reward = simulate_with_model(
@@ -462,41 +466,44 @@ if __name__ == "__main__":
                 #                             )
                 # print(f"Reward after training epoch {epoch}: {reward}")
                 # At the end of each epoch or desired interval
-                if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
-                    print("saving check point ", epoch)
-                    torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth")
-                accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                                trainer, 
-                                                                                zip_filename=zip_filename,
-                                                                                plot_path=f"heatmap_{epoch}.png" 
-                                                                              )
-                _validation_metrics["accuracy"].append(accuracy)
-                _validation_metrics["precision"].append(precision)
-                _validation_metrics["recall"].append(recall)
-                _validation_metrics["f1"].append(f1)
+                if False:
+                    if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
+                        print("saving check point ", epoch)
+                        torch.save(trainer , f"models_archive/BC_agent_{epoch}.pth",  pickle_protocol=5)
+                        print("saved check point ", epoch)
+                    accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                                    trainer, 
+                                                                                    zip_filename=zip_filename,
+                                                                                    plot_path=f"heatmap_{epoch}.png" 
+                                                                                )
+                    _validation_metrics["accuracy"].append(accuracy)
+                    _validation_metrics["precision"].append(precision)
+                    _validation_metrics["recall"].append(recall)
+                    _validation_metrics["f1"].append(f1)
             epochs = range(num_epochs)
 
 
-            accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                            trainer, 
-                                                                            zip_filename=zip_filename, 
-                                                                            plot_path=f"heatmap_{epoch}.png" 
-                                                                            )
+            if False:
+                accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                                trainer, 
+                                                                                zip_filename=zip_filename, 
+                                                                                plot_path=f"heatmap_{epoch}.png" 
+                                                                                )
 
 
-            # Plotting
-            plt.figure(figsize=(10, 6))
 
-            for metric_name, metric_values in _validation_metrics.items():
-                plt.plot(epochs, metric_values, label=metric_name)
+                # Plotting
+                plt.figure(figsize=(10, 6))
+                for metric_name, metric_values in _validation_metrics.items():
+                    plt.plot(epochs, metric_values, label=metric_name)
 
 
-            plt.xlabel("Epochs")
-            plt.ylabel("Metrics Value")
-            plt.title("Validation Metrics over Epochs")
-            plt.legend()
-            plt.grid(True)
-            plt.savefig(f"{extract_path}/metrics.png")
+                plt.xlabel("Epochs")
+                plt.ylabel("Metrics Value")
+                plt.title("Validation Metrics over Epochs")
+                plt.legend()
+                plt.grid(True)
+                plt.savefig(f"{extract_path}/metrics.png")
             return trainer  
 
         
@@ -508,13 +515,15 @@ if __name__ == "__main__":
                                                                 num_epochs=num_epochs, 
                                                                 batch_size=batch_size,
                                                             )
+        print('Saving final model')
         save_checkpoint(
                             project = project, 
                             run_name=run_name,
                             epoch = None, 
-                            model = bc_trainer,
-                            metrics_plot_path = metrics_plot_path
+                            model = bc_trainer.policy,
+                            # metrics_plot_path = metrics_plot_path
                         )
+        print('Saved final model')
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': 'human'})

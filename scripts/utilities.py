@@ -240,21 +240,22 @@ class CustomExtractor(BaseFeaturesExtractor):
 
 
 def save_checkpoint(project, run_name, epoch, model, **kwargs):
-
+    # if epoch is None:
+    epoch = "final"
+    model_path = f"models_archive/agent_{epoch}.pt"
+    torch.jit.save( m = model , f= model_path) 
     with wandb.init(
                         project=project, 
                         magic=True,
-                    ) as run:
-                    # if epoch is None:
-                    epoch = "final"
+                    ) as run:                    
                     if 'metrics_plot_path' in kwargs:
                         run.log({f"metrics_plot": wandb.Image(kwargs['metrics_plot_path'])})
                     run.name = run_name
                     # Log the model as an artifact in wandb
-                    torch.save(model , f"models_archive/agent_{epoch}.pth") 
                     artifact = wandb.Artifact("trained_model_directory", type="model_directory")
                     artifact.add_dir("models_archive")
                     run.log_artifact(artifact)
+                    
     wandb.finish()
     clear_and_makedirs("models_archive")
 
@@ -374,8 +375,10 @@ def calculate_validation_metrics(bc_trainer,zip_filename, **training_kwargs):
                     hdf5_data = file_in_zip.read()
                     in_memory_file = io.BytesIO(hdf5_data)
                     val_obs, val_acts, val_dones = extract_post_processed_expert_data(in_memory_file)
+                    in_memory_file.close()
                     predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
                     true_labels.extend(val_acts)
+                    
 
     # Calculate evaluation metrics
     accuracy = accuracy_score(true_labels, predicted_labels)
