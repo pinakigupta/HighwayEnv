@@ -418,6 +418,7 @@ if __name__ == "__main__":
             print(" trainer policy ", trainer.policy)
             epoch = None
             for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
+                print(f'Loadng training data loader for epoch {epoch}')
                 train_data_loader                                            = create_dataloaders(
                                                                                                       zip_filename,
                                                                                                       extract_path, 
@@ -425,15 +426,17 @@ if __name__ == "__main__":
                                                                                                       batch_size=training_kwargs['batch_size'],
                                                                                                       n_cpu = n_cpu
                                                                                                   )
-                
+                print(f'Loaded training data loader for epoch {epoch}')
                 last_epoch = (epoch ==num_epochs-1)
                 num_mini_batches = 5000 if last_epoch else 2000 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
+                print(f'Beginning Training for epoch {epoch}')
                 trainer.train(n_batches=num_mini_batches)
+                print(f'Ended training for epoch {epoch}')
                 policy = trainer.policy
                 policy.eval()  
                 if not last_epoch and DAGGER:
-                    print('Began Dagger data collection')
+                    print(f'Began Dagger data collection for epoch {epoch}')
                     expert_data_collector(
                                             policy, # This is the exploration policy
                                             extract_path = extract_path,
@@ -444,11 +447,12 @@ if __name__ == "__main__":
                                                 **{'expert':'MDPVehicle'}
                                                 }           
                                         )
-                    print('End Dagger data collection')
+                    print(f'End Dagger data collection for epoch {epoch}')
 
                 if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
-                    print("saving check point ", epoch)
+                    print(f"saving check point for epoch {epoch}", epoch)
                     torch.save(policy , f"models_archive/BC_agent_{epoch}.pth")
+                print(f'Beginning validation for epoch {epoch}')
                 accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                                 policy, 
                                                                                 zip_filename=zip_filename,
@@ -458,6 +462,7 @@ if __name__ == "__main__":
                 _validation_metrics["precision"].append(precision)
                 _validation_metrics["recall"].append(recall)
                 _validation_metrics["f1"].append(f1)
+                print(f'End validation for epoch {epoch}')
                 policy.to(device)
                 policy.train()
             
@@ -467,7 +472,7 @@ if __name__ == "__main__":
                                                                             policy, 
                                                                             zip_filename=zip_filename, 
                                                                             plot_path=f"heatmap_{epoch}.png" 
-                                                                            )
+                                                                          )
 
 
             # Plotting
@@ -475,8 +480,6 @@ if __name__ == "__main__":
             epochs = range(num_epochs)
             for metric_name, metric_values in _validation_metrics.items():
                 plt.plot(epochs, metric_values, label=metric_name)
-
-
                 plt.xlabel("Epochs")
                 plt.ylabel("Metrics Value")
                 plt.title("Validation Metrics over Epochs")
