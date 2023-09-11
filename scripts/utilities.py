@@ -370,9 +370,9 @@ def calculate_validation_metrics(policy,zip_filename, **training_kwargs):
             hdf5_val_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "val" in file_name]
             for val_data_file in hdf5_val_file_names:
                 with zipf.open(val_data_file) as file_in_zip:
-                    hdf5_data = file_in_zip.read()
-                    in_memory_file = io.BytesIO(hdf5_data)
+                    in_memory_file = io.BytesIO(file_in_zip.read())
                     val_obs, val_acts, val_dones = extract_post_processed_expert_data(in_memory_file)
+                    in_memory_file.close()
                     predicted_labels.extend([policy.predict(obs)[0] for obs in val_obs])
                     true_labels.extend(val_acts)
 
