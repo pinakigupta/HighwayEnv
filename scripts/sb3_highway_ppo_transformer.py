@@ -392,11 +392,11 @@ if __name__ == "__main__":
                                                                                                   )
                 print(f'Loaded training data loader for epoch {epoch}')
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_batches = 5000 if last_epoch else 2000 # Mini epoch here correspond to typical epoch
+                num_mini_batches = 500 if last_epoch else 500 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
                 print(f'Beginning Training for epoch {epoch}')
                 trainer.train(n_batches=num_mini_batches)
-                del train_data_loader
+                # del train_data_loader
                 print(f'Ended training for epoch {epoch}')
                 policy = trainer.policy
                 policy.eval()  

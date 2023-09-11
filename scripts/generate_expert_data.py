@@ -15,6 +15,8 @@ import json
 import zipfile
 import os
 import shutil
+import time
+import signal
 from highway_env.vehicle.behavior import MDPVehicle
 from highway_env.envs.common.observation import  observation_factory
 
@@ -30,6 +32,7 @@ def make_configure_env(**kwargs):
 
 
 def worker(
+                exit_event,
                 data_queue, 
                 episode_rewards, 
                 steps_per_worker, 
@@ -49,8 +52,8 @@ def worker(
     else:
         return
 
-
-    while True:
+    rollout_steps = 0
+    while rollout_steps < int(1.25*steps_per_worker):
         # ob = env.reset()
         experts_to_consider = []
         if('expert' in env_kwargs) and (env_kwargs['expert']=='MDPVehicle'):
@@ -66,10 +69,20 @@ def worker(
         all_acts = {}
         all_done = {}
         all_kinematic_obs = {}
-        rollout_steps = 0
+        
         act = 4
+
+        if exit_event.is_set():
+            print('Exit condition is triggered. Breaking ', worker_id)
+            return
+
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
         while rollout_steps < steps_per_worker:
+
+            if exit_event.is_set():
+                print('Exit condition is triggered. Breaking ', worker_id)
+                return
+
             # Extract features from observations using the feature extractor
             # features_extractor, policy_net, action_net = oracle
             # ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
@@ -166,6 +179,8 @@ def collect_expert_data(
     # Create a list to store worker processes
     worker_processes = []
 
+    exit_event = multiprocessing.Event()
+
     # env_value.value = env
     # Launch worker processes for oracle data collection
     oracle.to('cpu')
@@ -175,7 +190,8 @@ def collect_expert_data(
         worker_process = multiprocessing.Process(
                                                     target=worker, 
                                                     args=(
-                                                            # oracle, 
+                                                            # oracle,
+                                                            exit_event,
                                                             exp_data_queue, 
                                                             episode_rewards, 
                                                             num_steps_per_worker, 
@@ -235,13 +251,20 @@ def collect_expert_data(
             pbar_outer.update(steps_count - pbar_outer.n)
 
     
-
+    exit_event.set()
     # print(" joining worker processes ", [worker.pid for worker in worker_processes], flush=True)
 
 
     # Join worker processes to wait for their completion
     for worker_process in worker_processes:
         worker_process.terminate()
+
+    while any(p.is_alive() for p in worker_processes):
+        alive_workers = [worker for worker in worker_processes if worker.is_alive()]
+        for worker_process in alive_workers:
+            os.kill(worker_process.pid, signal.SIGKILL)
+        time.sleep(0.25)  # Sleep for a second (you can adjust the sleep duration)
+        print([worker.pid for worker in worker_processes if worker.is_alive()])
 
     # print(" End of worker_process join")
 
