@@ -306,24 +306,28 @@ class DownSamplingSampler(SubsetRandomSampler):
 def create_dataloaders(zip_filename, extract_path, device, **kwargs):
 
     # Create the extract_path if it doesn't exist
-    if os.path.exists(extract_path):
-        shutil.rmtree(extract_path)
-    os.makedirs(extract_path)
+    # if os.path.exists(extract_path):
+    #     shutil.rmtree(extract_path)
+    # os.makedirs(extract_path)
     # Extract the HDF5 files from the zip archive
     # These files may be alredy existing because of a previous post process step.
-    with zipfile.ZipFile(zip_filename, 'r') as archive:
-        archive.extractall(extract_path)
+    # with zipfile.ZipFile(zip_filename, 'r') as archive:
+    #     archive.extractall(extract_path)
 
+    train_datasets = []
     # Extract the names of the HDF5 files from the zip archive
-    with zipfile.ZipFile(zip_filename, 'r') as archive:
-        hdf5_train_file_names = [os.path.join(extract_path, name) 
-                                    for name in archive.namelist() 
-                                    if name.endswith('.h5') and "train" in name]
-        hdf5_val_file_names = [os.path.join(extract_path, name) 
-                                    for name in archive.namelist() 
-                                    if name.endswith('.h5') and "val" in name]            
+    with zipfile.ZipFile(zip_filename, 'r') as zipf:
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
+        # hdf5_val_file_names = [os.path.join(extract_path, name) 
+        #                             for name in archive.namelist() 
+        #                             if name.endswith('.h5') and "val" in name]            
+        for train_data_file in hdf5_train_file_names:
+            with zipf.open(train_data_file) as file_in_zip:
+                in_memory_file = io.BytesIO(file_in_zip.read())
+                train_datasets.extend([CustomDataset(in_memory_file, device)])
+                in_memory_file.close()
         # Create separate datasets for each HDF5 file
-    train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
+    # train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
 
 
     # Create a combined dataset from the individual datasets

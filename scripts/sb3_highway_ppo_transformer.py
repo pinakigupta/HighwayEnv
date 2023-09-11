@@ -396,7 +396,7 @@ if __name__ == "__main__":
                 trainer.set_demonstrations(train_data_loader)
                 print(f'Beginning Training for epoch {epoch}')
                 trainer.train(n_batches=num_mini_batches)
-                # del train_data_loader
+                del train_data_loader
                 print(f'Ended training for epoch {epoch}')
                 policy = trainer.policy
                 policy.eval()  

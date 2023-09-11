@@ -464,17 +464,15 @@ def expert_data_collector(
     with zipfile.ZipFile(zip_filename, 'a') as zipf:
         # Create an outer tqdm progress bar
         highest_filenum = 0
-        if os.path.exists(extract_path):
-            zipf.extractall(extract_path)
-            highest_filenum = max(
-                                    (
-                                        int(filename.split('_')[3].split('.')[0])
-                                        for filename in os.listdir(extract_path)
-                                        if filename.startswith('expert_train_data_') and filename.endswith('.h5')
-                                        and filename.split('_')[3].split('.')[0].isdigit()
-                                    ),
-                                    default=-1
-                                    )
+        highest_filenum = max(
+                                (
+                                    int(filename.split('_')[3].split('.')[0])
+                                    for filename in zipf.namelist()
+                                    if filename.startswith('expert_train_data_') and filename.endswith('.h5')
+                                    and filename.split('_')[3].split('.')[0].isdigit()
+                                ),
+                                default=-1
+                                )
         total = 0
         if 'total_iterations' in env_kwargs:
             total_iterations = env_kwargs['total_iterations']  # The total number of loop iterations
