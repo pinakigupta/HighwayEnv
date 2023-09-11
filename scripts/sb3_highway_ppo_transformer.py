@@ -381,14 +381,17 @@ if __name__ == "__main__":
             trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
             print(" trainer policy ", trainer.policy)
             epoch = None
+            train_datasets = []
+            visited_data_files = set([])
             for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                 print(f'Loadng training data loader for epoch {epoch}')
                 train_data_loader                                            = create_dataloaders(
                                                                                                       zip_filename,
-                                                                                                      extract_path, 
+                                                                                                      train_datasets, 
                                                                                                       device=device,
                                                                                                       batch_size=training_kwargs['batch_size'],
-                                                                                                      n_cpu = n_cpu
+                                                                                                      n_cpu = n_cpu,
+                                                                                                      visited_data_files=visited_data_files
                                                                                                   )
                 print(f'Loaded training data loader for epoch {epoch}')
                 last_epoch = (epoch ==num_epochs-1)

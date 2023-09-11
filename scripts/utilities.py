@@ -105,7 +105,7 @@ def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         return policy   
 
 class CustomDataset(Dataset):
-    def __init__(self, data_file, device, pad_value=0):
+    def __init__(self, data_file, device, pad_value=0, **kwargs):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
         self.exp_obs, self.exp_acts, self.exp_dones = extract_post_processed_expert_data(data_file)
@@ -303,7 +303,7 @@ class DownSamplingSampler(SubsetRandomSampler):
     def __len__(self):
         return len(self.indices)
 
-def create_dataloaders(zip_filename, extract_path, device, **kwargs):
+def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, **kwargs):
 
     # Create the extract_path if it doesn't exist
     # if os.path.exists(extract_path):
@@ -314,7 +314,7 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
     # with zipfile.ZipFile(zip_filename, 'r') as archive:
     #     archive.extractall(extract_path)
 
-    train_datasets = []
+    
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
@@ -322,10 +322,12 @@ def create_dataloaders(zip_filename, extract_path, device, **kwargs):
         #                             for name in archive.namelist() 
         #                             if name.endswith('.h5') and "val" in name]            
         for train_data_file in hdf5_train_file_names:
-            with zipf.open(train_data_file) as file_in_zip:
-                in_memory_file = io.BytesIO(file_in_zip.read())
-                train_datasets.extend([CustomDataset(in_memory_file, device)])
-                in_memory_file.close()
+            if train_data_file not in visited_data_files:
+                visited_data_files.add(train_data_file)
+                with zipf.open(train_data_file) as file_in_zip:
+                    in_memory_file = io.BytesIO(file_in_zip.read())
+                    train_datasets.extend([CustomDataset(in_memory_file, device)])
+                    in_memory_file.close()
         # Create separate datasets for each HDF5 file
     # train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
 
