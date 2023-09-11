@@ -116,8 +116,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     zip_filename = 'expert_data_trial.zip'
     n_cpu =  mp.cpu_count()
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = torch.device('cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -383,14 +383,10 @@ if __name__ == "__main__":
         project = "BC_1"
         policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
         print("Default policy initialized ")
-        
-
-
-        project_name = f"BC_1"
         run_name = f"sweep_{month}{day}_{timenow()}"
         # sweep_id = wandb.sweep(sweep_config, project=project_name)
-
-        metrics_plot_path = f"{extract_path}/metrics.png"
+        
+        metrics_plot_path = "" #f"{extract_path}/metrics.png"
 
         def create_trainer(env, policy, device=device, **kwargs):
             return       bc.BC(
@@ -452,40 +448,43 @@ if __name__ == "__main__":
                 if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
                     print(f"saving check point for epoch {epoch}", epoch)
                     torch.save(policy , f"models_archive/BC_agent_{epoch}.pth")
-                print(f'Beginning validation for epoch {epoch}')
-                accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                                policy, 
-                                                                                zip_filename=zip_filename,
-                                                                                plot_path=f"heatmap_{epoch}.png" 
-                                                                              )
-                _validation_metrics["accuracy"].append(accuracy)
-                _validation_metrics["precision"].append(precision)
-                _validation_metrics["recall"].append(recall)
-                _validation_metrics["f1"].append(f1)
-                print(f'End validation for epoch {epoch}')
+                if metrics_plot_path:
+                    print(f'Beginning validation for epoch {epoch}')
+                    accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                                    policy, 
+                                                                                    zip_filename=zip_filename,
+                                                                                    plot_path=f"heatmap_{epoch}.png" 
+                                                                                )
+                    _validation_metrics["accuracy"].append(accuracy)
+                    _validation_metrics["precision"].append(precision)
+                    _validation_metrics["recall"].append(recall)
+                    _validation_metrics["f1"].append(f1)
+                    print(f'End validation for epoch {epoch}')
                 policy.to(device)
                 policy.train()
             
 
-
+            print('Beginnig final validation step')
             accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                             policy, 
                                                                             zip_filename=zip_filename, 
                                                                             plot_path=f"heatmap_{epoch}.png" 
                                                                           )
+            print('Ending final validation step and plotting the heatmap ')
 
-
-            # Plotting
-            plt.figure(figsize=(10, 6))
-            epochs = range(num_epochs)
-            for metric_name, metric_values in _validation_metrics.items():
-                plt.plot(epochs, metric_values, label=metric_name)
-                plt.xlabel("Epochs")
-                plt.ylabel("Metrics Value")
-                plt.title("Validation Metrics over Epochs")
-                plt.legend()
-                plt.grid(True)
-                plt.savefig(f"{extract_path}/metrics.png")
+            if metrics_plot_path:
+                # Plotting metrics
+                plt.figure(figsize=(10, 6))
+                epochs = range(num_epochs)
+                for metric_name, metric_values in _validation_metrics.items():
+                    plt.plot(epochs, metric_values, label=metric_name)
+                    plt.xlabel("Epochs")
+                    plt.ylabel("Metrics Value")
+                    plt.title("Validation Metrics over Epochs")
+                    plt.legend()
+                    plt.grid(True)
+                    plt.savefig(f"{extract_path}/metrics.png")
+                
             return trainer  
 
         
@@ -506,7 +505,7 @@ if __name__ == "__main__":
                             run_name=run_name,
                             epoch = None, 
                             model = bc_trainer.policy,
-                            # metrics_plot_path = metrics_plot_path
+                            metrics_plot_path = metrics_plot_path
                         )
         print('Saved final model')
     elif train == TrainEnum.BCDEPLOY:

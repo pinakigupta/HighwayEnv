@@ -256,7 +256,7 @@ def save_checkpoint(project, run_name, epoch, model, **kwargs):
                         project=project, 
                         magic=True,
                     ) as run:                    
-                    if 'metrics_plot_path' in kwargs:
+                    if 'metrics_plot_path' in kwargs and kwargs['metrics_plot_path']:
                         run.log({f"metrics_plot": wandb.Image(kwargs['metrics_plot_path'])})
                     run.name = run_name
                     # Log the model as an artifact in wandb
