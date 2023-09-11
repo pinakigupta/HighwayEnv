@@ -429,15 +429,15 @@ def calculate_validation_metrics(policy,zip_filename, **training_kwargs):
     # print("Recall:", recall, np.mean(tr_recall))
     # print("F1 Score:", f1, np.mean(tr_f1))
 
-
-    plt.figure(figsize=(8, 6))
-    class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
-    sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
-    plt.xlabel("Predicted Labels")
-    plt.ylabel("True Labels")
-    plt.title("Confusion Matrix")
-    heatmap_png = 'heatmap.png'
-    plt.savefig(heatmap_png)
+    if False:
+        plt.figure(figsize=(8, 6))
+        class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
+        sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
+        plt.xlabel("Predicted Labels")
+        plt.ylabel("True Labels")
+        plt.title("Confusion Matrix")
+        heatmap_png = 'heatmap.png'
+        plt.savefig(heatmap_png)
 
     if False: # For now keep this local as the remote artifact size is growing too much
         with zipfile.ZipFile(zip_filename, 'a') as zipf:
@@ -447,6 +447,38 @@ def calculate_validation_metrics(policy,zip_filename, **training_kwargs):
     return accuracy, precision, recall, f1
 
 
+class CustomImageExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space, hidden_dim=64):
+        super(CustomImageExtractor, self).__init__(observation_space, hidden_dim)
+        
+        if not isinstance(observation_space, gym.spaces.Box):
+            raise ValueError("Observation space must be continuous (e.g., image-based)")
+        
+        # Define a pretrained ResNet model as the feature extractor trunk
+        self.resnet = torch.hub.load('pytorch/vision', 'resnet18', pretrained=True)
+        self.resnet.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        
+        # Adjust the last fully connected layer for feature dimension control
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_dim)
+        
+        # Additional fully connected layer for custom hidden feature dimension
+        self.fc_hidden = nn.Linear(hidden_dim, hidden_dim)
+        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
+    
+    def forward(self, observations):
+
+        # Reshape observations to [batch_size, channels, height, width]
+        observations = observations.view(observations.size(0), -1, self.height, self.width)
+        # Normalize pixel values to the range [0, 1] (if necessary)
+        observations = observations / 255.0
+
+        # Forward pass through the ResNet trunk for feature extraction
+        resnet_features = self.resnet(observations)
+        
+        # Apply a fully connected layer for the custom hidden feature dimension
+        hidden_features = torch.nn.functional.relu(self.fc_hidden(resnet_features))
+        
+        return hidden_features  # Return the extracted features
 
 
 

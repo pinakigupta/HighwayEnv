@@ -8,7 +8,6 @@ import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from sb3_contrib import  RecurrentPPO
 import os
 import json
@@ -37,38 +36,6 @@ warnings.filterwarnings("ignore")
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
-class CustomImageExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space, hidden_dim=64):
-        super(CustomImageExtractor, self).__init__(observation_space, hidden_dim)
-        
-        if not isinstance(observation_space, gym.spaces.Box):
-            raise ValueError("Observation space must be continuous (e.g., image-based)")
-        
-        # Define a pretrained ResNet model as the feature extractor trunk
-        self.resnet = torch.hub.load('pytorch/vision', 'resnet18', pretrained=True)
-        self.resnet.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        
-        # Adjust the last fully connected layer for feature dimension control
-        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_dim)
-        
-        # Additional fully connected layer for custom hidden feature dimension
-        self.fc_hidden = nn.Linear(hidden_dim, hidden_dim)
-        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
-    
-    def forward(self, observations):
-
-        # Reshape observations to [batch_size, channels, height, width]
-        observations = observations.view(observations.size(0), -1, self.height, self.width)
-        # Normalize pixel values to the range [0, 1] (if necessary)
-        observations = observations / 255.0
-
-        # Forward pass through the ResNet trunk for feature extraction
-        resnet_features = self.resnet(observations)
-        
-        # Apply a fully connected layer for the custom hidden feature dimension
-        hidden_features = torch.nn.functional.relu(self.fc_hidden(resnet_features))
-        
-        return hidden_features  # Return the extracted features
 
 
 
@@ -377,6 +344,7 @@ if __name__ == "__main__":
         env_kwargs.update({'reward_oracle':None})
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         env = make_configure_env(**env_kwargs)
+        env=env.unwrapped
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         action_dim = env.action_space.n
         rng=np.random.default_rng()
@@ -428,6 +396,7 @@ if __name__ == "__main__":
                 trainer.set_demonstrations(train_data_loader)
                 print(f'Beginning Training for epoch {epoch}')
                 trainer.train(n_batches=num_mini_batches)
+                del train_data_loader
                 print(f'Ended training for epoch {epoch}')
                 policy = trainer.policy
                 policy.eval()  
@@ -464,13 +433,7 @@ if __name__ == "__main__":
                 policy.train()
             
 
-            print('Beginnig final validation step')
-            accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                            policy, 
-                                                                            zip_filename=zip_filename, 
-                                                                            plot_path=f"heatmap_{epoch}.png" 
-                                                                          )
-            print('Ending final validation step and plotting the heatmap ')
+
 
             if metrics_plot_path:
                 # Plotting metrics
@@ -499,15 +462,27 @@ if __name__ == "__main__":
                                                                 num_epochs=num_epochs, 
                                                                 batch_size=batch_size,
                                                             )
+        final_policy = bc_trainer.policy
+        final_policy.to(torch.device('cpu'))
+        final_policy.eval()
         print('Saving final model')
         save_checkpoint(
                             project = project, 
                             run_name=run_name,
                             epoch = None, 
-                            model = bc_trainer.policy,
+                            model = final_policy,
                             metrics_plot_path = metrics_plot_path
                         )
         print('Saved final model')
+
+        print('Beginnig final validation step')
+        accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                        final_policy, 
+                                                                        zip_filename=zip_filename, 
+                                                                        # plot_path=f"heatmap_{epoch}.png" 
+                                                                        )
+        print('Ending final validation step and plotting the heatmap ')
+
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': 'human'})
