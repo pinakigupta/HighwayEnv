@@ -1,5 +1,6 @@
 from copy import deepcopy as dcp
 import torch.nn as nn
+from torch import multiprocessing
 import h5py
 import sys
 from stable_baselines3.common.policies import ActorCriticPolicy
@@ -14,18 +15,25 @@ import seaborn as sns
 from highway_env.utils import lmap
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import wandb
+from tqdm import tqdm
 import os, shutil
 from attention_network import EgoAttentionNetwork
 import gymnasium as gym
 import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
 import zipfile
+import time
 import io
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
+
+def process_file(train_data_file, result_queue, device, lock):
+    processed_data = CustomDataset(train_data_file, device)
+    with lock:
+        result_queue.put([processed_data])
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
@@ -88,20 +96,6 @@ def DefaultActorCriticPolicy(env, device, **policy_kwargs):
                                     **policy_kwargs
                                   )
 
-        # import torch
-        # policy_net =  torch.nn.Sequential(
-        #                                     torch.nn.Linear(state_dim, 64),
-        #                                     torch.nn.LeakyReLU(),
-        #                                     torch.nn.Dropout(0.2),
-        #                                  ).to(device)
-        # policy.mlp_extractor.policy_net = policy_net
-        # action_net =  torch.nn.Sequential(
-        #                                     torch.nn.Linear(64, 50),
-        #                                     torch.nn.Tanh(),
-        #                                     torch.nn.Dropout(0.3),
-        #                                     torch.nn.Linear(50, action_dim),
-        #                                  ).to(device)
-        # policy.action_net =     action_net
         return policy   
 
 class CustomDataset(Dataset):
@@ -305,16 +299,14 @@ class DownSamplingSampler(SubsetRandomSampler):
 
 def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, **kwargs):
 
-    # Create the extract_path if it doesn't exist
-    # if os.path.exists(extract_path):
-    #     shutil.rmtree(extract_path)
-    # os.makedirs(extract_path)
-    # Extract the HDF5 files from the zip archive
-    # These files may be alredy existing because of a previous post process step.
-    # with zipfile.ZipFile(zip_filename, 'r') as archive:
-    #     archive.extractall(extract_path)
 
-    
+    result_queue = multiprocessing.Queue() 
+    manager = multiprocessing.Manager()
+    managed_visited_data_files = manager.list(list(visited_data_files))
+    lock = multiprocessing.Lock()
+    # Use an Event to signal when all processes have started
+    # started_event = multiprocessing.Event()
+    extract_path = 'data'
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(" File handle for the zip file opened ")
@@ -335,7 +327,10 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     print("DATA loader scanned all files")
         # Create separate datasets for each HDF5 file
     # train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
+    # visited_data_files = set(managed_visited_data_files)
 
+
+    shutil.rmtree(extract_path)
 
     # Create a combined dataset from the individual datasets
     combined_train_dataset = ConcatDataset(train_datasets)

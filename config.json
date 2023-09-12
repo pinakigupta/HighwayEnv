@@ -1,6 +1,6 @@
 {
         "num_iters": 100,
-        "num_expert_steps": 150000,
+        "num_expert_steps": 1500,
         "num_steps_per_iter": 10000,
         "horizon": null,
         "lambda": 1e-3,
