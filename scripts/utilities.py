@@ -1,5 +1,6 @@
 from copy import deepcopy as dcp
 import torch.nn as nn
+from torch import multiprocessing
 import h5py
 import sys
 from stable_baselines3.common.policies import ActorCriticPolicy
@@ -26,6 +27,10 @@ from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, S
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
+
+def process_file(train_data_file, result_queue, device):
+    processed_data = CustomDataset(train_data_file, device)
+    result_queue.put(processed_data)
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
@@ -88,20 +93,6 @@ def DefaultActorCriticPolicy(env, device, **policy_kwargs):
                                     **policy_kwargs
                                   )
 
-        # import torch
-        # policy_net =  torch.nn.Sequential(
-        #                                     torch.nn.Linear(state_dim, 64),
-        #                                     torch.nn.LeakyReLU(),
-        #                                     torch.nn.Dropout(0.2),
-        #                                  ).to(device)
-        # policy.mlp_extractor.policy_net = policy_net
-        # action_net =  torch.nn.Sequential(
-        #                                     torch.nn.Linear(64, 50),
-        #                                     torch.nn.Tanh(),
-        #                                     torch.nn.Dropout(0.3),
-        #                                     torch.nn.Linear(50, action_dim),
-        #                                  ).to(device)
-        # policy.action_net =     action_net
         return policy   
 
 class CustomDataset(Dataset):
@@ -314,23 +305,43 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     # with zipfile.ZipFile(zip_filename, 'r') as archive:
     #     archive.extractall(extract_path)
 
-    
+    result_queue = multiprocessing.Queue() 
+    manager = multiprocessing.Manager()
+    managed_visited_data_files = manager.list(list(visited_data_files))
+
+    # Use an Event to signal when all processes have started
+    # started_event = multiprocessing.Event()
+    extract_path = 'data'
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
-        # hdf5_val_file_names = [os.path.join(extract_path, name) 
-        #                             for name in archive.namelist() 
-        #                             if name.endswith('.h5') and "val" in name]            
-        for train_data_file in hdf5_train_file_names:
-            if train_data_file not in visited_data_files:
-                visited_data_files.add(train_data_file)
-                with zipf.open(train_data_file) as file_in_zip:
-                    in_memory_file = io.BytesIO(file_in_zip.read())
-                    train_datasets.extend([CustomDataset(in_memory_file, device)])
-                    in_memory_file.close()
+        zipf.extractall(extract_path)
+    worker_processes = []
+    for train_file in hdf5_train_file_names:
+        worker_process = multiprocessing.Process(
+                                                    target= process_file, 
+                                                    args=(
+                                                            os.path.join(extract_path, train_file), result_queue, device
+                                                          )
+                                                )
+        worker_processes.append(worker_process)
+        worker_process.start()
+
+        # Wait until all processes have started
+        # started_event.wait()
+
+    for worker_process in worker_processes:
+        worker_process.join()
+
         # Create separate datasets for each HDF5 file
     # train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
+    # visited_data_files = set(managed_visited_data_files)
 
+    while not result_queue.empty():
+        processed_data = result_queue.get()
+        train_datasets.extend([processed_data])
+
+    shutil.rmtree(extract_path)
 
     # Create a combined dataset from the individual datasets
     combined_train_dataset = ConcatDataset(train_datasets)
