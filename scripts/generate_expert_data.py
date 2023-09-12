@@ -76,6 +76,7 @@ def worker(
             print('Exit condition is triggered. Breaking ', worker_id)
             return
 
+        env_reset = True
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
         while rollout_steps < steps_per_worker:
 
@@ -86,11 +87,12 @@ def worker(
             # Extract features from observations using the feature extractor
             # features_extractor, policy_net, action_net = oracle
             # ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
-            if rollout_steps > 0:
+            if rollout_steps > 0 and (not env_reset):
                 try:
                     act, _  = oracle.predict(ob)
                 except:
                     act = oracle.act(ob.flatten())
+            env_reset = False
             # act = \
             next_ob, rwd, done, _, _ = env.step(act)
             rollout_steps += 1
