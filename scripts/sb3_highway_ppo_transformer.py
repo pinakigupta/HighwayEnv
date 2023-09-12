@@ -510,7 +510,7 @@ if __name__ == "__main__":
                                         functools.partial(
                                                             display_vehicles_attention, 
                                                             env=env, 
-                                                            fe=BC_agent.features_extractor,
+                                                            fe=BC_agent.policy.features_extractor,
                                                             device=device
                                                          )
                                     )
