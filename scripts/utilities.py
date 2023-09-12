@@ -328,16 +328,21 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
         worker_processes.append(worker_process)
         worker_process.start()
 
-        # Wait until all processes have started
-        # started_event.wait()
-    pbar_joining = tqdm(total=len(worker_processes), desc='Data loaders Finishing')
-    while not result_queue.empty():
-        processed_data = result_queue.get()
-        train_datasets.extend([processed_data])
+    completed_processes = 0
 
+    # Create a progress bar for process joining
+    with tqdm(total=len(worker_processes), desc='Data loaders Finishing') as pbar_joining:
+        while completed_processes < len(worker_processes):
+            if not result_queue.empty():
+                processed_data = result_queue.get()
+                train_datasets.extend([processed_data])
+                completed_processes += 1
+                # print('Completed processes ', completed_processes)
+                pbar_joining.update(1)
+
+    # Join the worker processes
     for worker_process in worker_processes:
         worker_process.join()
-        pbar_joining.update(1)
 
         # Create separate datasets for each HDF5 file
     # train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
