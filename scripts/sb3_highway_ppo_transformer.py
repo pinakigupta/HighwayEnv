@@ -504,14 +504,17 @@ if __name__ == "__main__":
                                                             )
         gamma = 1.0
         env.render()
-        env.viewer.set_agent_display(
-                                        functools.partial(
-                                                            display_vehicles_attention, 
-                                                            env=env, 
-                                                            fe=BC_agent.features_extractor,
-                                                            device=device
-                                                         )
-                                    )
+        try:
+            env.viewer.set_agent_display(
+                                            functools.partial(
+                                                                display_vehicles_attention, 
+                                                                env=env, 
+                                                                fe=BC_agent.features_extractor,
+                                                                device=device
+                                                            )
+                                        )
+        except:
+            pass
         policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
         policy.load_state_dict(BC_agent.state_dict())
         policy.eval()
