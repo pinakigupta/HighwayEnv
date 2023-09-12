@@ -379,7 +379,7 @@ if __name__ == "__main__":
                                             "f1"        : []
                                         }
             trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
-            print(" trainer policy ", trainer.policy)
+            print(" trainer policy (train_mode ?)", trainer.policy.training)
             epoch = None
             train_datasets = []
             visited_data_files = set([])
@@ -398,9 +398,11 @@ if __name__ == "__main__":
                 num_mini_batches = 10000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
                 print(f'Beginning Training for epoch {epoch}')
+                # with torch.autograd.detect_anomaly():
                 trainer.train(n_batches=num_mini_batches)
                 del train_data_loader
                 print(f'Ended training for epoch {epoch}')
+
                 policy = trainer.policy
                 policy.eval()  
                 if not last_epoch and DAGGER:
@@ -504,17 +506,17 @@ if __name__ == "__main__":
                                                             )
         gamma = 1.0
         env.render()
-        try:
-            env.viewer.set_agent_display(
-                                            functools.partial(
-                                                                display_vehicles_attention, 
-                                                                env=env, 
-                                                                fe=BC_agent.features_extractor,
-                                                                device=device
-                                                            )
-                                        )
-        except:
-            pass
+        # try:
+        #     env.viewer.set_agent_display(
+        #                                     functools.partial(
+        #                                                         display_vehicles_attention, 
+        #                                                         env=env, 
+        #                                                         fe=BC_agent.features_extractor,
+        #                                                         device=device
+        #                                                     )
+        #                                 )
+        # except:
+        #     pass
         policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
         policy.load_state_dict(BC_agent.state_dict())
         policy.eval()

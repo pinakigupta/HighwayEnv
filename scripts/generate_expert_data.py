@@ -46,7 +46,7 @@ def worker(
     steps_collected = 0
     # oracle = env.controlled_vehicles[0]
 
-    if lock.acquire(timeout=100):
+    if lock.acquire(timeout=10):
         oracle = torch.load('oracle.pth', map_location='cpu')
         lock.release()
     else:
@@ -132,8 +132,10 @@ def worker(
                 # print("steps_collected ", steps_collected)
             lock.release()
         else:
-            print("lock time out occurred")
-
+            if rollout_steps >= steps_per_worker:
+                return
+            print("lock time out occurred in ", worker_id)
+            time.sleep(0.25)
         # episode_rewards.append(np.sum(ep_rwds))
         # time.sleep(0.001)
 
@@ -216,7 +218,7 @@ def collect_expert_data(
     exp_acts = []
     
 
-
+    # Can be better saved in a buffer and then converted to file
     with h5py.File(train_filename, 'w') as train_hf, h5py.File(validation_filename, 'w') as valid_hf:
         while steps_count < 0.9*num_steps_per_iter:
             ob, K_ob, act, done = exp_data_queue.get()
