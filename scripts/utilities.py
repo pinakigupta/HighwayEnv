@@ -22,6 +22,7 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
 import zipfile
+import time
 import io
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
@@ -29,9 +30,10 @@ from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, S
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
-def process_file(train_data_file, result_queue, device):
+def process_file(train_data_file, result_queue, device, lock):
     processed_data = CustomDataset(train_data_file, device)
-    result_queue.put(processed_data)
+    with lock:
+        result_queue.put([processed_data])
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
@@ -297,19 +299,11 @@ class DownSamplingSampler(SubsetRandomSampler):
 
 def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, **kwargs):
 
-    # Create the extract_path if it doesn't exist
-    # if os.path.exists(extract_path):
-    #     shutil.rmtree(extract_path)
-    # os.makedirs(extract_path)
-    # Extract the HDF5 files from the zip archive
-    # These files may be alredy existing because of a previous post process step.
-    # with zipfile.ZipFile(zip_filename, 'r') as archive:
-    #     archive.extractall(extract_path)
 
     result_queue = multiprocessing.Queue() 
     manager = multiprocessing.Manager()
     managed_visited_data_files = manager.list(list(visited_data_files))
-
+    lock = multiprocessing.Lock()
     # Use an Event to signal when all processes have started
     # started_event = multiprocessing.Event()
     extract_path = 'data'
@@ -322,7 +316,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
         worker_process = multiprocessing.Process(
                                                     target= process_file, 
                                                     args=(
-                                                            os.path.join(extract_path, train_file), result_queue, device
+                                                            os.path.join(extract_path, train_file), result_queue, device, lock
                                                           )
                                                 )
         worker_processes.append(worker_process)
@@ -335,10 +329,11 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
         while completed_processes < len(worker_processes):
             if not result_queue.empty():
                 processed_data = result_queue.get()
-                train_datasets.extend([processed_data])
-                completed_processes += 1
+                train_datasets.extend(processed_data)
+                completed_processes += len(processed_data)
                 # print('Completed processes ', completed_processes)
                 pbar_joining.update(1)
+                time.sleep(0.25)
 
     # Join the worker processes
     for worker_process in worker_processes:
