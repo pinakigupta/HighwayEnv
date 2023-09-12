@@ -15,6 +15,7 @@ import seaborn as sns
 from highway_env.utils import lmap
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import wandb
+from tqdm import tqdm
 import os, shutil
 from attention_network import EgoAttentionNetwork
 import gymnasium as gym
@@ -329,17 +330,19 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
 
         # Wait until all processes have started
         # started_event.wait()
+    pbar_joining = tqdm(total=len(worker_processes), desc='Data loaders Finishing')
+    while not result_queue.empty():
+        processed_data = result_queue.get()
+        train_datasets.extend([processed_data])
 
     for worker_process in worker_processes:
         worker_process.join()
+        pbar_joining.update(1)
 
         # Create separate datasets for each HDF5 file
     # train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
     # visited_data_files = set(managed_visited_data_files)
 
-    while not result_queue.empty():
-        processed_data = result_queue.get()
-        train_datasets.extend([processed_data])
 
     shutil.rmtree(extract_path)
 
