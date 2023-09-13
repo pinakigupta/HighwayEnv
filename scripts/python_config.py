@@ -36,15 +36,16 @@ env_kwargs = {
         },
         "observation": {
             "type": "GrayscaleObservation",
-            "observation_shape": (128, 64),
+            "observation_shape": (256, 64),
             "stack_size": 4,
             "weights": [0.2989, 0.5870, 0.1140],  # weights for RGB conversion
-            "scaling": 1.75,
+            "scaling": .75,
         },
         "policy_frequency": 2,
         "duration": 40,
-        "screen_width": 960*3,
-        "screen_height": 180*2,
+        "screen_width": 960,
+        "screen_height": 180,
+        "screen_text": False,
         "real_time_rendering": False
     }
 }

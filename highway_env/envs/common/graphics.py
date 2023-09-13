@@ -140,10 +140,12 @@ class EnvViewer(object):
                     self.screen.blit(self.agent_surface, (self.config["screen_width"], 0))
 
         RoadGraphics.display_traffic(
-            self.env.road,
-            self.sim_surface,
-            simulation_frequency=self.env.config["simulation_frequency"],
-            offscreen=self.offscreen)
+                                        self.env.road,
+                                        self.sim_surface,
+                                        simulation_frequency=self.env.config["simulation_frequency"],
+                                        offscreen=self.offscreen,
+                                        label=self.env.config["screen_text"]
+                                    )
 
         ObservationGraphics.display(self.env.observation_type, self.sim_surface)
 

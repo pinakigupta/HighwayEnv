@@ -107,7 +107,7 @@ class VehicleGraphics(object):
 
         # Label
         if label:
-            font = pygame.font.Font(None, int(5*cls.scaling))
+            font = pygame.font.Font(None, int(1*cls.scaling))
             text = "{}".format(id(v) % 1000)
             text = font.render(text, 1, (10, 10, 10), (255, 255, 255))
             surface.blit(text, position)

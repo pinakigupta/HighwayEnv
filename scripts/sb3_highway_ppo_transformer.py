@@ -30,7 +30,7 @@ from imitation.algorithms import bc
 import importlib
 import pandas as pd
 import random
-
+from highway_env.envs.common.observation import *
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -520,6 +520,9 @@ if __name__ == "__main__":
         policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
         policy.load_state_dict(BC_agent.state_dict())
         policy.eval()
+        image_space_obs = isinstance(env.observation_type,GrayscaleObservation)
+        if image_space_obs:   
+            fig = plt.figure(figsize=(8, 16))
         for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
             env.step(4)
@@ -530,6 +533,12 @@ if __name__ == "__main__":
                 env.vehicle.actions = []
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
+                if image_space_obs:
+                    for i in range(3):
+                        plt.imshow(obs[i,:], cmap='gray', origin='lower')
+                        plt.show(block=False)
+                        plt.pause(0.01)
+                plt.pause(0.1)
                 env.render()
             print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
             print("--------------------------------------------------------------------------------------")
