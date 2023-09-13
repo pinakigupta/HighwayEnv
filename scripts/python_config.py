@@ -85,4 +85,4 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.EXPERT_DATA_COLLECTION
