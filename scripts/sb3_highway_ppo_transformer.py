@@ -492,7 +492,7 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',75)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)

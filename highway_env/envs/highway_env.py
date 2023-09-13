@@ -69,7 +69,9 @@ class HighwayEnv(AbstractEnv):
     def _create_road(self) -> None:
         """Create a road composed of straight adjacent lanes."""
         if self.config["lanes_count"] == 'random':
-            self.config["lanes_count"] = int(self.np_random.uniform(low=2, high=6))
+            low = self.config["min_lanes_count"]
+            high = self.config["max_lanes_count"]
+            self.config["lanes_count"] = int(self.np_random.uniform(low=low, high=high))
         self.road = Road(network=RoadNetwork.straight_road_network(self.config["lanes_count"], speed_limit=30),
                          np_random=self.np_random, record_history=self.config["show_trajectories"])
 

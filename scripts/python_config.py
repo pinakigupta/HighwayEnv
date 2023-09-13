@@ -10,6 +10,8 @@ env_kwargs = {
         "EGO_WIDTH": 2,
         'simulation_frequency': 10,
         "lanes_count": 'random',
+        "min_lanes_count": 3,
+        "max_lanes_count": 7,
         "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
         "vehicles_count": 'random',
         "max_vehicles_count": 10,
