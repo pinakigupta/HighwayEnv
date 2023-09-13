@@ -31,7 +31,7 @@ class VehicleGraphics(object):
                 transparent: bool = False,
                 offscreen: bool = False,
                 label: bool = True,
-                draw_roof: bool = False,
+                draw_roof: bool = True,
                 color = None) -> None:
         """
         Display a vehicle on a pygame surface.

@@ -534,11 +534,15 @@ if __name__ == "__main__":
                 obs, reward, done, truncated, info = env.step(action)
                 cumulative_reward += gamma * reward
                 if image_space_obs:
-                    for i in range(3):
-                        plt.imshow(obs[i,:], cmap='gray', origin='lower')
-                        plt.show(block=False)
-                        plt.pause(0.01)
-                plt.pause(0.1)
+                    for i in range(1):
+                        image = obs[3,:]
+                        zoom_factor = 5
+
+                        plt.imshow(image, cmap='gray', origin='lower', aspect = 0.5)
+                        plt.xlim(20, 40)
+                        plt.show(block=True)
+                        # plt.pause(0.01)
+                plt.pause(0.01)
                 env.render()
             print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
             print("--------------------------------------------------------------------------------------")

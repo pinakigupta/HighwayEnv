@@ -112,12 +112,21 @@ class EnvViewer(object):
                                    + f"{self.env.vehicle.speed:.2f}" 
                                     " ACTION: " +   str(self.env.vehicle.mdp_action) 
                                     + ":" + str(self.env.vehicle.discrete_action()[0])
-                                    + " { " + str(self.env.vehicle.lane_index[2]) + " : " + str(self.env.vehicle.target_lane_index[2]) +  " : "  
+                                    + " { " + str(self.env.vehicle.lane_index[2]) + " : " + 
+                                    str(self.env.vehicle.target_lane_index[2]) +  " : "  
                                     + str([idx[2] for idx in self.env.vehicle.side_lanes]) + " } "
                                   )
+
                                    
         self.sim_surface.move_display_window_to(self.window_position())
         RoadGraphics.display(self.env.road, self.sim_surface)
+        pygame.draw.circle(
+                                    surface=self.sim_surface,
+                                    color=pygame.Color("white"),
+                                    center=self.sim_surface.vec2pix(self.env.vehicle.position),
+                                    radius=3,
+                                    width=2
+                          )    
 
         if self.vehicle_trajectory:
             VehicleGraphics.display_trajectory(
@@ -126,10 +135,10 @@ class EnvViewer(object):
                 offscreen=self.offscreen)
 
         RoadGraphics.display_road_objects(
-            self.env.road,
-            self.sim_surface,
-            offscreen=self.offscreen
-        )
+                                            self.env.road,
+                                            self.sim_surface,
+                                            offscreen=self.offscreen
+                                         )
 
         if EnvViewer.agent_display:
             EnvViewer.agent_display(self.agent_surface, self.sim_surface)
