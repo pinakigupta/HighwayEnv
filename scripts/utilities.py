@@ -310,7 +310,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(" File handle for the zip file opened ")
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train_data_1" in file_name]
         # hdf5_val_file_names = [os.path.join(extract_path, name) 
         #                             for name in archive.namelist() 
         #                             if name.endswith('.h5') and "val" in name]            
@@ -319,10 +319,11 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                 visited_data_files.add(train_data_file)
                 with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
-                    in_memory_file = io.BytesIO(file_in_zip.read())
-                    train_datasets.extend([CustomDataset(in_memory_file, device)])
+                    # mmapped_data = np.memmap(file_in_zip, dtype=np.float32, mode='r')
+                    # in_memory_file = io.BytesIO(file_in_zip.read())
+                    train_datasets.extend([CustomDataset(file_in_zip, device)])
                     print(f"Dataset appended for  {train_data_file}")
-                    in_memory_file.close()
+                    # in_memory_file.close()
 
     print("DATA loader scanned all files")
         # Create separate datasets for each HDF5 file
@@ -386,9 +387,9 @@ def calculate_validation_metrics(policy,zip_filename, **training_kwargs):
             hdf5_val_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "val" in file_name]
             for val_data_file in hdf5_val_file_names:
                 with zipf.open(val_data_file) as file_in_zip:
-                    in_memory_file = io.BytesIO(file_in_zip.read())
-                    val_obs, val_acts, val_dones = extract_post_processed_expert_data(in_memory_file)
-                    in_memory_file.close()
+                    # in_memory_file = io.BytesIO(file_in_zip.read())
+                    val_obs, val_acts, val_dones = extract_post_processed_expert_data(file_in_zip)
+                    # in_memory_file.close()
                     predicted_labels.extend([policy.predict(obs)[0] for obs in val_obs])
                     true_labels.extend(val_acts)
                     

@@ -81,7 +81,7 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    zip_filename = 'expert_data_trial.zip'
+    zip_filename = 'expert_trial_data_large.zip'
     n_cpu =  mp.cpu_count()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
@@ -398,7 +398,7 @@ if __name__ == "__main__":
                                                                                                   )
                 print(f'Loaded training data loader for epoch {epoch}')
                 last_epoch = (epoch ==num_epochs-1)
-                num_mini_batches = 10000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                num_mini_batches = 500000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
                 trainer.set_demonstrations(train_data_loader)
                 print(f'Beginning Training for epoch {epoch}')
                 # with torch.autograd.detect_anomaly():
