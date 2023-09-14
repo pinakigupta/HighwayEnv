@@ -330,7 +330,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     # visited_data_files = set(managed_visited_data_files)
 
 
-    shutil.rmtree(extract_path)
+    # shutil.rmtree(extract_path)
 
     # Create a combined dataset from the individual datasets
     combined_train_dataset = ConcatDataset(train_datasets)
