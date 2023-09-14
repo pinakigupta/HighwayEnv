@@ -310,7 +310,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(" File handle for the zip file opened ")
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train_data_1" in file_name]
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
         # hdf5_val_file_names = [os.path.join(extract_path, name) 
         #                             for name in archive.namelist() 
         #                             if name.endswith('.h5') and "val" in name]            

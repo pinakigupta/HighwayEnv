@@ -423,7 +423,7 @@ def extract_expert_data(filename):
 
 def extract_post_processed_expert_data(filename):
     # Open the HDF5 file in read mode
-    with h5py.File(filename, 'r') as hf:
+    with h5py.File(filename, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
         # Read the 'obs' dataset
         obs_array = hf['obs'][:]  # [:] to read the entire dataset     
         # If you've saved other datasets (e.g., 'act' and 'done'), you can read them similarly
