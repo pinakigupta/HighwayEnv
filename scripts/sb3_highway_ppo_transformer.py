@@ -494,7 +494,7 @@ if __name__ == "__main__":
     elif train == TrainEnum.BCDEPLOY:
         env_kwargs.update({'reward_oracle':None})
         # env_kwargs.update({'render_mode': 'human'})
-        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
+        append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',75)
         append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
         append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
         append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
@@ -522,10 +522,11 @@ if __name__ == "__main__":
         #     pass
         policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
         policy.load_state_dict(BC_agent.state_dict())
-        policy.eval()
+        # policy.eval()
         image_space_obs = isinstance(env.observation_type,GrayscaleObservation)
         if image_space_obs:   
             fig = plt.figure(figsize=(8, 16))
+            import cv2
         for _ in range(num_deploy_rollouts):
             obs, info = env.reset()
             env.step(4)
@@ -539,11 +540,21 @@ if __name__ == "__main__":
                 if image_space_obs:
                     for i in range(1):
                         image = obs[3,:]
-                        zoom_factor = 5
-
-                        plt.imshow(image, cmap='gray', origin='lower', aspect = 0.5)
+                        input_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
+                        # action_logits = policy.action_net(input_tensor)
+                        action_logits = policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.Tensor(obs).unsqueeze(0)))[0])
+                        selected_action = torch.argmax(action_logits, dim=1)
+                        action_logits[0, selected_action].backward()
+                        gradients = input_tensor.grad.squeeze()
+                        # Normalize and overlay the gradient-based heatmap on the original image
+                        heatmap = gradients.numpy()
+                        heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))  # Normalize between 0 and 1
+                        heatmap = cv2.resize(heatmap, (image.shape[1], image.shape[0]))
+                        heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
+                        result  = cv2.addWeighted(image.astype(np.uint8), 0.5, heatmap, 0.5, 0)
+                        plt.imshow(result, cmap='gray', origin='lower', aspect = 0.5)
                         plt.xlim(20, 40)
-                        plt.show(block=True)
+                        plt.show(block=False)
                         # plt.pause(0.01)
                 plt.pause(0.01)
                 env.render()
