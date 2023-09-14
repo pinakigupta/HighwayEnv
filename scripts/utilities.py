@@ -112,9 +112,6 @@ class CustomDataset(Dataset):
         # print("data length for custom data set ",id(self), " is ", len(self.exp_acts),  len(self.exp_obs))
         return len(self.exp_acts)
 
-    # def _load_episode_group(self):
-    #     extract_expert_data(self.data_file, self.exp_obs, self.exp_acts, self.exp_dones, self.grp_idx)
-
     def _get_total_episode_groups(self):
         with h5py.File(self.data_file, 'r') as hf:
             total_episode_groups = len(list(hf.keys()))
@@ -138,18 +135,6 @@ class CustomDataset(Dataset):
         }
         return sample
         
-    # def collate_fn(self, batch):
-    #     observations = [sample['obs'] for sample in batch]
-    #     actions = [sample['acts'] for sample in batch]
-    #     dones = [sample['dones'] for sample in batch]
-        
-    #     # Pad sequences to the maximum length in the batch
-    #     observations_padded = pad_sequence(observations, batch_first=True, padding_value=self.pad_value)
-    #     actions_padded = pad_sequence(actions, batch_first=True, padding_value=self.pad_value)
-    #     dones_padded = pad_sequence(dones, batch_first=True, padding_value=self.pad_value)
-        
-    #     return observations_padded, actions_padded, dones_padded
-
 
 
 def display_vehicles_attention(agent_surface, sim_surface, env, fe, device,  min_attention=0.01):
@@ -298,38 +283,19 @@ class DownSamplingSampler(SubsetRandomSampler):
         return len(self.indices)
 
 def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, **kwargs):
-
-
-    result_queue = multiprocessing.Queue() 
-    manager = multiprocessing.Manager()
-    managed_visited_data_files = manager.list(list(visited_data_files))
-    lock = multiprocessing.Lock()
-    # Use an Event to signal when all processes have started
-    # started_event = multiprocessing.Event()
-    extract_path = 'data'
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(" File handle for the zip file opened ")
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
-        # hdf5_val_file_names = [os.path.join(extract_path, name) 
-        #                             for name in archive.namelist() 
-        #                             if name.endswith('.h5') and "val" in name]            
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]           
         for train_data_file in hdf5_train_file_names:
             if train_data_file not in visited_data_files:
                 visited_data_files.add(train_data_file)
                 with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
-                    # mmapped_data = np.memmap(file_in_zip, dtype=np.float32, mode='r')
-                    # in_memory_file = io.BytesIO(file_in_zip.read())
                     train_datasets.extend([CustomDataset(file_in_zip, device)])
                     print(f"Dataset appended for  {train_data_file}")
-                    # in_memory_file.close()
 
     print("DATA loader scanned all files")
-        # Create separate datasets for each HDF5 file
-    # train_datasets = [CustomDataset(hdf5_name, device) for hdf5_name in hdf5_train_file_names]
-    # visited_data_files = set(managed_visited_data_files)
-
 
     # shutil.rmtree(extract_path)
 
@@ -355,15 +321,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
 
     # Get the number of unique action types
     num_action_types = len(np.unique(all_actions))
-
     num_samples=int(least_represented_count * num_action_types )
-    desired_num_samples = 10000  # Adjust this value as needed
-    seed = 42
-    # sampler = DownSamplingSampler(
-    #                                 labels = all_actions,
-    #                                 class_weights = class_weights, 
-    #                                 num_samples= num_samples
-    #                              )
     print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
     train_data_loader = DataLoader(
                                         shuffled_combined_train_dataset, 
@@ -486,5 +444,34 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         
         return hidden_features  # Return the extracted features
 
+class CustomDataLoader:
+    def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu):
+        self.zip_filename = zip_filename
+        self.device = device
+        self.visited_data_files = visited_data_files
+        self.batch_size = batch_size
+        self.n_cpu = n_cpu
 
+    def __iter__(self):
+        with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
+            hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
+            
+            for train_data_file in hdf5_train_file_names:
+                if train_data_file not in self.visited_data_files:
+                    self.visited_data_files.add(train_data_file)
+                    with zipf.open(train_data_file) as file_in_zip:
+                        print(f"Opening the data file {train_data_file}")
+                        train_dataset = CustomDataset(file_in_zip, self.device)
+                        print(f"Dataset appended for {train_data_file}")
+
+                        data_loader = DataLoader(
+                            train_dataset,
+                            batch_size=self.batch_size,
+                            num_workers=self.n_cpu,
+                            shuffle=True,
+                            drop_last=True
+                        )
+
+                        for batch in data_loader:
+                            yield batch
 
