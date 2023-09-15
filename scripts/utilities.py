@@ -442,7 +442,7 @@ import random
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
     def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu):
         self.zip_filename = zip_filename
-        self.device = torch.device('cuda')
+        self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
         self.n_cpu = n_cpu
