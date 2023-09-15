@@ -438,7 +438,7 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         
         return hidden_features  # Return the extracted features
 
-
+import random 
 class CustomDataLoader:
     def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu):
         self.zip_filename = zip_filename
@@ -446,50 +446,71 @@ class CustomDataLoader:
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
         self.n_cpu = n_cpu
+        with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
+            self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
+        assumed_total_samples = 1000000  # Assume a large number of samples
+        self.all_worker_indices = self.calculate_worker_indices(assumed_total_samples)
+                   
 
     def __iter__(self):
-        with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
-            hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
+        samples = []  # Initialize an empty list to collect samples
+
             
-            # Calculate the number of data files per process
-            files_per_process = len(hdf5_train_file_names) // self.n_cpu
-
-            # Split the list of data files for each process
-            file_chunks = [hdf5_train_file_names[i:i + files_per_process] for i in range(0, len(hdf5_train_file_names), files_per_process)]
-
-            # Create and start worker processes
-            processes = []
-            for i in range(self.n_cpu):
-                process = multiprocessing.Process(target=self.worker, args=(i, file_chunks[i]))
-                process.start()
-                processes.append(process)
-
-            # Collect and yield batches from each process
-            for process in processes:
-                process.join()
-
-    def worker(self, worker_id, data_files):
-        for train_data_file in data_files:
+        for train_data_file in self.hdf5_train_file_names:
             if train_data_file not in self.visited_data_files:
+                
                 self.visited_data_files.add(train_data_file)
-                with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
-                    with zipf.open(train_data_file) as file_in_zip:
-                        print(f"Worker {worker_id}: Opening the data file {train_data_file}")
-                        with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-                            samples = []
-                            for i in range(len(hf['obs'])):
-                                obs = hf['obs'][i]
-                                acts = hf['act'][i]
-                                dones = hf['dones'][i]
-                                
-                                # Append the sample to the list
-                                samples.append({"obs": obs, "acts": acts, "dones": dones})
-                                
-                                # Check if we have collected enough samples for a batch
-                                if len(samples) == self.batch_size:
-                                    yield samples
-                                    samples = []  # Reset the list for the next batch
 
+                # Create and start worker processes
+                processes = []
+                for i in range(self.n_cpu):
+                    process = multiprocessing.Process(target=self.worker, args=(i, train_data_file, self.all_worker_indices[i], samples))
+                    process.start()
+                    processes.append(process)
 
+                # Collect and yield batches from each process
+                for process in processes:
+                    process.join()
 
+                # Yield the collected samples
+                for batch in samples:
+                    yield batch
+
+    def calculate_worker_indices(self, total_samples):
+        # Calculate indices for each worker
+        indices = list(range(total_samples))
+        random.shuffle(indices)  # Shuffle the indices randomly
+        chunk_size = total_samples // self.n_cpu
+
+        worker_indices = []
+        for i in range(self.n_cpu):
+            start = i * chunk_size
+            end = start + chunk_size if i < self.n_cpu - 1 else total_samples
+            worker_indices.append(indices[start:end])
+
+        return worker_indices
+
+    def worker(self, worker_id, hdf5_file_to_parse, worker_indices, samples):
+        # Open the specified HDF5 file for reading
+        with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
+            with zipf.open(hdf5_file_to_parse) as file_in_zip:
+                print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
+                with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
+                    print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
+                    total_samples = len(hf['act'])
+                    for idx in worker_indices:
+                        if idx >= total_samples:
+                            continue
+                        obs = hf['obs'][idx]
+                        acts = hf['act'][idx]
+                        dones = hf['dones'][idx]
+                        
+                        # Append the sample to the list
+                        samples.append({"obs": obs, "acts": acts, "dones": dones})
+                        
+                        # Check if we have collected enough samples for a batch
+                        if len(samples) == self.batch_size:
+                            print("Batch processed")
+                            # Reset the list for the next batch
+                            samples.clear()
 
