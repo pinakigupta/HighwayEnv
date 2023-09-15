@@ -442,7 +442,7 @@ import random
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
     def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu):
         self.zip_filename = zip_filename
-        self.device = device
+        self.device = torch.device('cuda')
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
         self.n_cpu = n_cpu
@@ -548,7 +548,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     all_batches.append(batch)
             print(f'size of all_batches in file {train_data_file} is {len(all_batches)}')
             for b in all_batches:
-                yield b
+                yield self._convert_batch_to_tensors(b)
 
     def calculate_worker_indices(self, total_samples):
         # Calculate indices for each worker
@@ -564,6 +564,17 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
         return worker_indices
 
+    def _convert_batch_to_tensors(self, batch):
+        # Convert NumPy arrays in the batch to PyTorch tensors
+        tensor_batch = {
+            'obs': torch.tensor(batch['obs'], dtype=torch.float32).to(self.device),
+            'acts': torch.tensor(batch['acts'], dtype=torch.float32).to(self.device),
+            'dones': torch.tensor(batch['dones'], dtype=torch.float32).to(self.device),
+            # Add other keys as needed
+        }
+
+        return tensor_batch
+    
     def worker(self, worker_id, hdf5_file_to_parse, worker_indices, samples_queue):
                     
         self.count = 0
@@ -580,7 +591,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             
             # Append the sample to the list
             self.samples_queue.put({"obs": obs, "acts": acts, "dones": dones})
-            time.sleep(0.01)
+            # time.sleep(0.01)
                         
         samples_queue.put(None)
 
