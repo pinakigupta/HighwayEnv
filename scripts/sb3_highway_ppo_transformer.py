@@ -499,7 +499,7 @@ if __name__ == "__main__":
         env = make_configure_env(**env_kwargs)
         env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
         BC_agent                            = retrieve_agent(
-                                                            artifact_version='trained_model_directory:latest',
+                                                            artifact_version='trained_model_directory:v104',
                                                             agent_model = 'BC_agent_final.pth',
                                                             device=device,
                                                             project="BC_1"
