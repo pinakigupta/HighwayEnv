@@ -58,7 +58,7 @@ def timenow():
 def print_stack_size():
     while True:
         current_size, peak_size = tracemalloc.get_traced_memory()
-        print(f"Current stack size: {current_size / (1024 * 1024):.2f} MB")
+        print(f"Current memory size: {current_size / (1024 * 1024):.2f} MB")
         time.sleep(15)  # Adjust the interval as needed
 # ==================================
 #        Main script  20 

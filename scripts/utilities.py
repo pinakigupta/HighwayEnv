@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
 import zipfile
 import time
-import io
+import signal
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
 
@@ -457,10 +457,19 @@ class CustomDataLoader:
 
     def launch_workers(self,train_data_file):
         # Create and start worker processes
-        print(f"Creating worker processes for file {train_data_file}")
+        
         processes = []
         for i in range(self.n_cpu):
-            process = multiprocessing.Process(target=self.worker, args=(i, train_data_file, self.all_worker_indices[i], self.samples_queue))
+            process = multiprocessing.Process(
+                                                target=self.worker, 
+                                                args=(
+                                                        i, 
+                                                        train_data_file, 
+                                                        self.all_worker_indices[i], 
+                                                        self.samples_queue
+                                                        
+                                                     )
+                                             )
             process.start()
             processes.append(process)
         return processes
@@ -471,26 +480,43 @@ class CustomDataLoader:
             if train_data_file  in self.visited_data_files:
                 continue
             self.visited_data_files.add(train_data_file)
+            with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
+                with zipf.open(train_data_file) as file_in_zip:
+                    # print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
+                    with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
+                        # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
+                        self.all_obs =  hf['obs'][:]
+                        self.all_acts = hf['act'][:]
+                        self.all_dones = hf['dones'][:]
+                        self.total_samples = len(hf['act'])
+            print(f"Launching worker processes for file {train_data_file}")
             processes = self.launch_workers(train_data_file)
 
             all_samples = [] 
-            for _ in range(self.assumed_max_samples):
+            progress_bar = tqdm(total=self.total_samples, desc=f'Processing {train_data_file}')
+            for _ in range(self.total_samples):
                 sample = self.samples_queue.get()
                 if sample is None:
                     print(f"Received sample None for {train_data_file} ")
                     break
-                # sample_size_bytes = sys.getsizeof(sample)
-                # sample_size_mb = sample_size_bytes / (1024 * 1024)
-                # print(f"Size of sample: {sample_size_mb:.2f} MB, {sample_size_bytes: .2f} bytes")
-                # if len(all_samples)%100==0:
-                #     print(len(all_samples))
                 all_samples.append(sample)
+                progress_bar.update(1)
 
+            progress_bar.close()
+            self.all_obs = np.empty(self.all_obs.shape)
+            self.all_acts = np.empty(self.all_acts.shape)
+            self.all_dones = np.empty(self.all_dones.shape)
             print(f" End while loop for {train_data_file}")
             # Collect and yield batches from each process
             for process in processes:
-                process.join()
-            print(f" Joined process for {train_data_file}")
+                process.terminate()
+            while any(p.is_alive() for p in processes):
+                alive_workers = [worker for worker in processes if worker.is_alive()]
+                for worker_process in alive_workers:
+                    os.kill(worker_process.pid, signal.SIGKILL)
+                time.sleep(0.1)  # Sleep for a second (you can adjust the sleep duration)
+                print([worker.pid for worker in processes if worker.is_alive()])
+            print(f" Terminated all process for {train_data_file}")
 
             # Determine the number of full batches
             num_full_batches = len(all_samples) // self.batch_size
@@ -522,27 +548,22 @@ class CustomDataLoader:
         return worker_indices
 
     def worker(self, worker_id, hdf5_file_to_parse, worker_indices, samples_queue):
-        # Open the specified HDF5 file for reading
-        with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
-            with zipf.open(hdf5_file_to_parse) as file_in_zip:
-                # print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
-                with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-                    # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
-                    total_samples = len(hf['act'])
-                    self.count = 0
-                   
-                    for idx in worker_indices:
-                        if idx >= total_samples:
-                            continue
-                        obs = hf['obs'][idx]
-                        acts = hf['act'][idx]
-                        dones = hf['dones'][idx]
-                        self.count +=1
-                        
-                        # print(f"Worker {worker_id} self.count: {self.count}")
-                        
-                        # Append the sample to the list
-                        self.samples_queue.put({"obs": obs, "acts": acts, "dones": dones})
+                    
+        self.count = 0
+
+        for idx in worker_indices:
+            if idx >= self.total_samples:
+                continue
+            obs = self.all_obs[idx]
+            acts = self.all_acts[idx]
+            dones = self.all_dones[idx]
+            self.count +=1
+            
+            # print(f"Worker {worker_id} self.count: {self.count}")
+            
+            # Append the sample to the list
+            self.samples_queue.put({"obs": obs, "acts": acts, "dones": dones})
+            time.sleep(0.01)
                         
         samples_queue.put(None)
 
