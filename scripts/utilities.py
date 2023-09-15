@@ -439,7 +439,7 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         return hidden_features  # Return the extracted features
 
 import random 
-class CustomDataLoader:
+class CustomDataLoader: # Created to deal with very large data files, and limited memory space
     def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu):
         self.zip_filename = zip_filename
         self.device = device
@@ -452,6 +452,9 @@ class CustomDataLoader:
         self.all_worker_indices = self.calculate_worker_indices(self.assumed_max_samples)
         self.manager = multiprocessing.Manager()
         self.samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
+        self.all_obs = self.manager.list()
+        self.all_acts = self.manager.list()
+        self.all_dones = self.manager.list()
         self.batch_no = 0
                    
 
@@ -515,7 +518,7 @@ class CustomDataLoader:
                 for worker_process in alive_workers:
                     os.kill(worker_process.pid, signal.SIGKILL)
                 time.sleep(0.1)  # Sleep for a second (you can adjust the sleep duration)
-                print([worker.pid for worker in processes if worker.is_alive()])
+                # print([worker.pid for worker in processes if worker.is_alive()])
             print(f" Terminated all process for {train_data_file}")
 
             # Determine the number of full batches
@@ -528,10 +531,24 @@ class CustomDataLoader:
             for i in range(num_full_batches):
                 start_idx = i * self.batch_size
                 end_idx = (i + 1) * self.batch_size
-                batch = all_samples[start_idx:end_idx]
-                all_batches.append(batch)
+                    # Create a dictionary to store batch data
+                batch = {
+                    "obs": [],
+                    "acts": [],
+                    "dones": [],
+                    # Add other keys as needed
+                }
+                # Fill the batch dictionary with data
+                for sample in all_samples[start_idx:end_idx]:
+                    batch["obs"].append(sample["obs"])
+                    batch["acts"].append(sample["acts"])
+                    batch["dones"].append(sample["dones"])
+                    # Add other keys as needed
+                if(len(batch["acts"])==self.batch_size):
+                    all_batches.append(batch)
             print(f'size of all_batches in file {train_data_file} is {len(all_batches)}')
-            yield all_batches
+            for b in all_batches:
+                yield b
 
     def calculate_worker_indices(self, total_samples):
         # Calculate indices for each worker
