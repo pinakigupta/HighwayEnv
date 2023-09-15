@@ -112,12 +112,6 @@ class CustomDataset(Dataset):
         # print("data length for custom data set ",id(self), " is ", len(self.exp_acts),  len(self.exp_obs))
         return len(self.exp_acts)
 
-    def _get_total_episode_groups(self):
-        with h5py.File(self.data_file, 'r') as hf:
-            total_episode_groups = len(list(hf.keys()))
-        return total_episode_groups
-
-
     def __getitem__(self, idx):
         try:
             observation = torch.tensor(self.exp_obs[idx], dtype=torch.float32)
@@ -444,6 +438,7 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         
         return hidden_features  # Return the extracted features
 
+
 class CustomDataLoader:
     def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu):
         self.zip_filename = zip_filename
@@ -456,22 +451,45 @@ class CustomDataLoader:
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
             
-            for train_data_file in hdf5_train_file_names:
-                if train_data_file not in self.visited_data_files:
-                    self.visited_data_files.add(train_data_file)
+            # Calculate the number of data files per process
+            files_per_process = len(hdf5_train_file_names) // self.n_cpu
+
+            # Split the list of data files for each process
+            file_chunks = [hdf5_train_file_names[i:i + files_per_process] for i in range(0, len(hdf5_train_file_names), files_per_process)]
+
+            # Create and start worker processes
+            processes = []
+            for i in range(self.n_cpu):
+                process = multiprocessing.Process(target=self.worker, args=(i, file_chunks[i]))
+                process.start()
+                processes.append(process)
+
+            # Collect and yield batches from each process
+            for process in processes:
+                process.join()
+
+    def worker(self, worker_id, data_files):
+        for train_data_file in data_files:
+            if train_data_file not in self.visited_data_files:
+                self.visited_data_files.add(train_data_file)
+                with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
                     with zipf.open(train_data_file) as file_in_zip:
-                        print(f"Opening the data file {train_data_file}")
-                        train_dataset = CustomDataset(file_in_zip, self.device)
-                        print(f"Dataset appended for {train_data_file}")
+                        print(f"Worker {worker_id}: Opening the data file {train_data_file}")
+                        with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
+                            samples = []
+                            for i in range(len(hf['obs'])):
+                                obs = hf['obs'][i]
+                                acts = hf['act'][i]
+                                dones = hf['dones'][i]
+                                
+                                # Append the sample to the list
+                                samples.append({"obs": obs, "acts": acts, "dones": dones})
+                                
+                                # Check if we have collected enough samples for a batch
+                                if len(samples) == self.batch_size:
+                                    yield samples
+                                    samples = []  # Reset the list for the next batch
 
-                        data_loader = DataLoader(
-                            train_dataset,
-                            batch_size=self.batch_size,
-                            num_workers=self.n_cpu,
-                            shuffle=True,
-                            drop_last=True
-                        )
 
-                        for batch in data_loader:
-                            yield batch
+
 

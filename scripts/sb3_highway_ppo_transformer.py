@@ -59,7 +59,7 @@ def print_stack_size():
     while True:
         current_size, peak_size = tracemalloc.get_traced_memory()
         print(f"Current stack size: {current_size / (1024 * 1024):.2f} MB")
-        time.sleep(5)  # Adjust the interval as needed
+        time.sleep(15)  # Adjust the interval as needed
 # ==================================
 #        Main script  20 
 # ==================================
@@ -69,9 +69,9 @@ import threading
 if __name__ == "__main__":
     tracemalloc.start()  # Start memory tracing
     # Create a multiprocessing process to periodically print stack size
-    stack_size_thread = threading.Thread(target=print_stack_size)
-    stack_size_thread.daemon = True
-    stack_size_thread.start()
+    # stack_size_thread = threading.Thread(target=print_stack_size)
+    # stack_size_thread.daemon = True
+    # stack_size_thread.start()
 
     DAGGER = True
     # policy_kwargs = dict(
