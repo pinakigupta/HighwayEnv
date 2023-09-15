@@ -448,33 +448,64 @@ class CustomDataLoader:
         self.n_cpu = n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
-        assumed_total_samples = 1000000  # Assume a large number of samples
-        self.all_worker_indices = self.calculate_worker_indices(assumed_total_samples)
+        self.assumed_max_samples = 1000000  # Assume a large number of samples
+        self.all_worker_indices = self.calculate_worker_indices(self.assumed_max_samples)
+        self.manager = multiprocessing.Manager()
+        self.samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
+        self.batch_no = 0
                    
 
+    def launch_workers(self,train_data_file):
+        # Create and start worker processes
+        print(f"Creating worker processes for file {train_data_file}")
+        processes = []
+        for i in range(self.n_cpu):
+            process = multiprocessing.Process(target=self.worker, args=(i, train_data_file, self.all_worker_indices[i], self.samples_queue))
+            process.start()
+            processes.append(process)
+        return processes
+    
     def __iter__(self):
-        samples = []  # Initialize an empty list to collect samples
+        batch = []
+        for train_data_file in self.hdf5_train_file_names :
+            if train_data_file  in self.visited_data_files:
+                continue
+            self.visited_data_files.add(train_data_file)
+            processes = self.launch_workers(train_data_file)
 
-            
-        for train_data_file in self.hdf5_train_file_names:
-            if train_data_file not in self.visited_data_files:
-                
-                self.visited_data_files.add(train_data_file)
+            all_samples = [] 
+            for _ in range(self.assumed_max_samples):
+                sample = self.samples_queue.get()
+                if sample is None:
+                    print(f"Received sample None for {train_data_file} ")
+                    break
+                # sample_size_bytes = sys.getsizeof(sample)
+                # sample_size_mb = sample_size_bytes / (1024 * 1024)
+                # print(f"Size of sample: {sample_size_mb:.2f} MB, {sample_size_bytes: .2f} bytes")
+                # if len(all_samples)%100==0:
+                #     print(len(all_samples))
+                all_samples.append(sample)
 
-                # Create and start worker processes
-                processes = []
-                for i in range(self.n_cpu):
-                    process = multiprocessing.Process(target=self.worker, args=(i, train_data_file, self.all_worker_indices[i], samples))
-                    process.start()
-                    processes.append(process)
+            print(f" End while loop for {train_data_file}")
+            # Collect and yield batches from each process
+            for process in processes:
+                process.join()
+            print(f" Joined process for {train_data_file}")
 
-                # Collect and yield batches from each process
-                for process in processes:
-                    process.join()
+            # Determine the number of full batches
+            num_full_batches = len(all_samples) // self.batch_size
 
-                # Yield the collected samples
-                for batch in samples:
-                    yield batch
+            # Initialize a list to collect all batches for this file
+            all_batches = []
+
+            # Batch and yield full batches
+            for i in range(num_full_batches):
+                start_idx = i * self.batch_size
+                end_idx = (i + 1) * self.batch_size
+                batch = all_samples[start_idx:end_idx]
+                all_batches.append(batch)
+            print(f'size of all_batches in file {train_data_file} is {len(all_batches)}')
+            yield all_batches
 
     def calculate_worker_indices(self, total_samples):
         # Calculate indices for each worker
@@ -490,27 +521,28 @@ class CustomDataLoader:
 
         return worker_indices
 
-    def worker(self, worker_id, hdf5_file_to_parse, worker_indices, samples):
+    def worker(self, worker_id, hdf5_file_to_parse, worker_indices, samples_queue):
         # Open the specified HDF5 file for reading
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             with zipf.open(hdf5_file_to_parse) as file_in_zip:
-                print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
+                # print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
                 with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-                    print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
+                    # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
                     total_samples = len(hf['act'])
+                    self.count = 0
+                   
                     for idx in worker_indices:
                         if idx >= total_samples:
                             continue
                         obs = hf['obs'][idx]
                         acts = hf['act'][idx]
                         dones = hf['dones'][idx]
+                        self.count +=1
+                        
+                        # print(f"Worker {worker_id} self.count: {self.count}")
                         
                         # Append the sample to the list
-                        samples.append({"obs": obs, "acts": acts, "dones": dones})
+                        self.samples_queue.put({"obs": obs, "acts": acts, "dones": dones})
                         
-                        # Check if we have collected enough samples for a batch
-                        if len(samples) == self.batch_size:
-                            print("Batch processed")
-                            # Reset the list for the next batch
-                            samples.clear()
+        samples_queue.put(None)
 

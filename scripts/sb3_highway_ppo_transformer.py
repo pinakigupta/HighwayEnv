@@ -69,9 +69,9 @@ import threading
 if __name__ == "__main__":
     tracemalloc.start()  # Start memory tracing
     # Create a multiprocessing process to periodically print stack size
-    # stack_size_thread = threading.Thread(target=print_stack_size)
-    # stack_size_thread.daemon = True
-    # stack_size_thread.start()
+    stack_size_thread = threading.Thread(target=print_stack_size)
+    stack_size_thread.daemon = True
+    stack_size_thread.start()
 
     DAGGER = True
     # policy_kwargs = dict(
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    zip_filename = 'expert_trial_data_large.zip'
+    zip_filename = 'expert_data_trial.zip'
     n_cpu =  mp.cpu_count()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
