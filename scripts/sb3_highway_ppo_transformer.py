@@ -412,7 +412,7 @@ if __name__ == "__main__":
                     trainer.set_demonstrations(custom_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
-                    trainer.train(n_batches=num_mini_batches)
+                    trainer.train(n_epoch=1)
                     # del train_data_loader
                     print(f'Ended training for epoch {epoch}')
 

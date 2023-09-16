@@ -2,6 +2,7 @@ from copy import deepcopy as dcp
 import torch.nn as nn
 from torch import multiprocessing
 import h5py
+# import h5pyd as h5py
 import sys
 from stable_baselines3.common.policies import ActorCriticPolicy
 from models.nets import PolicyNetwork
@@ -477,12 +478,11 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             processes.append(process)
         return processes
     
-    @staticmethod
-    def load_batch(batch_samples, device):
+    def load_batch(self, batch_samples):
         batch = {
-            'obs': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(device),
-            'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(device),
-            'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(device),
+            'obs': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+            'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+            'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(self.device),
             # Add other keys as needed
         }
         return batch   
@@ -512,6 +512,9 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 if sample is None:
                     continue
                 all_samples.append(sample)
+                if len(all_samples) >= self.batch_size:
+                    yield self.load_batch(all_samples)
+                    all_samples = []
                 progress_bar.update(1)
 
             progress_bar.close()
@@ -522,6 +525,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             # Collect and yield batches from each process
             for process in processes:
                 process.terminate()
+
             while any(p.is_alive() for p in processes):
                 alive_workers = [worker for worker in processes if worker.is_alive()]
                 for worker_process in alive_workers:
@@ -530,12 +534,6 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 # print([worker.pid for worker in processes if worker.is_alive()])
             print(f" Terminated all process for {train_data_file}")
 
-            for i in range(0, self.total_samples, self.batch_size):
-                batch_samples = all_samples[i:i + self.batch_size]
-                if len(batch_samples) != self.batch_size:
-                    break
-
-                yield CustomDataLoader.load_batch(batch_samples, self.device)
 
     def calculate_worker_indices(self, total_samples):
         # Calculate indices for each worker
