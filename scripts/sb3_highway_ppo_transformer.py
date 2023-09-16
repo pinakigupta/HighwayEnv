@@ -67,6 +67,7 @@ def print_stack_size():
 
 import threading
 if __name__ == "__main__":
+    torch.cuda.empty_cache()
     tracemalloc.start()  # Start memory tracing
     # Create a multiprocessing process to periodically print stack size
     stack_size_thread = threading.Thread(target=print_stack_size)
@@ -92,8 +93,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     zip_filename = 'expert_data_trial.zip'
     n_cpu =  mp.cpu_count()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # device = torch.device('cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config

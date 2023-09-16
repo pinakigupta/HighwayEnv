@@ -1,6 +1,8 @@
 from copy import deepcopy as dcp
 import torch.nn as nn
 from torch import multiprocessing
+import os, shutil
+os.environ["HDF5_USE_THREADING"] = "true"
 import h5py
 # import h5pyd as h5py
 import sys
@@ -17,7 +19,6 @@ from highway_env.utils import lmap
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import wandb
 from tqdm import tqdm
-import os, shutil
 from attention_network import EgoAttentionNetwork
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -446,7 +447,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
-        self.n_cpu = n_cpu
+        self.n_cpu = n_cpu 
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
         self.assumed_max_samples = 1000000  # Assume a large number of samples
@@ -456,9 +457,14 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_obs = self.manager.list()
         self.all_acts = self.manager.list()
         self.all_dones = self.manager.list()
+        self._reset_tuples()
         self.batch_no = 0
         self.pool = multiprocessing.Pool()
 
+    def _reset_tuples(self):
+        self.all_obs = None
+        self.all_acts = None
+        self.all_dones = None
                    
 
     def launch_workers(self,train_data_file):
@@ -522,9 +528,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 progress_bar.update(1)
 
             progress_bar.close()
-            self.all_obs = np.empty(self.all_obs.shape)
-            self.all_acts = np.empty(self.all_acts.shape)
-            self.all_dones = np.empty(self.all_dones.shape)
+            # self._reset_tuples()
             print(f" End while loop for {train_data_file}")
             # Collect and yield batches from each process
             for process in processes:
@@ -567,19 +571,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
     def worker(self, worker_id, hdf5_file_to_parse, worker_indices, samples_queue):
                     
         self.count = 0
-
-        for idx in worker_indices:
-            if idx >= self.total_samples:
-                continue
-            obs = self.all_obs[idx]
-            acts = self.all_acts[idx]
-            dones = self.all_dones[idx]
+        worker_indices = [index for index in worker_indices if index < self.total_samples]
+        worker_indices.sort()
+        for index in worker_indices:
             self.count +=1
-            
-            # print(f"Worker {worker_id} self.count: {self.count}")
-            
             # Append the sample to the list
-            self.samples_queue.put({"obs": obs, "acts": acts, "dones": dones})
+            self.samples_queue.put({"obs": self.all_obs[index], "acts": self.all_acts[index], "dones": self.all_dones[index]})
             # time.sleep(0.01)
                         
         samples_queue.put(None)
