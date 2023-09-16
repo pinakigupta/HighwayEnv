@@ -477,6 +477,16 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             processes.append(process)
         return processes
     
+    @staticmethod
+    def load_batch(batch_samples, device):
+        batch = {
+            'obs': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(device),
+            'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(device),
+            'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(device),
+            # Add other keys as needed
+        }
+        return batch   
+     
     def __iter__(self):
         batch = []
         for train_data_file in self.hdf5_train_file_names :
@@ -500,8 +510,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             for _ in range(self.total_samples):
                 sample = self.samples_queue.get()
                 if sample is None:
-                    print(f"Received sample None for {train_data_file} ")
-                    break
+                    continue
                 all_samples.append(sample)
                 progress_bar.update(1)
 
@@ -521,34 +530,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 # print([worker.pid for worker in processes if worker.is_alive()])
             print(f" Terminated all process for {train_data_file}")
 
-            # Determine the number of full batches
-            num_full_batches = len(all_samples) // self.batch_size
+            for i in range(0, self.total_samples, self.batch_size):
+                batch_samples = all_samples[i:i + self.batch_size]
+                if len(batch_samples) != self.batch_size:
+                    break
 
-            # Initialize a list to collect all batches for this file
-            all_batches = []
-
-            # Batch and yield full batches
-            for i in range(num_full_batches):
-                start_idx = i * self.batch_size
-                end_idx = (i + 1) * self.batch_size
-                    # Create a dictionary to store batch data
-                batch = {
-                    "obs": [],
-                    "acts": [],
-                    "dones": [],
-                    # Add other keys as needed
-                }
-                # Fill the batch dictionary with data
-                for sample in all_samples[start_idx:end_idx]:
-                    batch["obs"].append(sample["obs"])
-                    batch["acts"].append(sample["acts"])
-                    batch["dones"].append(sample["dones"])
-                    # Add other keys as needed
-                if(len(batch["acts"])==self.batch_size):
-                    all_batches.append(batch)
-            print(f'size of all_batches in file {train_data_file} is {len(all_batches)}')
-            for b in all_batches:
-                yield self._convert_batch_to_tensors(b)
+                yield CustomDataLoader.load_batch(batch_samples, self.device)
 
     def calculate_worker_indices(self, total_samples):
         # Calculate indices for each worker
