@@ -457,6 +457,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_acts = self.manager.list()
         self.all_dones = self.manager.list()
         self.batch_no = 0
+        self.pool = multiprocessing.Pool()
+
                    
 
     def launch_workers(self,train_data_file):
@@ -507,13 +509,15 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
             all_samples = [] 
             progress_bar = tqdm(total=self.total_samples, desc=f'Processing {train_data_file}')
-            for _ in range(self.total_samples):
+            total_samples_generated = 0
+            while total_samples_generated < 0.9*self.total_samples:
                 sample = self.samples_queue.get()
                 if sample is None:
                     continue
                 all_samples.append(sample)
                 if len(all_samples) >= self.batch_size:
-                    yield self.load_batch(all_samples)
+                    total_samples_generated += self.batch_size
+                    yield self.load_batch(all_samples[:self.batch_size])
                     all_samples = []
                 progress_bar.update(1)
 

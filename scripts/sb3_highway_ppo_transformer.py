@@ -405,14 +405,14 @@ if __name__ == "__main__":
                     #                                                                                       n_cpu = n_cpu,
                     #                                                                                       visited_data_files=visited_data_files
                     #                                                                                   )
-                    custom_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu)
+                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 500000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
-                    trainer.set_demonstrations(custom_data_loader)
+                    trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
-                    trainer.train(n_epoch=1)
+                    trainer.train(n_epochs=1)
                     # del train_data_loader
                     print(f'Ended training for epoch {epoch}')
 
