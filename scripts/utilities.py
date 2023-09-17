@@ -493,54 +493,60 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(self.device),
             # Add other keys as needed
         }
+
+        # Clear GPU memory for individual tensors after creating the batch
+        for sample in batch_samples:
+            del sample['obs']
+            del sample['acts']
+            del sample['dones']
         return batch   
      
     def __iter__(self):
-        batch = []
-        for train_data_file in self.hdf5_train_file_names :
-            if train_data_file  in self.visited_data_files:
-                continue
-            self.visited_data_files.add(train_data_file)
-            with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
-                with zipf.open(train_data_file) as file_in_zip:
-                    # print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
-                    with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-                        # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
-                        self.all_obs =  hf['obs'][:]
-                        self.all_acts = hf['act'][:]
-                        self.all_dones = hf['dones'][:]
-                        self.total_samples = len(hf['act'])
-            print(f"Launching worker processes for file {train_data_file}")
-            processes = self.launch_workers(train_data_file)
+        while True:
+            for train_data_file in self.hdf5_train_file_names :
+                # if train_data_file  in self.visited_data_files:
+                #     continue
+                self.visited_data_files.add(train_data_file)
+                with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
+                    with zipf.open(train_data_file) as file_in_zip:
+                        # print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
+                        with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
+                            # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
+                            self.all_obs =  hf['obs'][:]
+                            self.all_acts = hf['act'][:]
+                            self.all_dones = hf['dones'][:]
+                            self.total_samples = len(hf['act'])
+                print(f"Launching worker processes for file {train_data_file}")
+                processes = self.launch_workers(train_data_file)
 
-            all_samples = [] 
-            progress_bar = tqdm(total=self.total_samples, desc=f'Processing {train_data_file}')
-            total_samples_generated = 0
-            while total_samples_generated < 0.9*self.total_samples:
-                sample = self.samples_queue.get()
-                if sample is None:
-                    continue
-                all_samples.append(sample)
-                if len(all_samples) >= self.batch_size:
-                    total_samples_generated += self.batch_size
-                    yield self.load_batch(all_samples[:self.batch_size])
-                    all_samples = []
-                progress_bar.update(1)
+                all_samples = [] 
+                progress_bar = tqdm(total=self.total_samples, desc=f'Processing {train_data_file}')
+                total_samples_generated = 0
+                while total_samples_generated < 0.9*self.total_samples:
+                    sample = self.samples_queue.get()
+                    if sample is None:
+                        continue
+                    all_samples.append(sample)
+                    if len(all_samples) >= self.batch_size:
+                        total_samples_generated += self.batch_size
+                        yield self.load_batch(all_samples[:self.batch_size])
+                        del all_samples[:self.batch_size]
+                    progress_bar.update(1)
 
-            progress_bar.close()
-            # self._reset_tuples()
-            print(f" End while loop for {train_data_file}")
-            # Collect and yield batches from each process
-            for process in processes:
-                process.terminate()
+                progress_bar.close()
+                # self._reset_tuples()
+                print(f" End while loop for {train_data_file}")
+                # Collect and yield batches from each process
+                for process in processes:
+                    process.terminate()
 
-            while any(p.is_alive() for p in processes):
-                alive_workers = [worker for worker in processes if worker.is_alive()]
-                for worker_process in alive_workers:
-                    os.kill(worker_process.pid, signal.SIGKILL)
-                time.sleep(0.1)  # Sleep for a second (you can adjust the sleep duration)
-                # print([worker.pid for worker in processes if worker.is_alive()])
-            print(f" Terminated all process for {train_data_file}")
+                while any(p.is_alive() for p in processes):
+                    alive_workers = [worker for worker in processes if worker.is_alive()]
+                    for worker_process in alive_workers:
+                        os.kill(worker_process.pid, signal.SIGKILL)
+                    time.sleep(0.1)  # Sleep for a second (you can adjust the sleep duration)
+                    # print([worker.pid for worker in processes if worker.is_alive()])
+                print(f" Terminated all process for {train_data_file}")
 
 
     def calculate_worker_indices(self, total_samples):

@@ -68,11 +68,12 @@ def print_stack_size():
 import threading
 if __name__ == "__main__":
     torch.cuda.empty_cache()
-    tracemalloc.start()  # Start memory tracing
-    # Create a multiprocessing process to periodically print stack size
-    stack_size_thread = threading.Thread(target=print_stack_size)
-    stack_size_thread.daemon = True
-    stack_size_thread.start()
+    if False:
+        tracemalloc.start()  # Start memory tracing
+        # Create a multiprocessing process to periodically print stack size
+        stack_size_thread = threading.Thread(target=print_stack_size)
+        stack_size_thread.daemon = True
+        stack_size_thread.start()
 
     DAGGER = True
     # policy_kwargs = dict(
@@ -93,8 +94,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
     zip_filename = 'expert_data_trial.zip'
     n_cpu =  mp.cpu_count()
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = torch.device('cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -413,7 +414,7 @@ if __name__ == "__main__":
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
-                    trainer.train(n_epochs=1)
+                    trainer.train(n_batches=100000)
                     # del train_data_loader
                     print(f'Ended training for epoch {epoch}')
 
@@ -555,16 +556,16 @@ if __name__ == "__main__":
                             action_logits = policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.Tensor(obs).unsqueeze(0)))[0])
                             selected_action = torch.argmax(action_logits, dim=1)
                             action_logits[0, selected_action].backward()
-                            gradients = input_tensor.grad.squeeze()
-                            # Normalize and overlay the gradient-based heatmap on the original image
-                            heatmap = gradients.numpy()
-                            heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))  # Normalize between 0 and 1
-                            heatmap = cv2.resize(heatmap, (image.shape[1], image.shape[0]))
-                            heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
-                            result  = cv2.addWeighted(image.astype(np.uint8), 0.5, heatmap, 0.5, 0)
-                            plt.imshow(result, cmap='gray', origin='lower', aspect = 0.5)
-                            plt.xlim(20, 40)
-                            plt.show(block=False)
+                            # gradients = input_tensor.grad.squeeze()
+                            # # Normalize and overlay the gradient-based heatmap on the original image
+                            # heatmap = gradients.numpy()
+                            # heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))  # Normalize between 0 and 1
+                            # heatmap = cv2.resize(heatmap, (image.shape[1], image.shape[0]))
+                            # heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
+                            # result  = cv2.addWeighted(image.astype(np.uint8), 0.5, heatmap, 0.5, 0)
+                            # plt.imshow(image, cmap='gray', origin='lower', aspect = 0.5)
+                            # plt.xlim(20, 40)
+                            # plt.show(block=False)
                             # plt.pause(0.01)
                     plt.pause(0.01)
                     env.render()
