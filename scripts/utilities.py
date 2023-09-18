@@ -115,22 +115,24 @@ class CustomDataset(Dataset):
         return len(self.data['acts'])
 
     def __getitem__(self, idx):
+        sample = {}
         try:
-            observation = torch.tensor(self.data['obs'][idx], dtype=torch.float32)
-            kin_observation = torch.tensor(self.data['kin_obs'][idx], dtype=torch.float32)
-            action = torch.tensor(self.data['acts'][idx], dtype=torch.float32)
-            done = torch.tensor(self.data['dones'][idx], dtype=torch.float32)
+            if 'obs' in self.data:
+                observation = torch.tensor(self.data['obs'][idx], dtype=torch.float32)
+                sample['obs'] = observation
+            if 'kin_obs' in self.data:
+                kin_observation = torch.tensor(self.data['kin_obs'][idx], dtype=torch.float32)
+                sample['obs'] = kin_observation
+            if 'acts' in self.data:
+                action = torch.tensor(self.data['acts'][idx], dtype=torch.float32)
+                sample['acts'] = action
+            if 'dones' in self.data:
+                dones = torch.tensor(self.data['dones'][idx], dtype=torch.float32)
+                sample['dones'] = dones
         except Exception as e:
             print(e , "for ", id(self), len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
             raise e
 
-        # print(" Inside custom data set. Devices are ",self.device, observation.device, action.device, done.device)
-        sample = {
-            'obs': kin_observation,
-            # 'kin_obs' : kin_observation,
-            'acts': action,
-            'dones' :done
-        }
         return sample
         
 
