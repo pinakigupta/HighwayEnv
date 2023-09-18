@@ -451,7 +451,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
-        self.n_cpu = 1 #n_cpu 
+        self.n_cpu = n_cpu 
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
         self.assumed_max_samples = 1000000  # Assume a large number of samples
@@ -520,11 +520,13 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                         # print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
                         with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
                             # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
-                            self.all_obs =  hf['obs'][:]
-                            self.all_kin_obs = hf['kin_obs'][:]
-                            self.all_acts = hf['act'][:]
-                            self.all_dones = hf['dones'][:]
                             self.total_samples = len(hf['act'])
+                            all_indices = list(range(self.total_samples))
+                            random.shuffle(all_indices)
+                            self.all_obs =  hf['obs'][:][all_indices]
+                            self.all_kin_obs = hf['kin_obs'][:][all_indices]
+                            self.all_acts = hf['act'][:][all_indices]
+                            self.all_dones = hf['dones'][:][all_indices]
                 print(f"Launching worker processes for file {train_data_file}")
                 processes = self.launch_workers(train_data_file)
 

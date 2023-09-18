@@ -399,15 +399,15 @@ if __name__ == "__main__":
                 visited_data_files = set([])
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    train_data_loader                                            = create_dataloaders(
-                                                                                                          zip_filename,
-                                                                                                          train_datasets, 
-                                                                                                          device=device,
-                                                                                                          batch_size=training_kwargs['batch_size'],
-                                                                                                          n_cpu = n_cpu,
-                                                                                                          visited_data_files=visited_data_files
-                                                                                                      )
-                    # train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu)
+                    # train_data_loader                                            = create_dataloaders(
+                    #                                                                                       zip_filename,
+                    #                                                                                       train_datasets, 
+                    #                                                                                       device=device,
+                    #                                                                                       batch_size=training_kwargs['batch_size'],
+                    #                                                                                       n_cpu = n_cpu,
+                    #                                                                                       visited_data_files=visited_data_files
+                    #                                                                                   )
+                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 25000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
