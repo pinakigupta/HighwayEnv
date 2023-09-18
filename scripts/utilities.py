@@ -4,6 +4,7 @@ from torch import multiprocessing
 import os, shutil
 os.environ["HDF5_USE_THREADING"] = "true"
 import h5py
+import copy
 # import h5pyd as h5py
 import sys
 from stable_baselines3.common.policies import ActorCriticPolicy
@@ -451,11 +452,11 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
-        self.n_cpu = n_cpu 
+        self.n_cpu =  n_cpu 
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
-        self.assumed_max_samples = 1000000  # Assume a large number of samples
-        self.all_worker_indices = self.calculate_worker_indices(self.assumed_max_samples)
+        self.chunk_size = 10000  # Assume a large number of samples
+        self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
         self.all_obs = self.manager.list()
@@ -473,7 +474,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_dones = None
                    
 
-    def launch_workers(self,train_data_file):
+    def launch_workers(self):
         # Create and start worker processes
         
         processes = []
@@ -482,7 +483,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                                                 target=self.worker, 
                                                 args=(
                                                         i, 
-                                                        train_data_file, 
+                                                        self.total_samples,
                                                         self.all_worker_indices[i], 
                                                         self.samples_queue
                                                         
@@ -520,44 +521,56 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                         # print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
                         with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
                             # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
-                            self.total_samples = len(hf['act'])
-                            all_indices = list(range(self.total_samples))
-                            random.shuffle(all_indices)
-                            self.all_obs =  hf['obs'][:][all_indices]
-                            self.all_kin_obs = hf['kin_obs'][:][all_indices]
-                            self.all_acts = hf['act'][:][all_indices]
-                            self.all_dones = hf['dones'][:][all_indices]
-                print(f"Launching worker processes for file {train_data_file}")
-                processes = self.launch_workers(train_data_file)
+                            total_samples = len(hf['act'])
+                            all_indices = list(range(total_samples))
+                            chunk_num = 0
+                            scanned_samples = 0
+                            while scanned_samples <= total_samples:
+                                self.total_samples = min(total_samples-scanned_samples, self.chunk_size)
+                                chunk_indices = all_indices[scanned_samples:scanned_samples + self.total_samples-1]
+                                shuffled_indices = list(range(len(chunk_indices)))
+                                random.shuffle(shuffled_indices)
+                                self.all_obs =  (hf['obs'][chunk_indices])[shuffled_indices]
+                                self.all_kin_obs = (hf['kin_obs'][chunk_indices])[shuffled_indices]
+                                self.all_acts = (hf['act'][chunk_indices])[shuffled_indices]
+                                self.all_dones = (hf['dones'][chunk_indices])[shuffled_indices]
+                                scanned_samples += self.chunk_size
+                                print(f" scanned_samples {scanned_samples } for file {train_data_file}")
+                                # self.deploy_workers(train_data_file, chunk_num)
+                                chunk_num +=1
+                                print(f"Launching worker processes for file {train_data_file} and chunk {chunk_num}")
+                                processes = self.launch_workers()
 
-                all_samples = [] 
-                progress_bar = tqdm(total=self.total_samples, desc=f'Processing {train_data_file}')
-                total_samples_generated = 0
-                while total_samples_generated < 0.9*self.total_samples:
-                    sample = self.samples_queue.get()
-                    if sample is None:
-                        continue
-                    all_samples.append(sample)
-                    if len(all_samples) >= self.batch_size:
-                        total_samples_generated += self.batch_size
-                        yield self.load_batch(all_samples[:self.batch_size])
-                        del all_samples[:self.batch_size]
-                    progress_bar.update(1)
+                                all_samples = [] 
+                                progress_bar = tqdm(total=self.total_samples, desc=f'Processing {train_data_file}, chunk {chunk_num}')
+                                total_samples_generated = 0
+                                while total_samples_generated < 0.9*self.total_samples:
+                                    sample = self.samples_queue.get()
+                                    if sample is None:
+                                        continue
+                                    all_samples.append(sample)
+                                    if len(all_samples) >= self.batch_size:
+                                        total_samples_generated += self.batch_size
+                                        yield self.load_batch(all_samples[:self.batch_size])
+                                        del all_samples[:self.batch_size]
+                                    progress_bar.update(1)
 
-                progress_bar.close()
-                # self._reset_tuples()
-                print(f" End while loop for {train_data_file}")
-                # Collect and yield batches from each process
-                for process in processes:
-                    process.terminate()
+                                progress_bar.close()
+                                # self._reset_tuples()
+                                print(f" End while loop for {train_data_file} and Chunk {chunk_num}")
+                                # Collect and yield batches from each process
+                                for process in processes:
+                                    process.terminate()
 
-                while any(p.is_alive() for p in processes):
-                    alive_workers = [worker for worker in processes if worker.is_alive()]
-                    for worker_process in alive_workers:
-                        os.kill(worker_process.pid, signal.SIGKILL)
-                    time.sleep(0.1)  # Sleep for a second (you can adjust the sleep duration)
-                    # print([worker.pid for worker in processes if worker.is_alive()])
-                print(f" Terminated all process for {train_data_file}")
+                                while any(p.is_alive() for p in processes):
+                                    alive_workers = [worker for worker in processes if worker.is_alive()]
+                                    for worker_process in alive_workers:
+                                        os.kill(worker_process.pid, signal.SIGKILL)
+                                    time.sleep(0.1)  # Sleep for a second (you can adjust the sleep duration)
+                                    # print([worker.pid for worker in processes if worker.is_alive()])
+                                print(f" Terminated all process for {train_data_file} and chunk {chunk_num}")
+
+    # def deploy_workers(self, train_data_file, chunk_num):
 
 
     def calculate_worker_indices(self, total_samples):
@@ -575,22 +588,25 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         return worker_indices
 
     
-    def worker(self, worker_id, hdf5_file_to_parse, worker_indices, samples_queue):
+    def worker(self, worker_id, total_samples , worker_indices, samples_queue):
                     
         self.count = 0
-        worker_indices = [index for index in worker_indices if index < self.total_samples]
+        worker_indices = [index for index in worker_indices if index < total_samples]
         worker_indices.sort()
         for index in worker_indices:
             self.count +=1
             # Append the sample to the list
-            self.samples_queue.put(
-                                    {
-                                        "obs": self.all_obs[index], 
-                                        "kin_obs": self.all_kin_obs[index],
-                                        "acts": self.all_acts[index], 
-                                        "dones": self.all_dones[index]
-                                    }
-                                   )
+            try:
+                self.samples_queue.put(
+                                        {
+                                            "obs": self.all_obs[index], 
+                                            "kin_obs": self.all_kin_obs[index],
+                                            "acts": self.all_acts[index], 
+                                            "dones": self.all_dones[index]
+                                        }
+                                    )
+            except IndexError:
+                pass
             # time.sleep(0.01)
                         
         samples_queue.put(None)
