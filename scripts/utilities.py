@@ -473,7 +473,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_dones = None
                    
 
-    def launch_workers(self, samples_queue):
+    def launch_workers(self, samples_queue, total_samples_for_chunk):
         # Create and start worker processes
         
         processes = []
@@ -482,7 +482,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                                                 target=self.worker, 
                                                 args=(
                                                         i, 
-                                                        self.total_samples,
+                                                        total_samples_for_chunk,
                                                         self.all_worker_indices[i], 
                                                         samples_queue
                                                      )
@@ -550,8 +550,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     chunk_num = 0
                     scanned_samples = 0
                     while scanned_samples <= total_samples:
-                        self.total_samples = min(total_samples-scanned_samples, self.chunk_size)
-                        chunk_indices = all_indices[scanned_samples:scanned_samples + self.total_samples]
+                        total_samples_for_chunk = min(total_samples-scanned_samples, self.chunk_size)
+                        chunk_indices = all_indices[scanned_samples:scanned_samples + total_samples_for_chunk]
                         chunk_indices.sort()
                         # shuffled_indices = list(range(len(chunk_indices)))
                         # random.shuffle(shuffled_indices)
@@ -563,30 +563,33 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                         print(f" scanned_samples {scanned_samples } for file {train_data_file}", flush=True)
                         # self.deploy_workers(train_data_file, chunk_num)
                         chunk_num +=1
-                        print(f"Launching worker processes for file {train_data_file} and chunk {chunk_num}", flush=True)
-                        samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
-                        processes = self.launch_workers(samples_queue)
+                        for item in self.generate_batches_from_one_chunk(total_samples_for_chunk, train_data_file ,chunk_num):
+                            yield item
 
-                        all_samples = [] 
-                        progress_bar = tqdm(total=self.total_samples, desc=f'Processing {train_data_file}, chunk {chunk_num}')
-                        total_samples_yielded = 0
-                        while total_samples_yielded < 0.9*self.total_samples:
-                            sample = samples_queue.get()
-                            if sample is None:
-                                continue
-                            all_samples.append(sample)
-                            # print("total_samples_yielded ",total_samples_yielded)
-                            if len(all_samples)-total_samples_yielded >= self.batch_size:
-                                yield self.load_batch(all_samples[total_samples_yielded:total_samples_yielded+self.batch_size])
-                                total_samples_yielded += self.batch_size
-                                # del all_samples[:self.batch_size]
-                            progress_bar.update(1)
-                        progress_bar.close()
-                        # self._reset_tuples()
-                        print(f" End while loop for {train_data_file} and Chunk {chunk_num}", flush=True)
-                        # Collect and yield batches from each process
-                        self.destroy_workers(processes)
-                        print(f" Terminated all process for {train_data_file} and chunk {chunk_num}", flush=True)
+    def generate_batches_from_one_chunk(self, total_samples_for_chunk, train_data_file ,chunk_num):
+        print(f"Launching worker processes for file {train_data_file} and chunk {chunk_num}", flush=True)
+        samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
+        processes = self.launch_workers(samples_queue, total_samples_for_chunk)
+
+        all_samples = [] 
+        progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing {train_data_file}, chunk {chunk_num}')
+        total_samples_yielded = 0
+        while total_samples_yielded < 0.9*total_samples_for_chunk:
+            sample = samples_queue.get()
+            if sample is None:
+                continue
+            all_samples.append(sample)
+            # print("total_samples_yielded ",total_samples_yielded)
+            if len(all_samples)-total_samples_yielded >= self.batch_size:
+                yield self.load_batch(all_samples[total_samples_yielded:total_samples_yielded+self.batch_size])
+                total_samples_yielded += self.batch_size
+                # del all_samples[:self.batch_size]
+            progress_bar.update(1)
+        progress_bar.close()
+        # self._reset_tuples()
+        # Collect and yield batches from each process
+        self.destroy_workers(processes)
+        print(f" Terminated all process for {train_data_file} and chunk {chunk_num}", flush=True)
 
 
 
