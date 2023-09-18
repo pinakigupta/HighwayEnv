@@ -423,14 +423,24 @@ def extract_expert_data(filename):
 
 def extract_post_processed_expert_data(filename):
     # Open the HDF5 file in read mode
+    data = {}
     with h5py.File(filename, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
         # Read the 'obs' dataset
-        obs_array = hf['obs'][:]  # [:] to read the entire dataset     
+        if 'obs' in hf:
+            obs_array = hf['obs'][:]  # [:] to read the entire dataset  
+            data['obs'] = obs_array
+        if 'kin_obs' in hf:
+            kin_obs_array = hf['kin_obs'][:]  # [:] to read the entire dataset
+            data['kin_obs'] = kin_obs_array
         # If you've saved other datasets (e.g., 'act' and 'done'), you can read them similarly
-        act_array = hf['act'][:]
-        done_array = hf['dones'][:]
+        if 'act' in hf:
+            act_array = hf['act'][:]
+            data['acts'] = act_array
+        if 'dones' in hf:
+            done_array = hf['dones'][:]
+            data['dones'] = done_array
 
-    return obs_array, act_array, done_array
+    return data
 
 def retrieve_agent( artifact_version, agent_model , device, project = None):
     # Initialize wandb

@@ -104,7 +104,7 @@ class CustomDataset(Dataset):
     def __init__(self, data_file, device, pad_value=0, **kwargs):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
-        self.exp_obs, self.exp_acts, self.exp_dones = extract_post_processed_expert_data(data_file)
+        self.data = extract_post_processed_expert_data(data_file)
         self.pad_value = pad_value
         self.device = device
         # print(" data lengths ", len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
@@ -112,20 +112,22 @@ class CustomDataset(Dataset):
 
     def __len__(self):
         # print("data length for custom data set ",id(self), " is ", len(self.exp_acts),  len(self.exp_obs))
-        return len(self.exp_acts)
+        return len(self.data['acts'])
 
     def __getitem__(self, idx):
         try:
-            observation = torch.tensor(self.exp_obs[idx], dtype=torch.float32)
-            action = torch.tensor(self.exp_acts[idx], dtype=torch.float32)
-            done = torch.tensor(self.exp_dones[idx], dtype=torch.float32)
+            observation = torch.tensor(self.data['obs'][idx], dtype=torch.float32)
+            kin_observation = torch.tensor(self.data['kin_obs'][idx], dtype=torch.float32)
+            action = torch.tensor(self.data['acts'][idx], dtype=torch.float32)
+            done = torch.tensor(self.data['dones'][idx], dtype=torch.float32)
         except Exception as e:
             print(e , "for ", id(self), len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
             raise e
 
         # print(" Inside custom data set. Devices are ",self.device, observation.device, action.device, done.device)
         sample = {
-            'obs': observation,
+            'obs': kin_observation,
+            # 'kin_obs' : kin_observation,
             'acts': action,
             'dones' :done
         }
@@ -342,10 +344,10 @@ def calculate_validation_metrics(policy,zip_filename, **training_kwargs):
             for val_data_file in hdf5_val_file_names:
                 with zipf.open(val_data_file) as file_in_zip:
                     # in_memory_file = io.BytesIO(file_in_zip.read())
-                    val_obs, val_acts, val_dones = extract_post_processed_expert_data(file_in_zip)
+                    data = extract_post_processed_expert_data(file_in_zip)
                     # in_memory_file.close()
-                    predicted_labels.extend([policy.predict(obs)[0] for obs in val_obs])
-                    true_labels.extend(val_acts)
+                    predicted_labels.extend([policy.predict(obs)[0] for obs in data['obs']])
+                    true_labels.extend(data['acts'])
                     
 
     # Calculate evaluation metrics
@@ -447,7 +449,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
-        self.n_cpu = n_cpu 
+        self.n_cpu = 1 #n_cpu 
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
         self.assumed_max_samples = 1000000  # Assume a large number of samples
@@ -457,12 +459,14 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_obs = self.manager.list()
         self.all_acts = self.manager.list()
         self.all_dones = self.manager.list()
+        self.all_kin_obs = self.manager.list()
         self._reset_tuples()
         self.batch_no = 0
         self.pool = multiprocessing.Pool()
 
     def _reset_tuples(self):
         self.all_obs = None
+        self.all_kin_obs = None
         self.all_acts = None
         self.all_dones = None
                    
@@ -488,7 +492,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
     
     def load_batch(self, batch_samples):
         batch = {
-            'obs': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+            'obs_': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+            'obs': torch.tensor([sample['kin_obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
             'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(self.device),
             'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(self.device),
             # Add other keys as needed
@@ -497,6 +502,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         # Clear GPU memory for individual tensors after creating the batch
         for sample in batch_samples:
             del sample['obs']
+            del sample['kin_obs']
             del sample['acts']
             del sample['dones']
         return batch   
@@ -513,6 +519,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                         with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
                             # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
                             self.all_obs =  hf['obs'][:]
+                            self.all_kin_obs = hf['kin_obs'][:]
                             self.all_acts = hf['act'][:]
                             self.all_dones = hf['dones'][:]
                             self.total_samples = len(hf['act'])
@@ -563,16 +570,6 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
         return worker_indices
 
-    def _convert_batch_to_tensors(self, batch):
-        # Convert NumPy arrays in the batch to PyTorch tensors
-        tensor_batch = {
-            'obs': torch.tensor(batch['obs'], dtype=torch.float32).to(self.device),
-            'acts': torch.tensor(batch['acts'], dtype=torch.float32).to(self.device),
-            'dones': torch.tensor(batch['dones'], dtype=torch.float32).to(self.device),
-            # Add other keys as needed
-        }
-
-        return tensor_batch
     
     def worker(self, worker_id, hdf5_file_to_parse, worker_indices, samples_queue):
                     
@@ -582,7 +579,14 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         for index in worker_indices:
             self.count +=1
             # Append the sample to the list
-            self.samples_queue.put({"obs": self.all_obs[index], "acts": self.all_acts[index], "dones": self.all_dones[index]})
+            self.samples_queue.put(
+                                    {
+                                        "obs": self.all_obs[index], 
+                                        "kin_obs": self.all_kin_obs[index],
+                                        "acts": self.all_acts[index], 
+                                        "dones": self.all_dones[index]
+                                    }
+                                   )
             # time.sleep(0.01)
                         
         samples_queue.put(None)
