@@ -24,7 +24,7 @@ from utilities import *
 from utils import record_videos
 import warnings
 from imitation.algorithms import bc
-from python_config import sweep_config, env_kwargs, TrainEnum, train
+from python_config import *
 import matplotlib.pyplot as plt
 from imitation.algorithms import bc
 import importlib
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     now = datetime.now()
     month = now.strftime("%m")
     day = now.strftime("%d")
-    zip_filename = 'expert_data_trial.zip'
+
     n_cpu =  mp.cpu_count()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
@@ -357,8 +357,14 @@ if __name__ == "__main__":
         elif train == TrainEnum.BC:
             env_kwargs.update({'reward_oracle':None})
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            env = make_configure_env(**env_kwargs)
-            env=env.unwrapped
+            # env = make_configure_env(**env_kwargs)
+            # env=env.unwrapped
+            env = make_vec_env(
+                                make_configure_env, 
+                                n_envs=n_cpu, 
+                                vec_env_cls=SubprocVecEnv, 
+                                env_kwargs=env_kwargs
+                            )
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             action_dim = env.action_space.n
             rng=np.random.default_rng()
@@ -383,7 +389,7 @@ if __name__ == "__main__":
         
 
             def _train(env, policy, zip_filename, extract_path, device=device, **training_kwargs):
-                num_epochs = training_kwargs['num_epochs']
+                num_epochs = training_kwargs['num_epochs'] # These are dagger epochs
                 checkpoint_interval = num_epochs//2
                 append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
                 _validation_metrics =       {
@@ -414,7 +420,11 @@ if __name__ == "__main__":
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
-                    trainer.train(n_batches=15000)
+                    trainer.train(
+                                    n_batches=15000,
+                                    # log_rollouts_venv = env,
+                                    # log_rollouts_n_episodes =10,
+                                 )
                     # del train_data_loader
                     print(f'Ended training for epoch {epoch}')
 

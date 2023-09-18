@@ -523,17 +523,19 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                             # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
                             total_samples = len(hf['act'])
                             all_indices = list(range(total_samples))
+                            random.shuffle(all_indices)
                             chunk_num = 0
                             scanned_samples = 0
                             while scanned_samples <= total_samples:
                                 self.total_samples = min(total_samples-scanned_samples, self.chunk_size)
                                 chunk_indices = all_indices[scanned_samples:scanned_samples + self.total_samples-1]
-                                shuffled_indices = list(range(len(chunk_indices)))
-                                random.shuffle(shuffled_indices)
-                                self.all_obs =  (hf['obs'][chunk_indices])[shuffled_indices]
-                                self.all_kin_obs = (hf['kin_obs'][chunk_indices])[shuffled_indices]
-                                self.all_acts = (hf['act'][chunk_indices])[shuffled_indices]
-                                self.all_dones = (hf['dones'][chunk_indices])[shuffled_indices]
+                                chunk_indices.sort()
+                                # shuffled_indices = list(range(len(chunk_indices)))
+                                # random.shuffle(shuffled_indices)
+                                self.all_obs =  (hf['obs'][chunk_indices])
+                                self.all_kin_obs = (hf['kin_obs'][chunk_indices])
+                                self.all_acts = (hf['act'][chunk_indices])
+                                self.all_dones = (hf['dones'][chunk_indices])
                                 scanned_samples += self.chunk_size
                                 print(f" scanned_samples {scanned_samples } for file {train_data_file}")
                                 # self.deploy_workers(train_data_file, chunk_num)
