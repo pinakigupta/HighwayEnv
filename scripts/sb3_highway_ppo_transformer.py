@@ -637,3 +637,4 @@ if __name__ == "__main__":
             plt.show()
     except KeyboardInterrupt:
         tracemalloc.stop()  # Stop memory tracing when done
+        raise KeyboardInterrupt
