@@ -467,10 +467,10 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.pool = multiprocessing.Pool()
 
     def _reset_tuples(self):
-        self.all_obs = None
-        self.all_kin_obs = None
-        self.all_acts = None
-        self.all_dones = None
+        self.all_obs = []
+        self.all_kin_obs = []
+        self.all_acts = []
+        self.all_dones = []
                    
 
     def launch_workers(self, samples_queue, total_samples_for_chunk):
@@ -524,8 +524,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
     def __iter__(self):
         while True:
-            for item in self.__iter_once__(): # Keep iterating
-                yield item
+            for batch in self.iter_once_all_files(): # Keep iterating
+                yield batch
 
     def __iter_once__(self):    
         for train_data_file in self.hdf5_train_file_names :
@@ -537,42 +537,73 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             # print(f"Iter once through file {train_data_file}")
 
 
-    def iter_once_one_file(self, train_data_file):
-        print(f"Inside __iter_once_this_file__ for file {train_data_file}")
-        with zipfile.ZipFile(self.zip_filename, 'r') as zipf: # zip file handle
-            with zipf.open(train_data_file) as file_in_zip: # open the file of intetrest from the zip archive
-                # print(f"Worker {worker_id}: Opening the data file {hdf5_file_to_parse}")
-                with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf: # oprn the file handle
-                    # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
-                    total_samples = len(hf['act'])
-                    all_indices = list(range(total_samples))
-                    random.shuffle(all_indices)
-                    chunk_num = 0
-                    scanned_samples = 0
-                    while scanned_samples <= total_samples:
-                        total_samples_for_chunk = min(total_samples-scanned_samples, self.chunk_size)
-                        chunk_indices = all_indices[scanned_samples:scanned_samples + total_samples_for_chunk]
-                        chunk_indices.sort()
-                        # shuffled_indices = list(range(len(chunk_indices)))
-                        # random.shuffle(shuffled_indices)
-                        self.all_obs =  (hf['obs'][chunk_indices])
-                        self.all_kin_obs = (hf['kin_obs'][chunk_indices])
-                        self.all_acts = (hf['act'][chunk_indices])
-                        self.all_dones = (hf['dones'][chunk_indices])
-                        scanned_samples += self.chunk_size
-                        print(f" scanned_samples {scanned_samples } for file {train_data_file}", flush=True)
-                        # self.deploy_workers(train_data_file, chunk_num)
-                        chunk_num +=1
-                        for item in self.generate_batches_from_one_chunk(total_samples_for_chunk, train_data_file ,chunk_num):
-                            yield item
+    def iter_once_all_files(self):
+        # print(f"Inside __iter_once_this_file__ for file {train_data_file}")
+        # Loop through each file name and open the files
+        # file_handles = []
+        total_samples = {}
+        for train_data_file in self.hdf5_train_file_names:
+            total_samples[train_data_file] = None
 
-    def generate_batches_from_one_chunk(self, total_samples_for_chunk, train_data_file ,chunk_num):
-        print(f"Launching worker processes for file {train_data_file} and chunk {chunk_num}", flush=True)
+        chunk_num = 0
+        while total_samples: # chunk iteration
+            # scanned_samples = 0
+            for file_name in self.hdf5_train_file_names:
+                with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
+                    with zipf.open(file_name) as file_in_zip:
+                        with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
+                            if total_samples[train_data_file] is None:
+                                total_samples[train_data_file] = len(hf['act'])
+                        # for file_name, hf in file_handles:
+                            # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
+                            print(f"Opening handle for for file {file_name} for chunk {chunk_num}")
+                            all_indices = list(range(total_samples[file_name]))
+                            # random.shuffle(all_indices)
+                            
+                            scanned_samples = self.chunk_size*chunk_num
+                            if scanned_samples <= total_samples[file_name]:
+                                total_samples_for_chunk = min(total_samples[file_name]-scanned_samples, self.chunk_size)
+                                chunk_indices = all_indices[scanned_samples:scanned_samples + total_samples_for_chunk]
+                                # chunk_indices.sort()
+                                # shuffled_indices = list(range(len(chunk_indices)))
+                                # random.shuffle(shuffled_indices)
+                                self.all_obs.extend(hf['obs'][chunk_indices])
+                                self.all_kin_obs.extend(hf['kin_obs'][chunk_indices])
+                                self.all_acts.extend(hf['act'][chunk_indices])
+                                self.all_dones.extend(hf['dones'][chunk_indices])
+                                scanned_samples += self.chunk_size
+                                print(f" scanned_samples {scanned_samples } for file {file_name}", flush=True)
+                                # self.deploy_workers(file_name, chunk_num)
+                            else:
+                                # file_handles.remove((file_name, hf))
+                                # hf.close()
+                                del total_samples[file_name]
+            all_indices = list(range(len(self.all_acts) ))
+            random.shuffle(all_indices)
+            self.all_obs[:] = [self.all_obs[i] for i in all_indices]
+            self.all_kin_obs[:] = [self.all_kin_obs[i] for i in all_indices]
+            self.all_acts[:] = [self.all_acts[i] for i in all_indices]
+            self.all_dones[:] = [self.all_dones[i] for i in all_indices]
+            for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,chunk_num):
+                yield batch
+            chunk_num +=1
+            self.all_acts = []
+            self.all_obs = []
+            self.all_kin_obs = []
+            self.all_dones = []
+
+        # Close the file handles
+        # for _, hf in file_handles:
+        #     hf.close()
+
+    def generate_batches_from_one_chunk(self, total_samples_for_chunk ,chunk_num):
+        print(f"Launching worker processes for chunk {chunk_num}", flush=True)
         samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
+        self.all_worker_indices = self.calculate_worker_indices(total_samples_for_chunk)
         processes = self.launch_workers(samples_queue, total_samples_for_chunk)
 
         all_samples = [] 
-        progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing {train_data_file}, chunk {chunk_num}')
+        progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing  chunk {chunk_num}')
         total_samples_yielded = 0
         while total_samples_yielded < 0.9*total_samples_for_chunk:
             sample = samples_queue.get()
@@ -589,7 +620,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         # self._reset_tuples()
         # Collect and yield batches from each process
         self.destroy_workers(processes)
-        print(f" Terminated all process for {train_data_file} and chunk {chunk_num}", flush=True)
+        print(f" Terminated all process for  chunk {chunk_num}", flush=True)
 
 
 
@@ -633,5 +664,5 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 pass
             # time.sleep(0.01)
                         
-        samples_queue.put(None)
+        # samples_queue.put(None)
 
