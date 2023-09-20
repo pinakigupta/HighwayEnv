@@ -19,7 +19,7 @@ import time
 import signal
 from highway_env.vehicle.behavior import MDPVehicle
 from highway_env.envs.common.observation import  observation_factory
-
+from highway_env.envs.common.action import DiscreteMetaAction
 from forward_simulation import append_key_to_dict_of_dict
 
 torch.set_default_tensor_type(torch.FloatTensor)
@@ -45,12 +45,12 @@ def worker(
     env = make_configure_env(**env_kwargs).unwrapped #env_value.value  # Retrieve the shared env object
     steps_collected = 0
     # oracle = env.controlled_vehicles[0]
-
-    if lock.acquire(timeout=10):
-        oracle = torch.load('oracle.pth', map_location='cpu')
-        lock.release()
-    else:
-        return
+    if env_kwargs['oracle']:
+        if lock.acquire(timeout=10):
+            oracle = torch.load('oracle.pth', map_location='cpu')
+            lock.release()
+        else:
+            return
 
     rollout_steps = 0
     while rollout_steps < int(1.25*steps_per_worker):
@@ -88,10 +88,14 @@ def worker(
             # features_extractor, policy_net, action_net = oracle
             # ob_tensor = torch.Tensor(ob).detach().to(torch.device('cpu'))
             if rollout_steps > 0 and (not env_reset):
-                try:
-                    act, _  = oracle.predict(ob)
-                except:
-                    act = oracle.act(ob.flatten())
+                if env_kwargs['oracle']:
+                    try:
+                        act, _  = oracle.predict(ob)
+                    except:
+                        act = oracle.act(ob.flatten())
+                else:
+                    act, _ = env.vehicle.discrete_action() # Use IDM + MOBIL driving policy
+                    act = DiscreteMetaAction.ACTIONS_ALL.inverse[act]
             env_reset = False
             # act = \
             next_ob, rwd, done, _, _ = env.step(act)
@@ -187,8 +191,12 @@ def collect_expert_data(
 
     # env_value.value = env
     # Launch worker processes for oracle data collection
-    oracle.to('cpu')
-    torch.save(oracle,'oracle.pth')
+    if oracle is not None:
+        oracle.to('cpu')
+        torch.save(oracle,'oracle.pth')
+        env_kwargs['oracle']=True
+    else:
+        env_kwargs['oracle']=False
     for i in range(num_workers):
         
         worker_process = multiprocessing.Process(
@@ -202,7 +210,7 @@ def collect_expert_data(
                                                             # processes_launched, 
                                                             i,
                                                             # progress,
-                                                            lock
+                                                            lock,
                                                         ),
                                                     kwargs = env_kwargs, 
                                                 )

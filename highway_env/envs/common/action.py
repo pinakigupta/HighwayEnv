@@ -3,7 +3,7 @@ import itertools
 from typing import TYPE_CHECKING, Optional, Union, Tuple, Callable, List
 from gymnasium import spaces
 import numpy as np
-
+from bidict import bidict 
 from highway_env import utils
 from highway_env.utils import Vector
 from highway_env.vehicle.behavior import IDMVehicle
@@ -180,27 +180,27 @@ class DiscreteMetaAction(ActionType):
     An discrete action space of meta-actions: lane changes, and cruise control set-point.
     """
 
-    ACTIONS_ALL = {
+    ACTIONS_ALL = bidict({
         0: 'LANE_LEFT',
         1: 'IDLE',
         2: 'LANE_RIGHT',
         3: 'FASTER',
         4: 'SLOWER'
-    }
+    })
     """A mapping of action indexes to labels."""
 
-    ACTIONS_LONGI = {
+    ACTIONS_LONGI = bidict({
         0: 'SLOWER',
         1: 'IDLE',
         2: 'FASTER'
-    }
+    })
     """A mapping of longitudinal action indexes to labels."""
 
-    ACTIONS_LAT = {
+    ACTIONS_LAT = bidict({
         0: 'LANE_LEFT',
         1: 'IDLE',
         2: 'LANE_RIGHT'
-    }
+    })
     """A mapping of lateral action indexes to labels."""
 
     def __init__(self,

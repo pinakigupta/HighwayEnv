@@ -110,22 +110,25 @@ if __name__ == "__main__":
     try:
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             project= f"BC_1"                           
-            oracle_agent                            = retrieve_agent(
-                                                            artifact_version='trained_model_directory:latest',
-                                                            agent_model = 'agent_final.pt',
-                                                            device=device,
-                                                            project=project
-                                                        )
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs).unwrapped, device, **policy_kwargs)
-            policy.load_state_dict(oracle_agent.state_dict())
-            policy.eval()
+            policy = None
+            if policy:
+                oracle_agent                            = retrieve_agent(
+                                                                            artifact_version='trained_model_directory:latest',
+                                                                            agent_model = 'agent_final.pt',
+                                                                            device=device,
+                                                                            project=project
+                                                                        )
+                policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs).unwrapped, device, **policy_kwargs)
+                policy.load_state_dict(oracle_agent.state_dict())
+                policy.eval()
+            
             expert_data_collector(  
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 2,
+                                    delta_iterations = 10,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -554,6 +557,8 @@ if __name__ == "__main__":
                 done = truncated = False
                 cumulative_reward = 0
                 while not (done or truncated):
+                    # expert_action , _= env.vehicle.discrete_action()
+                    # action = ACTIONS_ALL.inverse[expert_action]
                     action, _ = policy.predict(obs)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
