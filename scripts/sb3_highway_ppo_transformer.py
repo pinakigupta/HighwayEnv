@@ -76,15 +76,15 @@ if __name__ == "__main__":
         stack_size_thread.start()
 
     DAGGER = True
-    policy_kwargs = dict(
-            # policy=MLPPolicy,
-            features_extractor_class=CustomExtractor,
-            features_extractor_kwargs=attention_network_kwargs,
-        )
     # policy_kwargs = dict(
-    #                         features_extractor_class=CustomImageExtractor,
-    #                         features_extractor_kwargs=dict(hidden_dim=64),
-    #                     )
+    #         # policy=MLPPolicy,
+    #         features_extractor_class=CustomExtractor,
+    #         features_extractor_kwargs=attention_network_kwargs,
+    #     )
+    policy_kwargs = dict(
+                            features_extractor_class=CustomImageExtractor,
+                            features_extractor_kwargs=dict(hidden_dim=64),
+                        )
 
 
     WARM_START = False
@@ -419,12 +419,12 @@ if __name__ == "__main__":
                     train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 25000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 15000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
                     trainer.train(
-                                    n_batches=15000,
+                                    n_batches=num_mini_batches,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
