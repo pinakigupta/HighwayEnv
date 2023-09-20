@@ -452,7 +452,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
-        self.n_cpu =  n_cpu 
+        self.n_cpu =  2 #n_cpu 
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
         self.chunk_size = 10000  # Assume a large number of samples
@@ -506,8 +506,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
     
     def load_batch(self, batch_samples):
         batch = {
-            'obs_': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-            'obs': torch.tensor([sample['kin_obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+            'obs': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+            'kin_obs': torch.tensor([sample['kin_obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
             'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(self.device),
             'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(self.device),
             # Add other keys as needed
@@ -525,6 +525,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
     def __iter__(self):
         while True:
             for batch in self.iter_once_all_files(): # Keep iterating
+                # print('batch.keys()', batch.keys())
                 yield batch
 
     def __iter_once__(self):    
@@ -615,7 +616,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 yield self.load_batch(all_samples[total_samples_yielded:total_samples_yielded+self.batch_size])
                 total_samples_yielded += self.batch_size
                 # del all_samples[:self.batch_size]
-            progress_bar.update(1)
+            progress_bar.update(self.batch_size)
         progress_bar.close()
         # self._reset_tuples()
         # Collect and yield batches from each process
