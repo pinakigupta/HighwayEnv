@@ -542,18 +542,20 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         # Loop through each file name and open the files
         # file_handles = []
         total_samples = {}
-        for train_data_file in self.hdf5_train_file_names:
-            total_samples[train_data_file] = None
+        for file_name in self.hdf5_train_file_names:
+            total_samples[file_name] = None
 
         chunk_num = 0
-        while total_samples: # chunk iteration
+        while total_samples: # chunk iteration. Will read till any file has any chunk left.
             # scanned_samples = 0
-            for file_name in self.hdf5_train_file_names:
+            for file_name in self.hdf5_train_file_names: # File reading is still not complete
+                if file_name not in total_samples:
+                    continue
                 with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
                     with zipf.open(file_name) as file_in_zip:
                         with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-                            if total_samples[train_data_file] is None:
-                                total_samples[train_data_file] = len(hf['act'])
+                            if total_samples[file_name] is None:
+                                total_samples[file_name] = len(hf['act'])
                         # for file_name, hf in file_handles:
                             # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
                             print(f"Opening handle for for file {file_name} for chunk {chunk_num}")
@@ -575,15 +577,17 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                                 print(f" scanned_samples {scanned_samples } for file {file_name}", flush=True)
                                 # self.deploy_workers(file_name, chunk_num)
                             else:
-                                # file_handles.remove((file_name, hf))
-                                # hf.close()
-                                del total_samples[file_name]
+                                del total_samples[file_name] # No more chunk left in this file
+
+            # Randomize the aggregated chunks across all files
             all_indices = list(range(len(self.all_acts) ))
             random.shuffle(all_indices)
             self.all_obs[:] = [self.all_obs[i] for i in all_indices]
             self.all_kin_obs[:] = [self.all_kin_obs[i] for i in all_indices]
             self.all_acts[:] = [self.all_acts[i] for i in all_indices]
             self.all_dones[:] = [self.all_dones[i] for i in all_indices]
+
+            #Yield after 1 chunk has been read across all the files (for the files that had a readable chunk left)
             for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,chunk_num):
                 yield batch
             chunk_num +=1
@@ -591,10 +595,6 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.all_obs = []
             self.all_kin_obs = []
             self.all_dones = []
-
-        # Close the file handles
-        # for _, hf in file_handles:
-        #     hf.close()
 
     def generate_batches_from_one_chunk(self, total_samples_for_chunk ,chunk_num):
         print(f"Launching worker processes for chunk {chunk_num}", flush=True)
