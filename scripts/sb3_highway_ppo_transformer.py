@@ -82,7 +82,7 @@ if __name__ == "__main__":
     #         features_extractor_kwargs=attention_network_kwargs,
     #     )
     policy_kwargs = dict(
-                            features_extractor_class=VideoFeatureExtractor,
+                            features_extractor_class=CustomVideoFeatureExtractor,
                             features_extractor_kwargs=dict(hidden_dim=64),
                         )
 
