@@ -29,6 +29,8 @@ import time
 import signal
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
+import torchvision.models as models
+
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
@@ -217,7 +219,40 @@ class CustomExtractor(BaseFeaturesExtractor):
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         return self.extractor(observations)
 
+# Create a 3D ResNet model for feature extraction
+class VideoFeatureExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space, hidden_dim=64):
+        super(VideoFeatureExtractor, self).__init__(observation_space, hidden_dim)
 
+        if not isinstance(observation_space, gym.spaces.Box):
+            raise ValueError("Observation space must be continuous (e.g., image-based)")
+        
+        self.resnet = models.video.r3d_18(pretrained=True)  # You can choose a different ResNet variant
+        # Remove the classification (fully connected) layer
+        self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-1])
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = False
+
+        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
+
+        # Additional fully connected layer for custom hidden feature dimension
+        self.fc_hidden = nn.Linear(hidden_dim, hidden_dim)
+
+    def forward(self, observations):
+
+        # Reshape observations to [batch_size, channels, height, width]
+        observations = observations.view(observations.size(0), 1, -1, self.height, self.width)
+        observations = torch.cat([observations, observations, observations], dim=1)
+        # Normalize pixel values to the range [0, 1] (if necessary)
+        observations = observations / 255.0
+
+        print(observations.shape)
+        # print(self.feature_extractor)
+        # Pass input through the feature extractor (without the classification layer)
+        resnet_features = self.feature_extractor(observations)
+        # Apply a fully connected layer for the custom hidden feature dimension
+        hidden_features = torch.nn.functional.relu(self.fc_hidden(resnet_features))
+        return hidden_features
 
 def save_checkpoint(project, run_name, epoch, model, **kwargs):
     # if epoch is None:
@@ -550,6 +585,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             for file_name in random.sample(self.hdf5_train_file_names, len(self.hdf5_train_file_names)): # File reading is still not complete
                 if chunks_collected >= self.MAX_CHUNKS:
                     break
+                print(f"chunks_collected {chunks_collected}")
                 if file_name not in self.total_samples:
                     continue
                 with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
@@ -567,7 +603,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                             # random.shuffle(all_indices)
                             chunk_num = random.sample(self.total_chunks[file_name], 1)[0]
                             self.total_chunks[file_name].remove(chunk_num)
-                            print(f"Opening handle for for file {file_name} for chunk { chunk_num }")
+                            # print(f"Opening handle for  file {file_name} for chunk { chunk_num }")
                             starting_sample = self.chunk_size*chunk_num
                             if self.total_chunks[file_name]:
                                 total_samples_for_chunk = min(self.total_samples[file_name]-starting_sample, self.chunk_size)
