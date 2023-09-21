@@ -236,7 +236,10 @@ class VideoFeatureExtractor(BaseFeaturesExtractor):
         self.height, self.width = observation_space.shape[1], observation_space.shape[2]
 
         # Additional fully connected layer for custom hidden feature dimension
-        self.fc_hidden = nn.Linear(hidden_dim, hidden_dim)
+        self.fc_hidden = nn.Sequential(
+                                        nn.Linear(self.resnet.fc.in_features, hidden_dim),
+                                        nn.Linear(hidden_dim, hidden_dim)
+                                    )
 
     def forward(self, observations):
 
@@ -246,7 +249,7 @@ class VideoFeatureExtractor(BaseFeaturesExtractor):
         # Normalize pixel values to the range [0, 1] (if necessary)
         observations = observations / 255.0
 
-        print(observations.shape)
+        print('observations.shape', observations.shape)
         # print(self.feature_extractor)
         # Pass input through the feature extractor (without the classification layer)
         resnet_features = self.feature_extractor(observations)
