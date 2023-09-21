@@ -594,6 +594,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             # print(f"Iter once through file {train_data_file}")
 
     MAX_CHUNKS = 5
+    shuffled_chunk_num = 0
     def iter_once_all_files(self):
         while self.total_samples: # chunk iteration. Will read till any file has any chunk left.
             print("---------------------------------------------START----------------------------------------------------------------")
@@ -629,9 +630,9 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.all_dones[:] = [self.all_dones[i] for i in all_indices]
 
             #Yield after 1 chunk has been read across all the files (for the files that had a readable chunk left)
-            for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,chunk_num):
+            for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,shuffled_chunk_num):
                 yield batch
-            chunk_num +=1
+            shuffled_chunk_num +=1
             self.all_acts = []
             self.all_obs = []
             self.all_kin_obs = []
