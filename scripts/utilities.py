@@ -252,7 +252,7 @@ class VideoFeatureExtractor(BaseFeaturesExtractor):
         print('observations.shape', observations.shape)
         # print(self.feature_extractor)
         # Pass input through the feature extractor (without the classification layer)
-        resnet_features = self.feature_extractor(observations)
+        resnet_features = self.feature_extractor(observations).squeeze()
         # Apply a fully connected layer for the custom hidden feature dimension
         hidden_features = torch.nn.functional.relu(self.fc_hidden(resnet_features))
         return hidden_features
