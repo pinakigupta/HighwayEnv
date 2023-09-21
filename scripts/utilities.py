@@ -445,14 +445,15 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         
         return hidden_features  # Return the extracted features
 
-import random 
+import random
+import math
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
     def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu):
         self.zip_filename = zip_filename
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
-        self.n_cpu =  2 #n_cpu 
+        self.n_cpu =  n_cpu 
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
         self.chunk_size = 10000  # Assume a large number of samples
@@ -465,6 +466,9 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self._reset_tuples()
         self.batch_no = 0
         self.pool = multiprocessing.Pool()
+        self.total_samples = {}
+        self.total_chunks = {}
+
 
     def _reset_tuples(self):
         self.all_obs = []
@@ -521,9 +525,11 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             del sample['dones']
         return batch   
      
-
     def __iter__(self):
         while True:
+            for file_name in self.hdf5_train_file_names:
+                self.total_samples[file_name] = None
+                self.total_chunks[file_name] = None
             for batch in self.iter_once_all_files(): # Keep iterating
                 # print('batch.keys()', batch.keys())
                 yield batch
@@ -537,48 +543,44 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 yield item
             # print(f"Iter once through file {train_data_file}")
 
-
+    MAX_CHUNKS = 5
     def iter_once_all_files(self):
-        # print(f"Inside __iter_once_this_file__ for file {train_data_file}")
-        # Loop through each file name and open the files
-        # file_handles = []
-        total_samples = {}
-        for file_name in self.hdf5_train_file_names:
-            total_samples[file_name] = None
-
-        chunk_num = 0
-        while total_samples: # chunk iteration. Will read till any file has any chunk left.
-            # scanned_samples = 0
-            for file_name in self.hdf5_train_file_names: # File reading is still not complete
-                if file_name not in total_samples:
+        while self.total_samples: # chunk iteration. Will read till any file has any chunk left.
+            chunks_collected = 0
+            for file_name in random.sample(self.hdf5_train_file_names, len(self.hdf5_train_file_names)): # File reading is still not complete
+                if chunks_collected >= self.MAX_CHUNKS:
+                    break
+                if file_name not in self.total_samples:
                     continue
                 with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
                     with zipf.open(file_name) as file_in_zip:
                         with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-                            if total_samples[file_name] is None:
-                                total_samples[file_name] = len(hf['act'])
+                            if self.total_samples[file_name] is None:
+                                self.total_samples[file_name] = len(hf['act'])
+                            if self.total_chunks[file_name] is None:
+                                self.total_chunks[file_name] = list(range(math.ceil(self.total_samples[file_name]/self.chunk_size)))
+                                print(f'For file_name {file_name} total chunks are { self.total_chunks[file_name]} and total samples \
+                                                                                    {self.total_samples[file_name]}')
                         # for file_name, hf in file_handles:
                             # print(f"Worker {worker_id}: Read the data file in place {hdf5_file_to_parse}")
-                            print(f"Opening handle for for file {file_name} for chunk {chunk_num}")
-                            all_indices = list(range(total_samples[file_name]))
+                            all_indices = list(range(self.total_samples[file_name]))
                             # random.shuffle(all_indices)
-                            
-                            scanned_samples = self.chunk_size*chunk_num
-                            if scanned_samples <= total_samples[file_name]:
-                                total_samples_for_chunk = min(total_samples[file_name]-scanned_samples, self.chunk_size)
-                                chunk_indices = all_indices[scanned_samples:scanned_samples + total_samples_for_chunk]
-                                # chunk_indices.sort()
-                                # shuffled_indices = list(range(len(chunk_indices)))
-                                # random.shuffle(shuffled_indices)
+                            chunk_num = random.sample(self.total_chunks[file_name], 1)[0]
+                            self.total_chunks[file_name].remove(chunk_num)
+                            print(f"Opening handle for for file {file_name} for chunk { chunk_num }")
+                            starting_sample = self.chunk_size*chunk_num
+                            if self.total_chunks[file_name]:
+                                total_samples_for_chunk = min(self.total_samples[file_name]-starting_sample, self.chunk_size)
+                                chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
                                 self.all_obs.extend(hf['obs'][chunk_indices])
                                 self.all_kin_obs.extend(hf['kin_obs'][chunk_indices])
                                 self.all_acts.extend(hf['act'][chunk_indices])
                                 self.all_dones.extend(hf['dones'][chunk_indices])
-                                scanned_samples += self.chunk_size
-                                print(f" scanned_samples {scanned_samples } for file {file_name}", flush=True)
+                                print(f" scanned_chunk {chunk_num } for file {file_name}", flush=True)
                                 # self.deploy_workers(file_name, chunk_num)
+                                chunks_collected += 1
                             else:
-                                del total_samples[file_name] # No more chunk left in this file
+                                del self.total_samples[file_name] # No more chunk left in this file
 
             # Randomize the aggregated chunks across all files
             all_indices = list(range(len(self.all_acts) ))
@@ -661,7 +663,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                                             "dones": self.all_dones[index]
                                         }
                                     )
-            except IndexError:
+            except IndexError as e:
+                print(f'Error {e} accessing index {index}. Length of obs {len(self.all_obs)}')
                 pass
             # time.sleep(0.01)
                         

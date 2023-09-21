@@ -123,6 +123,9 @@ if __name__ == "__main__":
                 policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs).unwrapped, device, **policy_kwargs)
                 policy.load_state_dict(oracle_agent.state_dict())
                 policy.eval()
+                print('EXPERT_DATA_COLLECTION using PREVIOUS POLICY for exploration')
+            else:
+                print('EXPERT_DATA_COLLECTION using IDM+MOBIL for exploration')
             
             expert_data_collector(  
                                     policy,
@@ -251,7 +254,7 @@ if __name__ == "__main__":
                                     trained_gail_agent.pi, # This is the exploration policy
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 1,
+                                    delta_iterations = 2,
                                     **{
                                         **env_kwargs, 
                                         **{'expert':'MDPVehicle'}
@@ -419,7 +422,7 @@ if __name__ == "__main__":
                     train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 15000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 10000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():

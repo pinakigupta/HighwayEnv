@@ -73,7 +73,7 @@ def worker(
         act = 4
 
         if exit_event.is_set():
-            print('Exit condition is triggered. Breaking ', worker_id)
+            # print('Exit condition is triggered. Breaking ', worker_id)
             return
 
         env_reset = True
@@ -81,7 +81,7 @@ def worker(
         while rollout_steps < steps_per_worker:
 
             if exit_event.is_set():
-                print('Exit condition is triggered. Breaking ', worker_id)
+                # print('Exit condition is triggered. Breaking ', worker_id)
                 return
 
             # Extract features from observations using the feature extractor
