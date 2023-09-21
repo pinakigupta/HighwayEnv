@@ -462,10 +462,17 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         self.resnet.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
         
         # Adjust the last fully connected layer for feature dimension control
-        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_dim)
+        # self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_dim)
+        self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-1])
+
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = False
         
         # Additional fully connected layer for custom hidden feature dimension
-        self.fc_hidden = nn.Linear(hidden_dim, hidden_dim)
+        self.fc_hidden = nn.Sequential( 
+                                        nn.Linear(self.resnet.fc.in_features, hidden_dim),
+                                        nn.Linear(hidden_dim, hidden_dim)
+                                    )
         self.height, self.width = observation_space.shape[1], observation_space.shape[2]
     
     def forward(self, observations):
@@ -476,7 +483,7 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         observations = observations / 255.0
 
         # Forward pass through the ResNet trunk for feature extraction
-        resnet_features = self.resnet(observations)
+        resnet_features = self.feature_extractor(observations).squeeze()
         
         # Apply a fully connected layer for the custom hidden feature dimension
         hidden_features = torch.nn.functional.relu(self.fc_hidden(resnet_features))
@@ -606,7 +613,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                             # random.shuffle(all_indices)
                             chunk_num = random.sample(self.total_chunks[file_name], 1)[0]
                             self.total_chunks[file_name].remove(chunk_num)
-                            # print(f"Opening handle for  file {file_name} for chunk { chunk_num }")
+                            # print(f"Opening handle for for file {file_name} for chunk { chunk_num }")
                             starting_sample = self.chunk_size*chunk_num
                             if self.total_chunks[file_name]:
                                 total_samples_for_chunk = min(self.total_samples[file_name]-starting_sample, self.chunk_size)
