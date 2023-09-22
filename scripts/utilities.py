@@ -527,6 +527,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.pool = multiprocessing.Pool()
         self.total_samples = self.manager.dict()
         self.total_chunks = self.manager.dict()
+        self.lock = self.manager.Lock()
         self.iter = 0
 
 
@@ -536,14 +537,35 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_acts = []
         self.all_dones = []
                    
-
+    def launch_reader_workers(self, lock):
+        # Create and start worker processes
+        
+        processes = []
+        for i in range(self.n_cpu):
+            process = multiprocessing.Process(
+                                                target=self.reader_worker, 
+                                                args=(
+                                                        lock,
+                                                        i, 
+                                                        self.total_chunks, 
+                                                        self.total_samples,
+                                                        self.all_obs,
+                                                        self.all_kin_obs,
+                                                        self.all_acts,
+                                                        self.all_dones
+                                                     )
+                                             )
+            process.start()
+            processes.append(process)
+        return processes
+    
     def launch_workers(self, samples_queue, total_samples_for_chunk):
         # Create and start worker processes
         
         processes = []
         for i in range(self.n_cpu):
             process = multiprocessing.Process(
-                                                target=self.worker, 
+                                                target=self.writer_worker, 
                                                 args=(
                                                         i, 
                                                         total_samples_for_chunk,
@@ -613,31 +635,53 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 yield item
             # print(f"Iter once through file {train_data_file}")
 
+
+    def reader_worker(
+                        self, 
+                        lock, 
+                        worker_id, 
+                        total_chunks, 
+                        total_samples,
+                        all_obs,
+                        all_kin_obs,
+                        all_acts,
+                        all_dones
+                     ):
+        file_name = random.sample(total_samples.keys(), 1)[0]
+        with ZipfContextManager(self.zip_filename, file_name) as hf:
+            all_indices = list(range(total_samples[file_name]))
+            with lock:
+                chunk_num = random.sample(total_chunks[file_name], 1)[0]
+                total_chunks[file_name].remove(chunk_num)
+            starting_sample = self.chunk_size*chunk_num
+            total_samples_for_chunk = min(total_samples[file_name]-starting_sample, self.chunk_size)
+            chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
+            if lock.acquire(timeout=1):
+                all_obs.extend(hf['obs'][chunk_indices])
+                all_kin_obs.extend(hf['kin_obs'][chunk_indices])
+                all_acts.extend(hf['act'][chunk_indices])
+                all_dones.extend(hf['dones'][chunk_indices])
+                print(f" scanned_chunk {chunk_num } for file {file_name}. Chunks remaining {total_chunks[file_name]}", flush=True)
+                # chunks_collected += 1
+                if not total_chunks[file_name]:
+                    del total_samples[file_name] # No more chunk left in this file
+                lock.release()
+
+                
     MAX_CHUNKS = 5
     def iter_once_all_files(self):
+        
         shuffled_chunk_num = 0
-        while self.total_samples: # chunk iteration. Will read till any file has any chunk left.
-            print("---------------------------------------------START----------------------------------------------------------------")
-            chunks_collected = 0
-            while chunks_collected < self.MAX_CHUNKS and self.total_samples:
-                file_name = random.sample(self.total_samples.keys(), 1)[0]
-                with ZipfContextManager(self.zip_filename, file_name) as hf:
-                    all_indices = list(range(self.total_samples[file_name]))
-                    chunk_num = random.sample(self.total_chunks[file_name], 1)[0]
-                    self.total_chunks[file_name].remove(chunk_num)
-                    starting_sample = self.chunk_size*chunk_num
-                    # print(f"chunks_collected {chunks_collected} for file {file_name}")
-                    total_samples_for_chunk = min(self.total_samples[file_name]-starting_sample, self.chunk_size)
-                    chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
-                    self.all_obs.extend(hf['obs'][chunk_indices])
-                    self.all_kin_obs.extend(hf['kin_obs'][chunk_indices])
-                    self.all_acts.extend(hf['act'][chunk_indices])
-                    self.all_dones.extend(hf['dones'][chunk_indices])
-                    print(f" scanned_chunk {chunk_num } for file {file_name}", flush=True)
-                    chunks_collected += 1
-                    if not self.total_chunks[file_name]:
-                        del self.total_samples[file_name] # No more chunk left in this file
+        while self.total_samples:
+            reader_processes = self.launch_reader_workers(self.lock)
 
+            # while self.total_samples: # chunk iteration. Will read till any file has any chunk left.
+            #     print("---------------------------------------------START----------------------------------------------------------------")
+                # chunks_collected = 0
+                # while chunks_collected < self.MAX_CHUNKS and self.total_samples:
+
+            for process in reader_processes:
+                process.join()
 
             # Randomize the aggregated chunks across all files
             all_indices = list(range(len(self.all_acts) ))
@@ -647,23 +691,26 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.all_acts[:] = [self.all_acts[i] for i in all_indices]
             self.all_dones[:] = [self.all_dones[i] for i in all_indices]
 
-            #Yield after 1 chunk has been read across all the files (for the files that had a readable chunk left)
+                
+            #Yield chunks as they come
             for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,shuffled_chunk_num):
                 yield batch
+
+
             shuffled_chunk_num +=1
             self.all_acts = []
             self.all_obs = []
             self.all_kin_obs = []
             self.all_dones = []
 
-    def generate_batches_from_one_chunk(self, total_samples_for_chunk ,chunk_num):
-        print(f"Launching worker processes for chunk {chunk_num}", flush=True)
+    def generate_batches_from_one_chunk(self, total_samples_for_chunk ,step_num):
+        print(f"Launching worker processes for step {step_num}", flush=True)
         samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
         self.all_worker_indices = self.calculate_worker_indices(total_samples_for_chunk)
         processes = self.launch_workers(samples_queue, total_samples_for_chunk)
 
         all_samples = [] 
-        progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing  chunk {chunk_num}')
+        progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing  chunk {step_num}')
         total_samples_yielded = 0
         while total_samples_yielded < 0.9*total_samples_for_chunk:
             sample = samples_queue.get()
@@ -680,7 +727,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         # self._reset_tuples()
         # Collect and yield batches from each process
         self.destroy_workers(processes)
-        print(f" Terminated all process for  chunk {chunk_num}", flush=True)
+        print(f" Terminated all process for  step {step_num}", flush=True)
 
 
 
@@ -703,7 +750,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         return worker_indices
 
     
-    def worker(self, worker_id, total_samples , worker_indices, samples_queue):
+    def writer_worker(self, worker_id, total_samples , worker_indices, samples_queue):
                     
         self.count = 0
         worker_indices = [index for index in worker_indices if index < total_samples]
