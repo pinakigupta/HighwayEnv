@@ -30,7 +30,7 @@ import signal
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
 import torchvision.models as models
-
+from contextlib import ExitStack
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
@@ -45,6 +45,21 @@ def clear_and_makedirs(directory):
     if os.path.exists(directory):
         shutil.rmtree(directory)
     os.makedirs(directory)
+
+class ZipfContextManager:
+    def __init__(self, zip_filename, file_name):
+        self.zip_filename = zip_filename
+        self.file_name = file_name
+        self.exit_stack = ExitStack()
+
+    def __enter__(self):
+        self.zipf = self.exit_stack.enter_context(zipfile.ZipFile(self.zip_filename, 'r'))
+        self.file_in_zip = self.exit_stack.enter_context(self.zipf.open(self.file_name))
+        self.hf = self.exit_stack.enter_context(h5py.File(self.file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0))
+        return self.hf
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return self.exit_stack.__exit__(exc_type, exc_value, traceback)
 
 def write_module_hierarchy_to_file(model, file):
     def write_module_recursive(module, file=None, indent='', processed_submodules=None):
@@ -552,13 +567,20 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             # print([worker.pid for worker in processes if worker.is_alive()])
             
     def load_batch(self, batch_samples):
-        batch = {
-            'obs': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-            'kin_obs': torch.tensor([sample['kin_obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-            'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-            'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-            # Add other keys as needed
-        }
+        try:
+            batch = {
+                'obs': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+                'kin_obs': torch.tensor([sample['kin_obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+                'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+                'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+                # Add other keys as needed
+            }
+        except Exception as e:
+            print(batch_samples[0].keys())
+            for k, v,in batch_samples.items():
+                print(f'{k} length is {len(v)}')
+            raise e
+        
 
         # Clear GPU memory for individual tensors after creating the batch
         for sample in batch_samples:
@@ -573,13 +595,11 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             print(f"++++++++++++++++++ ITER PASS {self.iter} +++++++++++++++++++")
             self.iter += 1
             for file_name in self.hdf5_train_file_names:
-                with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
-                    with zipf.open(file_name) as file_in_zip:
-                        with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-                            if file_name not in self.total_samples:
-                                self.total_samples[file_name] = len(hf['act'])
-                            if file_name not in self.total_chunks:
-                                self.total_chunks[file_name] = list(range(math.ceil(self.total_samples[file_name]/self.chunk_size)))
+                with ZipfContextManager(self.zip_filename, file_name) as hf:
+                    if file_name not in self.total_samples:
+                        self.total_samples[file_name] = len(hf['act'])
+                    if file_name not in self.total_chunks:
+                        self.total_chunks[file_name] = list(range(math.ceil(self.total_samples[file_name]/self.chunk_size)))
             for batch in self.iter_once_all_files(): # Keep iterating
                 # print('batch.keys()', batch.keys())
                 yield batch
@@ -601,24 +621,22 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             chunks_collected = 0
             while chunks_collected < self.MAX_CHUNKS and self.total_samples:
                 file_name = random.sample(self.total_samples.keys(), 1)[0]
-                with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
-                    with zipf.open(file_name) as file_in_zip:
-                        with h5py.File(file_in_zip, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-                            all_indices = list(range(self.total_samples[file_name]))
-                            chunk_num = random.sample(self.total_chunks[file_name], 1)[0]
-                            self.total_chunks[file_name].remove(chunk_num)
-                            starting_sample = self.chunk_size*chunk_num
-                            # print(f"chunks_collected {chunks_collected} for file {file_name}")
-                            total_samples_for_chunk = min(self.total_samples[file_name]-starting_sample, self.chunk_size)
-                            chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
-                            self.all_obs.extend(hf['obs'][chunk_indices])
-                            self.all_kin_obs.extend(hf['kin_obs'][chunk_indices])
-                            self.all_acts.extend(hf['act'][chunk_indices])
-                            self.all_dones.extend(hf['dones'][chunk_indices])
-                            print(f" scanned_chunk {chunk_num } for file {file_name}", flush=True)
-                            chunks_collected += 1
-                            if not self.total_chunks[file_name]:
-                                del self.total_samples[file_name] # No more chunk left in this file
+                with ZipfContextManager(self.zip_filename, file_name) as hf:
+                    all_indices = list(range(self.total_samples[file_name]))
+                    chunk_num = random.sample(self.total_chunks[file_name], 1)[0]
+                    self.total_chunks[file_name].remove(chunk_num)
+                    starting_sample = self.chunk_size*chunk_num
+                    # print(f"chunks_collected {chunks_collected} for file {file_name}")
+                    total_samples_for_chunk = min(self.total_samples[file_name]-starting_sample, self.chunk_size)
+                    chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
+                    self.all_obs.extend(hf['obs'][chunk_indices])
+                    self.all_kin_obs.extend(hf['kin_obs'][chunk_indices])
+                    self.all_acts.extend(hf['act'][chunk_indices])
+                    self.all_dones.extend(hf['dones'][chunk_indices])
+                    print(f" scanned_chunk {chunk_num } for file {file_name}", flush=True)
+                    chunks_collected += 1
+                    if not self.total_chunks[file_name]:
+                        del self.total_samples[file_name] # No more chunk left in this file
 
 
             # Randomize the aggregated chunks across all files
