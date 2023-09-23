@@ -515,7 +515,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu 
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
-        self.chunk_size = 5000  # Assume a large number of samples
+        self.chunk_size = 1500  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
@@ -542,7 +542,9 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         # Create and start worker processes
         
         processes = []
-        for i in range(self.n_cpu):
+        all_chunks = [(file_name, chunk) for file_name, chunks in self.total_chunks.items() for chunk in chunks]
+        random_samples = random.sample(all_chunks, min(self.n_cpu, len(all_chunks)))
+        for i, (file_name, chunk_index) in enumerate(random_samples):
             process = multiprocessing.Process(
                                                 target=self.reader_worker, 
                                                 args=(
@@ -550,6 +552,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                                                         i, 
                                                         self.total_chunks, 
                                                         self.total_samples,
+                                                        file_name,
+                                                        chunk_index,
                                                         reader_queue
                                                      )
                                              )
@@ -639,38 +643,34 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                         worker_id, 
                         total_chunks, 
                         total_samples,
+                        file_name,
+                        chunk_num,
                         reader_queue
                      ):
-        file_name = random.sample(total_samples.keys(), 1)[0]
-        acquired_lock_and_changed_DS  = False
+        # file_name = random.sample(total_samples.keys(), 1)[0]
+        # Flatten the list of chunks along with their corresponding file names
+        
         with ZipfContextManager(self.zip_filename, file_name) as hf:
-            if lock.acquire(timeout=1):
-                if total_chunks[file_name] and total_samples[file_name]:
-                    # print(f"Acquired lock from worker {worker_id} for file_name {file_name}. Total chunks {total_chunks[file_name]} and total samples {total_samples[file_name]}")
-                    chunk_num = random.sample(total_chunks[file_name], 1)[0]
-                    temp = total_chunks[file_name]
-                    temp.remove(chunk_num)
-                    total_chunks[file_name] = temp
-                    acquired_lock_and_changed_DS = True
-                lock.release()
+            # if total_chunks[file_name] and total_samples[file_name]:
+            # print(f"Acquired lock from worker {worker_id} for file_name {file_name}. Total chunks {total_chunks[file_name]} and total samples {total_samples[file_name]}")
+            # chunk_num = random.sample(total_chunks[file_name], 1)[0]
+            temp = total_chunks[file_name]
+            temp.remove(chunk_num)
+            total_chunks[file_name] = temp
 
-                if acquired_lock_and_changed_DS:
-                    all_indices = list(range(total_samples[file_name]))
-                    starting_sample = self.chunk_size*chunk_num
-                    total_samples_for_chunk = min(total_samples[file_name]-starting_sample, self.chunk_size)
-                    chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
-                    chunk =                            {
-                                                            'obs' : hf['obs'][chunk_indices],
-                                                            'kin_obs': hf['kin_obs'][chunk_indices],
-                                                            'acts' : hf['act'][chunk_indices],
-                                                            'dones': hf['dones'][chunk_indices]
-                                                        }
-                    reader_queue.put(chunk)
-                    print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
-                    if not total_chunks[file_name] and file_name in total_samples:
-                        del total_samples[file_name] # No more chunk left in this file
-                else:
-                    return
+            all_indices = list(range(total_samples[file_name]))
+            starting_sample = self.chunk_size*chunk_num
+            total_samples_for_chunk = min(total_samples[file_name]-starting_sample, self.chunk_size)
+            chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
+            chunk =                            {
+                                                    'obs' : hf['obs'][chunk_indices],
+                                                    'kin_obs': hf['kin_obs'][chunk_indices],
+                                                    'acts' : hf['act'][chunk_indices],
+                                                    'dones': hf['dones'][chunk_indices]
+                                                }
+            reader_queue.put(chunk)
+            print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
+
 
                 
     # MAX_CHUNKS = 5
@@ -688,6 +688,10 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
             for process in reader_processes:
                 process.join()
+
+            for file_name in self.hdf5_train_file_names:
+                if not self.total_chunks[file_name] and file_name in self.total_samples:
+                    del self.total_samples[file_name] # No more chunk left in this file
 
 
             while(not reader_queue.empty()):
@@ -727,7 +731,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         processes = self.launch_workers(samples_queue, total_samples_for_chunk)
 
         all_samples = [] 
-        progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing  chunk {step_num}')
+        progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing writer chunk {step_num}')
         total_samples_yielded = 0
         while total_samples_yielded < 0.9*total_samples_for_chunk:
             sample = samples_queue.get()
