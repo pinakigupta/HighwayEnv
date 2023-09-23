@@ -679,7 +679,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         
         
         while self.total_samples:
-            print(f"Launching all reader processes for step {step_num}", flush=True)
+            print(f"Launching all reader processes for step {self.step_num}", flush=True)
             self.all_acts = []
             self.all_obs = []
             self.all_kin_obs = []

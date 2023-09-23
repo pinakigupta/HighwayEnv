@@ -550,7 +550,8 @@ if __name__ == "__main__":
             #     pass
             policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             policy.load_state_dict(BC_agent.state_dict())
-            # policy.eval()
+            policy.to(device)
+            policy.eval()
             image_space_obs = isinstance(env.observation_type,GrayscaleObservation)
             if image_space_obs:   
                 # fig = plt.figure(figsize=(8, 16))
@@ -563,11 +564,11 @@ if __name__ == "__main__":
                 while not (done or truncated):
                     # expert_action , _= env.vehicle.discrete_action()
                     # action = ACTIONS_ALL.inverse[expert_action]
-                    action, _ = policy.predict(obs)
+                    action, _ = policy.predict(obs, deterministic = True)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    if image_space_obs:
+                    if image_space_obs and False:
                         for i in range(1):
                             image = obs[3,:]
                             input_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
@@ -586,7 +587,6 @@ if __name__ == "__main__":
                             plt.xlim(20, 40)
                             plt.show(block=False)
                             plt.pause(0.01)
-                    plt.pause(0.01)
                     env.render()
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
