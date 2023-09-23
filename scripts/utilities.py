@@ -575,7 +575,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             processes.append(process)
         return processes
     
-    def destroy_workers(self, processes):
+    @staticmethod
+    def destroy_workers(processes):
         for process in processes:
             process.terminate()
 
@@ -616,10 +617,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.iter += 1
             for file_name in self.hdf5_train_file_names:
                 with ZipfContextManager(self.zip_filename, file_name) as hf:
-                    if file_name not in self.total_samples:
-                        self.total_samples[file_name] = len(hf['act'])
-                    if file_name not in self.total_chunks:
-                        self.total_chunks[file_name] = list(range(math.ceil(self.total_samples[file_name]/self.chunk_size)))
+                    self.total_samples[file_name] = len(hf['act'])
+                    self.total_chunks[file_name] = list(range(math.ceil(self.total_samples[file_name]/self.chunk_size)))
             for batch in self.iter_once_all_files(): # Keep iterating
                 # print('batch.keys()', batch.keys())
                 yield batch
@@ -647,27 +646,27 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         with ZipfContextManager(self.zip_filename, file_name) as hf:
             if lock.acquire(timeout=1):
                 if total_chunks[file_name] and total_samples[file_name]:
-                    all_indices = list(range(total_samples[file_name]))
+                    # print(f"Acquired lock from worker {worker_id} for file_name {file_name}. Total chunks {total_chunks[file_name]} and total samples {total_samples[file_name]}")
                     chunk_num = random.sample(total_chunks[file_name], 1)[0]
                     temp = total_chunks[file_name]
                     temp.remove(chunk_num)
                     total_chunks[file_name] = temp
-                    starting_sample = self.chunk_size*chunk_num
                     acquired_lock_and_changed_DS = True
                 lock.release()
 
                 if acquired_lock_and_changed_DS:
+                    all_indices = list(range(total_samples[file_name]))
+                    starting_sample = self.chunk_size*chunk_num
                     total_samples_for_chunk = min(total_samples[file_name]-starting_sample, self.chunk_size)
                     chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
-                    reader_queue.put(
-                                                {
-                                                    'obs' : hf['obs'][chunk_indices],
-                                                    'kin_obs': hf['kin_obs'][chunk_indices],
-                                                    'acts' : hf['act'][chunk_indices],
-                                                    'dones': hf['dones'][chunk_indices]
-                                                }
-                                    )
-                    # print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(self.all_acts)}")
+                    chunk =                            {
+                                                            'obs' : hf['obs'][chunk_indices],
+                                                            'kin_obs': hf['kin_obs'][chunk_indices],
+                                                            'acts' : hf['act'][chunk_indices],
+                                                            'dones': hf['dones'][chunk_indices]
+                                                        }
+                    reader_queue.put(chunk)
+                    print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
                     if not total_chunks[file_name] and file_name in total_samples:
                         del total_samples[file_name] # No more chunk left in this file
                 else:
@@ -680,38 +679,37 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         
         while self.total_samples:
             print(f"Launching all reader processes for step {self.step_num}", flush=True)
-            all_acts = []
-            all_obs = []
-            all_kin_obs = []
-            all_dones = []
+            self.all_acts = []
+            self.all_obs = []
+            self.all_kin_obs = []
+            self.all_dones = []
             reader_queue = self.manager.Queue()
             reader_processes = self.launch_reader_workers(self.lock, reader_queue)
-
-            # while self.total_samples: # chunk iteration. Will read till any file has any chunk left.
-            #     print("---------------------------------------------START----------------------------------------------------------------")
-                # chunks_collected = 0
-                # while chunks_collected < self.MAX_CHUNKS and self.total_samples:
 
             for process in reader_processes:
                 process.join()
 
+
             while(not reader_queue.empty()):
                 sample = reader_queue.get()
-                all_obs.extend(sample['obs'])
-                all_kin_obs.extend(sample['kin_obs'])
-                all_acts.extend(sample['acts'])
-                all_dones.extend(sample['dones'])
+                self.all_obs.extend(sample['obs'])
+                self.all_kin_obs.extend(sample['kin_obs'])
+                self.all_acts.extend(sample['acts'])
+                self.all_dones.extend(sample['dones'])
+                time.sleep(0.01)
                 # print('length', len(all_acts))
 
-            print(f"Joined all reader processes for step {self.step_num}. length', {len(all_acts)}")
+            self.destroy_workers(reader_processes)
+
+            print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
 
             # Randomize the aggregated chunks across all files by shuffling
-            all_indices = list(range(len(all_acts) ))
+            all_indices = list(range(len(self.all_acts) ))
             random.shuffle(all_indices)
-            self.all_obs[:] = [all_obs[i] for i in all_indices]
-            self.all_kin_obs[:] = [all_kin_obs[i] for i in all_indices]
-            self.all_acts[:] = [all_acts[i] for i in all_indices]
-            self.all_dones[:] = [all_dones[i] for i in all_indices]
+            self.all_obs[:] = [self.all_obs[i] for i in all_indices]
+            self.all_kin_obs[:] = [self.all_kin_obs[i] for i in all_indices]
+            self.all_acts[:] = [self.all_acts[i] for i in all_indices]
+            self.all_dones[:] = [self.all_dones[i] for i in all_indices]
 
             print(f"Collected all samples of size {len(self.all_acts)}")    
             #Yield chunks as they come

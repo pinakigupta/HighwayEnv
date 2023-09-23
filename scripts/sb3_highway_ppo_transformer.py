@@ -68,7 +68,8 @@ def print_stack_size():
 import threading
 if __name__ == "__main__":
     torch.cuda.empty_cache()
-    if False:
+    TRACE = False
+    if TRACE:
         tracemalloc.start()  # Start memory tracing
         # Create a multiprocessing process to periodically print stack size
         stack_size_thread = threading.Thread(target=print_stack_size)
@@ -645,5 +646,17 @@ if __name__ == "__main__":
             plt.tight_layout()
             plt.show()
     except KeyboardInterrupt:
-        tracemalloc.stop()  # Stop memory tracing when done
-        raise KeyboardInterrupt
+        if TRACE:
+            tracemalloc.stop()  # Stop memory tracing when done
+        # Save a reference to the original stdout
+        original_stdout = sys.stdout
+        try:
+            sys.stdout = open(os.devnull, 'w')
+            raise KeyboardInterrupt("Manually raised KeyboardInterrupt")
+        except KeyboardInterrupt:
+            # Use a lambda function to temporarily set sys.excepthook to suppress output
+             sys.excepthook = lambda exctype, value, traceback: None
+             raise
+        finally:
+            # Restore the original stdout
+            sys.stdout = original_stdout
