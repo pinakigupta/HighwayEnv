@@ -706,7 +706,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             print(f"Joined all reader processes for step {self.step_num}. length', {len(all_acts)}")
 
             # Randomize the aggregated chunks across all files by shuffling
-            all_indices = list(range(len(self.all_acts) ))
+            all_indices = list(range(len(all_acts) ))
             random.shuffle(all_indices)
             self.all_obs[:] = [all_obs[i] for i in all_indices]
             self.all_kin_obs[:] = [all_kin_obs[i] for i in all_indices]
