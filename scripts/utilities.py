@@ -680,10 +680,17 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         
         while self.total_samples:
             print(f"Launching all reader processes for step {self.step_num}", flush=True)
+<<<<<<< HEAD
             self.all_acts = []
             self.all_obs = []
             self.all_kin_obs = []
             self.all_dones = []
+=======
+            all_acts = []
+            all_obs = []
+            all_kin_obs = []
+            all_dones = []
+>>>>>>> 59968e73f440a09a3372037e00fe08a873655d23
             reader_queue = self.manager.Queue()
             reader_processes = self.launch_reader_workers(self.lock, reader_queue)
 
@@ -697,21 +704,21 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
             while(not reader_queue.empty()):
                 sample = reader_queue.get()
-                self.all_obs.extend(sample['obs'])
-                self.all_kin_obs.extend(sample['kin_obs'])
-                self.all_acts.extend(sample['acts'])
-                self.all_dones.extend(sample['dones'])
+                all_obs.extend(sample['obs'])
+                all_kin_obs.extend(sample['kin_obs'])
+                all_acts.extend(sample['acts'])
+                all_dones.extend(sample['dones'])
                 # print('length', len(all_acts))
 
-            print(f"Joined all reader processes for step {self.step_num}")
+            print(f"Joined all reader processes for step {self.step_num}. length', {len(all_acts)}")
 
             # Randomize the aggregated chunks across all files by shuffling
             all_indices = list(range(len(self.all_acts) ))
             random.shuffle(all_indices)
-            self.all_obs[:] = [self.all_obs[i] for i in all_indices]
-            self.all_kin_obs[:] = [self.all_kin_obs[i] for i in all_indices]
-            self.all_acts[:] = [self.all_acts[i] for i in all_indices]
-            self.all_dones[:] = [self.all_dones[i] for i in all_indices]
+            self.all_obs[:] = [all_obs[i] for i in all_indices]
+            self.all_kin_obs[:] = [all_kin_obs[i] for i in all_indices]
+            self.all_acts[:] = [all_acts[i] for i in all_indices]
+            self.all_dones[:] = [all_dones[i] for i in all_indices]
 
             print(f"Collected all samples of size {len(self.all_acts)}")    
             #Yield chunks as they come
