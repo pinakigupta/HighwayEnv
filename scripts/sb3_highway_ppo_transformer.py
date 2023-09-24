@@ -386,13 +386,13 @@ if __name__ == "__main__":
 
             def create_trainer(env, policy, device=device, **kwargs):
                 return       bc.BC(
-                                    observation_space=env.observation_space,
-                                    action_space=env.action_space,
-                                    demonstrations=None, #training_transitions,
-                                    rng=np.random.default_rng(),
-                                    batch_size=kwargs['batch_size'],
-                                    device = device,
-                                    policy=policy
+                                        observation_space=env.observation_space,
+                                        action_space=env.action_space,
+                                        demonstrations=None, #training_transitions,
+                                        rng=np.random.default_rng(),
+                                        batch_size=kwargs['batch_size'],
+                                        device = device,
+                                        policy=policy
                                     )        
         
 
@@ -421,7 +421,7 @@ if __name__ == "__main__":
                     #                                                                                       n_cpu = n_cpu,
                     #                                                                                       visited_data_files=visited_data_files
                     #                                                                                   )
-                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu)
+                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 10000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
@@ -517,6 +517,10 @@ if __name__ == "__main__":
             accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                             final_policy, 
                                                                             zip_filename=zip_filename, 
+                                                                            device=device,
+                                                                            batch_size=batch_size,
+                                                                            n_cpu=2,
+                                                                            visited_data_files=[]
                                                                             # plot_path=f"heatmap_{epoch}.png" 
                                                                             )
             print('Ending final validation step and plotting the heatmap ')

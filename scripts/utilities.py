@@ -153,8 +153,6 @@ class CustomDataset(Dataset):
 
         return sample
         
-
-
 def display_vehicles_attention(agent_surface, sim_surface, env, fe, device,  min_attention=0.01):
         v_attention = compute_vehicles_attention(env, fe, device)
         # print("v_attention ", v_attention)
@@ -389,28 +387,41 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     return train_data_loader
 
 
-def calculate_validation_metrics(policy,zip_filename, **training_kwargs):
+def calculate_validation_metrics(policy,zip_filename, **kwargs):
     true_labels = []
     predicted_labels = []
     # Iterate through the validation data and make predictions
-    with torch.no_grad():
-        with zipfile.ZipFile(zip_filename, 'r') as zipf:
-            hdf5_val_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "val" in file_name]
-            for val_data_file in hdf5_val_file_names:
-                with zipf.open(val_data_file) as file_in_zip:
-                    # in_memory_file = io.BytesIO(file_in_zip.read())
-                    data = extract_post_processed_expert_data(file_in_zip)
-                    # in_memory_file.close()
-                    predicted_labels.extend([policy.predict(obs)[0] for obs in data['obs']])
-                    true_labels.extend(data['acts'])
-                    
+    # CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
+    file_names = [file_name for file_name in zipfile.ZipFile(zip_filename, 'r').namelist() if file_name.endswith('.h5') and "val" in file_name]
+    val_data_loader = CustomDataLoader(
+                                        zip_filename, 
+                                        device=kwargs['device'], 
+                                        visited_data_files=kwargs['visited_data_files'], 
+                                        batch_size=kwargs['batch_size'], 
+                                        n_cpu=kwargs['n_cpu'], 
+                                        type='val'
+                                      )
+    
+    conf_matrix = None
+    labels=list(ACTIONS_ALL.keys())
+    for batch in val_data_loader:
+        predicted_labels = [policy.predict(obs.cpu().numpy())[0] for obs in batch['obs']]
+        true_labels = batch['acts'].cpu().numpy()
+        batch_accuracy = accuracy_score(true_labels, predicted_labels)
+        batch_precision = precision_score(true_labels, predicted_labels, average=None)
+        batch_recall    = recall_score(true_labels, predicted_labels, average=None)
+        batch_f1        = f1_score(true_labels, predicted_labels, average=None)
+        if conf_matrix is not None:
+            conf_matrix += confusion_matrix(true_labels, predicted_labels, labels=labels )
+        else:
+            conf_matrix  = confusion_matrix(true_labels, predicted_labels, labels=labels)
+                
 
     # Calculate evaluation metrics
-    accuracy = accuracy_score(true_labels, predicted_labels)
-    precision = precision_score(true_labels, predicted_labels, average=None)
-    recall = recall_score(true_labels, predicted_labels, average=None)
-    f1 = f1_score(true_labels, predicted_labels, average=None)
-    conf_matrix = confusion_matrix(true_labels, predicted_labels)
+    accuracy  = np.mean(batch_accuracy) 
+    precision = np.mean(batch_precision)
+    recall    = np.mean(batch_recall)
+    f1        = np.mean(batch_f1)
 
     # Print the metrics
     print("Accuracy:", accuracy, np.mean(accuracy))
@@ -507,14 +518,15 @@ class CustomImageExtractor(BaseFeaturesExtractor):
 import random
 import math
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
-    def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu):
+    def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu, **kwargs):
+        self.kwargs = kwargs
         self.zip_filename = zip_filename
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
-        self.n_cpu =  n_cpu 
+        self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
-            self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
+            self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
         self.chunk_size = 1500  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
@@ -616,7 +628,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         return batch   
      
     def __iter__(self):
-        while True:
+        while True: # Keep iterating till num batches is met
             print(f"++++++++++++++++++ ITER PASS {self.iter} +++++++++++++++++++")
             self.iter += 1
             for file_name in self.hdf5_train_file_names:
@@ -626,6 +638,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             for batch in self.iter_once_all_files(): # Keep iterating
                 # print('batch.keys()', batch.keys())
                 yield batch
+            if self.kwargs['type'] is 'val': # Only one iteration through all the files is file
+                break
 
     def __iter_once__(self):    
         for train_data_file in self.hdf5_train_file_names :
@@ -669,14 +683,13 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                                                     'dones': hf['dones'][chunk_indices]
                                                 }
             reader_queue.put(chunk)
-            print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
+            # print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
 
 
                 
     # MAX_CHUNKS = 5
     def iter_once_all_files(self):
-        
-        
+                
         while self.total_samples:
             print(f"Launching all reader processes for step {self.step_num}", flush=True)
             self.all_acts = []
@@ -705,7 +718,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
             self.destroy_workers(reader_processes)
 
-            print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
+            # print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
 
             # Randomize the aggregated chunks across all files by shuffling
             all_indices = list(range(len(self.all_acts) ))
@@ -715,7 +728,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.all_acts[:] = [self.all_acts[i] for i in all_indices]
             self.all_dones[:] = [self.all_dones[i] for i in all_indices]
 
-            print(f"Collected all samples of size {len(self.all_acts)}")    
+            # print(f"Collected all samples of size {len(self.all_acts)}")    
             #Yield chunks as they come
             for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,self.step_num):
                 yield batch
