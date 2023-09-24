@@ -689,7 +689,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 
     # MAX_CHUNKS = 5
     def iter_once_all_files(self):
-                
+        self.step_num =0         
         while self.total_samples:
             print(f"Launching all reader processes for step {self.step_num}", flush=True)
             self.all_acts = []
@@ -801,7 +801,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                                             "dones": self.all_dones[index]
                                         }
                                     )
-            except IndexError as e:
+            except (IndexError, EOFError) as e:
                 print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
                 pass
             # time.sleep(0.01)
