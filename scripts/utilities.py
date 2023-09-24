@@ -527,7 +527,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 1500  # Assume a large number of samples
+        self.chunk_size = 5000  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
@@ -573,7 +573,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             processes.append(process)
         return processes
     
-    def launch_workers(self, samples_queue, total_samples_for_chunk):
+    def launch_writer_workers(self, samples_queue, total_samples_for_chunk):
         # Create and start worker processes
         
         processes = []
@@ -741,7 +741,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         print(f"Launching writer worker processes for step {step_num}", flush=True)
         samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
         self.all_worker_indices = self.calculate_worker_indices(total_samples_for_chunk)
-        processes = self.launch_workers(samples_queue, total_samples_for_chunk)
+        processes = self.launch_writer_workers(samples_queue, total_samples_for_chunk)
 
         all_samples = [] 
         progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing writer chunk {step_num}')

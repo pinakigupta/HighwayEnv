@@ -504,14 +504,14 @@ if __name__ == "__main__":
             final_policy.to(torch.device('cpu'))
             final_policy.eval()
             print('Saving final model')
-            save_checkpoint(
-                                project = project, 
-                                run_name=run_name,
-                                epoch = None, 
-                                model = final_policy,
-                                metrics_plot_path = metrics_plot_path
-                            )
-            print('Saved final model')
+            # save_checkpoint(
+            #                     project = project, 
+            #                     run_name=run_name,
+            #                     epoch = None, 
+            #                     model = final_policy,
+            #                     metrics_plot_path = metrics_plot_path
+            #                 )
+            # print('Saved final model')
 
             print('Beginnig final validation step')
             accuracy, precision, recall, f1 = calculate_validation_metrics(
