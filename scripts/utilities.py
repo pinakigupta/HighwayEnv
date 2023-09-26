@@ -272,8 +272,8 @@ def save_checkpoint(project, run_name, epoch, model, **kwargs):
     jit_model_path = f"models_archive/agent_{epoch}.pt"
     zip_filename = f"models_archive/agent.zip"
     torch.save( obj = model , f= model_path, pickle_protocol=5) 
-    torch.jit.trace(torch.load(model_path), torch.randn(1, *model.observation_space.shape)).save(jit_model_path)
-    os.remove(model_path)
+    # torch.jit.trace(torch.load(model_path), torch.randn(1, *model.observation_space.shape)).save(jit_model_path)
+    # os.remove(model_path)
     # with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
     #     # Add the file to the zip archive
     #     zipf.write(model_path)

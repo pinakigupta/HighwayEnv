@@ -534,16 +534,23 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             env = make_configure_env(**env_kwargs)
             env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
+            # BC_agent                            = retrieve_agent(
+            #                                                         artifact_version='trained_model_directory:latest',
+            #                                                         agent_model = 'agent_final.pt',
+            #                                                         device=device,
+            #                                                         project="BC_1"
+            #                                                     )
             BC_agent                            = retrieve_agent(
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'agent_final.pt',
-                                                                    device=device,
-                                                                    project="BC_1"
-                                                                )
+                                                        artifact_version='trained_model_directory:latest',
+                                                        agent_model = 'agent_final.pth',
+                                                        device=device,
+                                                        project="BC_1"
+                                                        )
             gamma = 1.0
             env.render()
-            policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
-            policy.load_state_dict(BC_agent.state_dict())
+            # policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
+            # policy.load_state_dict(BC_agent.state_dict())
+            policy = BC_agent
             policy.to(device)
             policy.eval()
             try:
@@ -569,7 +576,7 @@ if __name__ == "__main__":
                 while not (done or truncated):
                     # expert_action , _= env.vehicle.discrete_action()
                     # action = ACTIONS_ALL.inverse[expert_action]
-                    action, _ = policy.predict(obs, deterministic = True)
+                    action, _ = policy.predict(obs)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
