@@ -774,7 +774,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 yield self.load_batch(all_samples[total_samples_yielded:total_samples_yielded+self.batch_size])
                 total_samples_yielded += self.batch_size
                 # del all_samples[:self.batch_size]
-            progress_bar.update(self.batch_size)
+                progress_bar.update(self.batch_size)
+            time.sleep(0.01)
         progress_bar.close()
         # self._reset_tuples()
         # Collect and yield batches from each process
