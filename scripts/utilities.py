@@ -537,7 +537,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 7500  # Assume a large number of samples
+        self.chunk_size = 15000  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
@@ -552,6 +552,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.lock = self.manager.Lock()
         self.iter = 0
         self.step_num = 0
+        self.keys_to_consider = [
+                                    'obs', 
+                                    # 'kin_obs', 
+                                    'acts', 
+                                    'dones'
+                                    ]
 
 
     def _reset_tuples(self):
@@ -614,14 +620,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             # print([worker.pid for worker in processes if worker.is_alive()])
             
     def load_batch(self, batch_samples):
+
+        batch = {}
+
         try:
-            batch = {
-                # '_': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-                'obs': torch.tensor([sample['kin_obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-                'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-                'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-                # Add other keys as needed
-            }
+            for key in self.keys_to_consider:
+                batch[key] = torch.tensor([sample[key] for sample in batch_samples], dtype=torch.float32).to(self.device)
         except Exception as e:
             print(batch_samples[0].keys())
             for k, v,in batch_samples.items():
@@ -630,9 +634,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         
 
         # Clear GPU memory for individual tensors after creating the batch
-        keys_to_remove = ['obs', 'kin_obs', 'acts', 'dones']
         for sample in batch_samples:
-            for key in keys_to_remove:
+            for key in self.keys_to_consider:
                 if key in sample:
                     del sample[key]
                     
@@ -687,12 +690,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             starting_sample = self.chunk_size*chunk_num
             total_samples_for_chunk = min(total_samples[file_name]-starting_sample, self.chunk_size)
             chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
-            chunk =                            {
-                                                    'obs' : hf['obs'][chunk_indices],
-                                                    'kin_obs': hf['kin_obs'][chunk_indices],
-                                                    'acts' : hf['act'][chunk_indices],
-                                                    'dones': hf['dones'][chunk_indices]
-                                                }
+            chunk = {key: hf[key][chunk_indices] for key in [
+                                    'obs', 
+                                    # 'kin_obs', 
+                                    'act', 
+                                    'dones'
+                                    ]}
             reader_queue.put(chunk)
             # print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
 
@@ -720,26 +723,30 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
             while(not reader_queue.empty()):
                 sample = reader_queue.get()
-                self.all_obs.extend(sample['obs'])
-                self.all_kin_obs.extend(sample['kin_obs'])
-                self.all_acts.extend(sample['acts'])
-                self.all_dones.extend(sample['dones'])
+                if 'obs' in sample:
+                    self.all_obs.extend(sample['obs'])
+                if 'kin_obs' in sample:
+                    self.all_kin_obs.extend(sample['kin_obs'])
+                if 'act' in sample:
+                    self.all_acts.extend(sample['act'])
+                if 'dones' in sample:
+                    self.all_dones.extend(sample['dones'])
                 time.sleep(0.01)
                 # print('length', len(all_acts))
 
             self.destroy_workers(reader_processes)
 
-            # print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
+            print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
 
             # Randomize the aggregated chunks across all files by shuffling
             all_indices = list(range(len(self.all_acts) ))
             random.shuffle(all_indices)
-            self.all_obs[:] = [self.all_obs[i] for i in all_indices]
-            self.all_kin_obs[:] = [self.all_kin_obs[i] for i in all_indices]
-            self.all_acts[:] = [self.all_acts[i] for i in all_indices]
-            self.all_dones[:] = [self.all_dones[i] for i in all_indices]
+            self.all_obs[:] = [self.all_obs[i] for i in all_indices if self.all_obs]
+            self.all_kin_obs[:] = [self.all_kin_obs[i] for i in all_indices if self.all_kin_obs] 
+            self.all_acts[:] = [self.all_acts[i] for i in all_indices if self.all_acts]
+            self.all_dones[:] = [self.all_dones[i] for i in all_indices if self.all_dones]
 
-            # print(f"Collected all samples of size {len(self.all_acts)}")    
+            # print(f"Collected all samples of size {len(self.all_obs)}")    
             #Yield chunks as they come
             for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,self.step_num):
                 yield batch
@@ -806,8 +813,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             try:
                 samples_queue.put(
                                         {
-                                            # "obs": self.all_obs[index], 
-                                            "kin_obs": self.all_kin_obs[index],
+                                            "obs": self.all_obs[index], 
+                                            # "kin_obs": self.all_kin_obs[index],
                                             "acts": self.all_acts[index], 
                                             "dones": self.all_dones[index]
                                         }

@@ -413,18 +413,18 @@ if __name__ == "__main__":
                 visited_data_files = set([])
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    train_data_loader                                            = create_dataloaders(
-                                                                                                          zip_filename,
-                                                                                                          train_datasets, 
-                                                                                                          device=device,
-                                                                                                          batch_size=training_kwargs['batch_size'],
-                                                                                                          n_cpu = n_cpu,
-                                                                                                          visited_data_files=visited_data_files
-                                                                                                      )
-                    # train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
+                    # train_data_loader                                            = create_dataloaders(
+                    #                                                                                       zip_filename,
+                    #                                                                                       train_datasets, 
+                    #                                                                                       device=device,
+                    #                                                                                       batch_size=training_kwargs['batch_size'],
+                    #                                                                                       n_cpu = n_cpu,
+                    #                                                                                       visited_data_files=visited_data_files
+                    #                                                                                   )
+                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 5000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 12500 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
@@ -504,14 +504,14 @@ if __name__ == "__main__":
             final_policy.to(torch.device('cpu'))
             final_policy.eval()
             print('Saving final model')
-            # save_checkpoint(
-            #                     project = project, 
-            #                     run_name=run_name,
-            #                     epoch = None, 
-            #                     model = final_policy,
-            #                     metrics_plot_path = metrics_plot_path
-            #                 )
-            # print('Saved final model')
+            save_checkpoint(
+                                project = project, 
+                                run_name=run_name,
+                                epoch = None, 
+                                model = final_policy,
+                                metrics_plot_path = metrics_plot_path
+                            )
+            print('Saved final model')
 
             print('Beginnig final validation step')
             accuracy, precision, recall, f1 = calculate_validation_metrics(

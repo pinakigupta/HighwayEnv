@@ -101,5 +101,5 @@ class TrainEnum(Enum):
     ANALYSIS = 7
 
 train = TrainEnum.BC
-zip_filename = 'expert_trial_data_large.zip'
+zip_filename = 'expert_data.zip'
 
