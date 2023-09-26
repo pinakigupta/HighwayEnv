@@ -68,7 +68,7 @@ def print_stack_size():
 import threading
 if __name__ == "__main__":
     torch.cuda.empty_cache()
-    TRACE = False
+    TRACE = True
     if TRACE:
         tracemalloc.start()  # Start memory tracing
         # Create a multiprocessing process to periodically print stack size
@@ -77,16 +77,16 @@ if __name__ == "__main__":
         stack_size_thread.start()
 
     DAGGER = True
-    # policy_kwargs = dict(
-    #         # policy=MLPPolicy,
-    #         features_extractor_class=CustomExtractor,
-    #         features_extractor_kwargs=attention_network_kwargs,
-    #     )
     policy_kwargs = dict(
-                            features_extractor_class=CustomVideoFeatureExtractor,
-                            # features_extractor_class=CustomImageExtractor,
-                            features_extractor_kwargs=dict(hidden_dim=64),
-                        )
+            # policy=MLPPolicy,
+            features_extractor_class=CustomExtractor,
+            features_extractor_kwargs=attention_network_kwargs,
+        )
+    # policy_kwargs = dict(
+    #                         features_extractor_class=CustomVideoFeatureExtractor,
+    #                         # features_extractor_class=CustomImageExtractor,
+    #                         features_extractor_kwargs=dict(hidden_dim=64),
+    #                     )
 
 
     WARM_START = False
@@ -413,18 +413,18 @@ if __name__ == "__main__":
                 visited_data_files = set([])
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    # train_data_loader                                            = create_dataloaders(
-                    #                                                                                       zip_filename,
-                    #                                                                                       train_datasets, 
-                    #                                                                                       device=device,
-                    #                                                                                       batch_size=training_kwargs['batch_size'],
-                    #                                                                                       n_cpu = n_cpu,
-                    #                                                                                       visited_data_files=visited_data_files
-                    #                                                                                   )
-                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
+                    train_data_loader                                            = create_dataloaders(
+                                                                                                          zip_filename,
+                                                                                                          train_datasets, 
+                                                                                                          device=device,
+                                                                                                          batch_size=training_kwargs['batch_size'],
+                                                                                                          n_cpu = n_cpu,
+                                                                                                          visited_data_files=visited_data_files
+                                                                                                      )
+                    # train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 10000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 5000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
@@ -569,7 +569,7 @@ if __name__ == "__main__":
                 while not (done or truncated):
                     # expert_action , _= env.vehicle.discrete_action()
                     # action = ACTIONS_ALL.inverse[expert_action]
-                    action, _ = policy.predict(obs, deterministic = True)
+                    action, _ = policy.predict(obs, deterministic = False)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward

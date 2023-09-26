@@ -34,28 +34,28 @@ env_kwargs = {
             "absolute": False,
             "relative_features": ['x']
         },
-        "observation": {
-            "type": "GrayscaleObservation",
-            "observation_shape": (128, 64),
-            "stack_size": 4,
-            "weights": [0.2989, 0.5870, 0.1140],  # weights for RGB conversion
-            "scaling": .75,
-        },
         # "observation": {
-        #     "type": "Kinematics",
-        #     "vehicles_count": 10,
-        #     "features": [
-        #         "presence",
-        #         "x",
-        #         "y",
-        #         "vx",
-        #         "vy",
-        #         "cos_h",
-        #         "sin_h"
-        #     ],
-        #     "absolute": False,
-        #     "relative_features": ['x']
+        #     "type": "GrayscaleObservation",
+        #     "observation_shape": (128, 64),
+        #     "stack_size": 4,
+        #     "weights": [0.2989, 0.5870, 0.1140],  # weights for RGB conversion
+        #     "scaling": .75,
         # },
+        "observation": {
+            "type": "Kinematics",
+            "vehicles_count": 10,
+            "features": [
+                "presence",
+                "x",
+                "y",
+                "vx",
+                "vy",
+                "cos_h",
+                "sin_h"
+            ],
+            "absolute": False,
+            "relative_features": ['x']
+        },
         "policy_frequency": 2,
         "duration": 40,
         "screen_width": 960,
@@ -101,4 +101,5 @@ class TrainEnum(Enum):
     ANALYSIS = 7
 
 train = TrainEnum.BC
-zip_filename = 'expert_trial_data_large_1.zip'
+zip_filename = 'expert_trial_data_large.zip'
+

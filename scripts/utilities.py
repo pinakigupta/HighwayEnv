@@ -35,10 +35,10 @@ from contextlib import ExitStack
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
-def process_file(train_data_file, result_queue, device, lock):
-    processed_data = CustomDataset(train_data_file, device)
-    with lock:
-        result_queue.put([processed_data])
+# def process_file(train_data_file, result_queue, device, lock):
+#     processed_data = CustomDataset(train_data_file, device)
+#     with lock:
+#         result_queue.put([processed_data])
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
@@ -122,7 +122,9 @@ class CustomDataset(Dataset):
     def __init__(self, data_file, device, pad_value=0, **kwargs):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
-        self.data = extract_post_processed_expert_data(data_file)
+        self.keys_attributes = kwargs['keys_attributes'] 
+        self.data_file = data_file
+        self.data = extract_post_processed_expert_data(data_file, self.keys_attributes)
         self.pad_value = pad_value
         self.device = device
         # print(" data lengths ", len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
@@ -135,21 +137,15 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         sample = {}
         try:
-            if 'obs' in self.data:
-                observation = torch.tensor(self.data['obs'][idx], dtype=torch.float32)
-                sample['obs'] = observation
-            if 'kin_obs' in self.data:
-                kin_observation = torch.tensor(self.data['kin_obs'][idx], dtype=torch.float32)
-                sample['obs'] = kin_observation
-            if 'acts' in self.data:
-                action = torch.tensor(self.data['acts'][idx], dtype=torch.float32)
-                sample['acts'] = action
-            if 'dones' in self.data:
-                dones = torch.tensor(self.data['dones'][idx], dtype=torch.float32)
-                sample['dones'] = dones
+            for key in self.keys_attributes:
+                if key in self.data:
+                    value = torch.tensor(self.data[key][idx], dtype=torch.float32)
+                    sample[key] = value
+
         except Exception as e:
-            print(e , "for ", id(self), len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
-            raise e
+            pass
+            # print(f' {e} , for , { id(self)}. key {key} , value {value} ')
+            # raise e
 
         return sample
         
@@ -343,12 +339,26 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                 visited_data_files.add(train_data_file)
                 with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
-                    train_datasets.extend([CustomDataset(file_in_zip, device)])
+                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['kin_obs', 'acts'])
+                    print(f"Loaded custom data set for {train_data_file}")
+                    new_key = 'obs'
+                    old_key = 'kin_obs'
+                    modified_dataset = []
+                    for i in range(len(samples)):
+                        my_dict = samples[i]
+                        if old_key in my_dict and new_key not in my_dict:
+                            my_dict[new_key] = my_dict.pop(old_key)
+                        modified_dataset.append(my_dict)
+
+                    # print('modified_dataset', modified_dataset)
+
+                    train_datasets.extend(modified_dataset)
                     print(f"Dataset appended for  {train_data_file}")
 
     print("DATA loader scanned all files")
 
     # shutil.rmtree(extract_path)
+
 
     # Create a combined dataset from the individual datasets
     combined_train_dataset = ConcatDataset(train_datasets)
@@ -360,20 +370,20 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     shuffled_combined_train_dataset = Subset(combined_train_dataset, shuffled_indices)
 
     # Calculate the class frequencies
-    all_actions = [sample['acts'] for sample in combined_train_dataset]
-    action_frequencies = np.bincount(all_actions)
-    class_weights = 1.0 / np.sqrt(action_frequencies)
-    # class_weights =  np.array([np.exp(-freq/action_frequencies.sum()) for freq in action_frequencies])
-    class_weights = class_weights / class_weights.sum()
-    print(" class_weights at the end ", class_weights, " action_frequencies ", action_frequencies)
+    # all_actions = [sample['acts'] for sample in combined_train_dataset]
+    # action_frequencies = np.bincount(all_actions)
+    # class_weights = 1.0 / np.sqrt(action_frequencies)
+    # # class_weights =  np.array([np.exp(-freq/action_frequencies.sum()) for freq in action_frequencies])
+    # class_weights = class_weights / class_weights.sum()
+    # print(" class_weights at the end ", class_weights, " action_frequencies ", action_frequencies)
 
-    # Calculate the least represented count
-    least_represented_count = np.min(action_frequencies)
+    # # Calculate the least represented count
+    # least_represented_count = np.min(action_frequencies)
 
-    # Get the number of unique action types
-    num_action_types = len(np.unique(all_actions))
-    num_samples=int(least_represented_count * num_action_types )
-    print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
+    # # Get the number of unique action types
+    # num_action_types = len(np.unique(all_actions))
+    # num_samples=int(least_represented_count * num_action_types )
+    # print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
     train_data_loader = DataLoader(
                                         shuffled_combined_train_dataset, 
                                         batch_size=kwargs['batch_size'], 
@@ -527,7 +537,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 5000  # Assume a large number of samples
+        self.chunk_size = 7500  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
@@ -606,8 +616,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
     def load_batch(self, batch_samples):
         try:
             batch = {
-                'obs': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-                'kin_obs': torch.tensor([sample['kin_obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+                # '_': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
+                'obs': torch.tensor([sample['kin_obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
                 'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(self.device),
                 'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(self.device),
                 # Add other keys as needed
@@ -620,11 +630,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         
 
         # Clear GPU memory for individual tensors after creating the batch
+        keys_to_remove = ['obs', 'kin_obs', 'acts', 'dones']
         for sample in batch_samples:
-            del sample['obs']
-            del sample['kin_obs']
-            del sample['acts']
-            del sample['dones']
+            for key in keys_to_remove:
+                if key in sample:
+                    del sample[key]
+                    
         return batch   
      
     def __iter__(self):
@@ -795,7 +806,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             try:
                 samples_queue.put(
                                         {
-                                            "obs": self.all_obs[index], 
+                                            # "obs": self.all_obs[index], 
                                             "kin_obs": self.all_kin_obs[index],
                                             "acts": self.all_acts[index], 
                                             "dones": self.all_dones[index]
