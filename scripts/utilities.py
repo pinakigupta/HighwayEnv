@@ -339,7 +339,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                 visited_data_files.add(train_data_file)
                 with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
-                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['kin_obs', 'acts'])
+                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'acts'])
                     print(f"Loaded custom data set for {train_data_file}")
                     new_key = 'obs'
                     old_key = 'kin_obs'
@@ -352,7 +352,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
 
                     # print('modified_dataset', modified_dataset)
 
-                    train_datasets.extend(modified_dataset)
+                    train_datasets.append(modified_dataset)
                     print(f"Dataset appended for  {train_data_file}")
 
     print("DATA loader scanned all files")

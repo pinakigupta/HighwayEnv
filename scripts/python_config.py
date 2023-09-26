@@ -100,6 +100,6 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 zip_filename = 'expert_data.zip'
 

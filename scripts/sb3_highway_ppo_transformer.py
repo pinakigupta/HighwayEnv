@@ -68,7 +68,7 @@ def print_stack_size():
 import threading
 if __name__ == "__main__":
     torch.cuda.empty_cache()
-    TRACE = True
+    TRACE = False
     if TRACE:
         tracemalloc.start()  # Start memory tracing
         # Create a multiprocessing process to periodically print stack size
@@ -413,15 +413,15 @@ if __name__ == "__main__":
                 visited_data_files = set([])
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    # train_data_loader                                            = create_dataloaders(
-                    #                                                                                       zip_filename,
-                    #                                                                                       train_datasets, 
-                    #                                                                                       device=device,
-                    #                                                                                       batch_size=training_kwargs['batch_size'],
-                    #                                                                                       n_cpu = n_cpu,
-                    #                                                                                       visited_data_files=visited_data_files
-                    #                                                                                   )
-                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
+                    train_data_loader                                            = create_dataloaders(
+                                                                                                          zip_filename,
+                                                                                                          train_datasets, 
+                                                                                                          device=device,
+                                                                                                          batch_size=training_kwargs['batch_size'],
+                                                                                                          n_cpu = n_cpu,
+                                                                                                          visited_data_files=visited_data_files
+                                                                                                      )
+                    # train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 12500 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
@@ -542,21 +542,21 @@ if __name__ == "__main__":
                                                                 )
             gamma = 1.0
             env.render()
-            # try:
-            #     env.viewer.set_agent_display(
-            #                                     functools.partial(
-            #                                                         display_vehicles_attention, 
-            #                                                         env=env, 
-            #                                                         fe=BC_agent.features_extractor,
-            #                                                         device=device
-            #                                                     )
-            #                                 )
-            # except:
-            #     pass
             policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             policy.load_state_dict(BC_agent.state_dict())
             policy.to(device)
             policy.eval()
+            try:
+                env.viewer.set_agent_display(
+                                                functools.partial(
+                                                                    display_vehicles_attention, 
+                                                                    env=env, 
+                                                                    fe=policy.features_extractor,
+                                                                    device=device
+                                                                )
+                                            )
+            except:
+                pass
             image_space_obs = isinstance(env.observation_type,GrayscaleObservation)
             if image_space_obs:   
                 # fig = plt.figure(figsize=(8, 16))
@@ -569,7 +569,7 @@ if __name__ == "__main__":
                 while not (done or truncated):
                     # expert_action , _= env.vehicle.discrete_action()
                     # action = ACTIONS_ALL.inverse[expert_action]
-                    action, _ = policy.predict(obs, deterministic = False)
+                    action, _ = policy.predict(obs, deterministic = True)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward

@@ -434,11 +434,12 @@ def extract_post_processed_expert_data(filename, keys_to_read):
     data = {}
     visited_keys = set()
     with h5py.File(filename, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-        for key in keys_to_read:
+        for key in ['obs', 'act']:
             for hf_key in hf.keys():
                 if hf_key in key  and (hf_key not in visited_keys):
                     visited_keys.add(hf_key)
                     data[key] = hf[hf_key][:]  # Read the dataset and store it in the dictionary
+    data['acts'] = data['act']
 
     return data
 
