@@ -83,6 +83,8 @@ if __name__ == "__main__":
                 features_extractor_class=CustomExtractor,
                 features_extractor_kwargs=attention_network_kwargs,
             )
+        append_key_to_dict_of_dict(env_kwargs,'config','screen_width',960*3)
+        append_key_to_dict_of_dict(env_kwargs,'config','screen_height',180*2)
     else:
         policy_kwargs = dict(
                                 features_extractor_class=CustomVideoFeatureExtractor,
@@ -98,8 +100,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
 
     n_cpu =  mp.cpu_count()
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = torch.device('cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -533,7 +535,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
+            append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             env = make_configure_env(**env_kwargs)
             env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
@@ -544,7 +546,7 @@ if __name__ == "__main__":
             #                                                         project="BC_1"
             #                                                     )
             BC_agent                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:latest',
+                                                        artifact_version='trained_model_directory:v149',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
                                                         project="BC_1"
@@ -556,7 +558,7 @@ if __name__ == "__main__":
             policy = BC_agent
             policy.to(device)
             policy.eval()
-            try:
+            if isinstance(env.observation_type, KinematicObservation):
                 env.viewer.set_agent_display(
                                                 functools.partial(
                                                                     display_vehicles_attention, 
@@ -564,12 +566,13 @@ if __name__ == "__main__":
                                                                     fe=policy.features_extractor,
                                                                     device=device
                                                                 )
-                                            )
-            except:
-                pass
-            image_space_obs = isinstance(env.observation_type,GrayscaleObservation)
+                                             )
+                image_space_obs = False
+            else:
+                image_space_obs = True
+
             if image_space_obs:   
-                # fig = plt.figure(figsize=(8, 16))
+                fig = plt.figure(figsize=(8, 16))
                 import cv2
             for _ in range(num_deploy_rollouts):
                 obs, info = env.reset()
@@ -583,10 +586,11 @@ if __name__ == "__main__":
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    if image_space_obs and False:
+                    if image_space_obs:
                         for i in range(1):
                             image = obs[3,:]
                             input_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
+                            transformed_obs = policy.feature_extractor.
                             # action_logits = policy.action_net(input_tensor)
                             # action_logits = policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.Tensor(obs).unsqueeze(0)))[0])
                             # selected_action = torch.argmax(action_logits, dim=1)
