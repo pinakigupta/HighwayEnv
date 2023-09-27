@@ -537,7 +537,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 15000  # Assume a large number of samples
+        self.chunk_size = 1500  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
@@ -759,7 +759,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         print(f"Launching writer worker processes for step {step_num}", flush=True)
         samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
         self.all_worker_indices = self.calculate_worker_indices(total_samples_for_chunk)
-        processes = self.launch_writer_workers(samples_queue, total_samples_for_chunk)
+        worker_processes = self.launch_writer_workers(samples_queue, total_samples_for_chunk)
 
         all_samples = [] 
         progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing writer chunk {step_num}')
@@ -769,17 +769,18 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             if sample is None:
                 continue
             all_samples.append(sample)
-            # print("total_samples_yielded ",total_samples_yielded)
+            # print("total_samples_yielded ",total_samples_yielded, " total_samples_for_chunk ", total_samples_for_chunk,\
+            #        " all_samples ", len(all_samples))
             if len(all_samples)-total_samples_yielded >= self.batch_size:
                 yield self.load_batch(all_samples[total_samples_yielded:total_samples_yielded+self.batch_size])
                 total_samples_yielded += self.batch_size
                 # del all_samples[:self.batch_size]
                 progress_bar.update(self.batch_size)
-            time.sleep(0.01)
+                # time.sleep(0.01)
         progress_bar.close()
         # self._reset_tuples()
         # Collect and yield batches from each process
-        self.destroy_workers(processes)
+        self.destroy_workers(worker_processes)
         print(f" Terminated all writer process for  step {step_num}", flush=True)
 
 
@@ -812,14 +813,17 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.count +=1
             # Append the sample to the list
             try:
-                samples_queue.put(
-                                        {
-                                            "obs": self.all_obs[index], 
-                                            # "kin_obs": self.all_kin_obs[index],
-                                            "acts": self.all_acts[index], 
-                                            "dones": self.all_dones[index]
-                                        }
-                                    )
+                sample = {}
+                if self.all_obs:
+                    sample['obs'] = self.all_obs[index]
+                if self.all_kin_obs:
+                    sample['kin_obs'] = self.all_kin_obs[index]
+                if self.all_acts:
+                    sample['acts'] = self.all_acts[index]
+                if self.all_dones:
+                    sample['dones'] = self.all_dones[index]
+
+                samples_queue.put(sample )
             except (IndexError, EOFError) as e:
                 print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
                 pass
