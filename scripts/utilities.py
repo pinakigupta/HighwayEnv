@@ -243,8 +243,7 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
         self.resnet = models.video.r3d_18(pretrained=True)  # You can choose a different ResNet variant
         # Remove the classification (fully connected) layer
         self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-1])
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
+        self.set_grad_video_feature_extractor(requires_grad=False)
 
         self.height, self.width = observation_space.shape[1], observation_space.shape[2]
 
@@ -253,6 +252,10 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
                                         nn.Linear(self.resnet.fc.in_features, hidden_dim),
                                         nn.Linear(hidden_dim, hidden_dim)
                                     )
+
+    def set_grad_video_feature_extractor(self, requires_grad=False):
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = requires_grad
 
     def forward(self, observations):
 
@@ -527,7 +530,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 5000  # Assume a large number of samples
+        self.chunk_size = 15000  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
