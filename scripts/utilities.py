@@ -261,7 +261,8 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
         observations = torch.cat([observations, observations, observations], dim=2)
         # Normalize pixel values to the range [0, 1] (if necessary)
         # observations = observations / 255.0
-        observations = R3D_18_Weights.KINETICS400_V1.transforms(observations)
+        transforms = R3D_18_Weights.KINETICS400_V1.transforms()
+        observations = transforms(observations)
 
         # print(self.feature_extractor)
         # Pass input through the feature extractor (without the classification layer)
@@ -542,7 +543,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 15000  # Assume a large number of samples
+        self.chunk_size = 5000  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
