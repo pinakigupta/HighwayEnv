@@ -31,6 +31,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
 import torchvision.models as models
 from contextlib import ExitStack
+from torchvision.models.video import R3D_18_Weights
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
@@ -255,11 +256,12 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
 
     def forward(self, observations):
 
-        # Reshape observations to [batch_size, channels, height, width]
-        observations = observations.view(observations.size(0), 1, -1, self.height, self.width)
-        observations = torch.cat([observations, observations, observations], dim=1)
+        # Reshape observations to [batch_size, channels, stack_size, height, width]
+        observations = observations.view(observations.size(0),  -1, 1, self.height, self.width)
+        observations = torch.cat([observations, observations, observations], dim=2)
         # Normalize pixel values to the range [0, 1] (if necessary)
-        observations = observations / 255.0
+        # observations = observations / 255.0
+        observations = R3D_18_Weights.KINETICS400_V1.transforms(observations)
 
         # print(self.feature_extractor)
         # Pass input through the feature extractor (without the classification layer)
@@ -713,14 +715,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.all_dones = []
             reader_queue = self.manager.Queue()
             reader_processes = self.launch_reader_workers(reader_queue)
+            print(f"Launched all reader processes for step {self.step_num}", flush=True)
+
+
 
             for process in reader_processes:
                 process.join()
-
-            for file_name in self.hdf5_train_file_names:
-                if not self.total_chunks[file_name] and file_name in self.total_samples:
-                    del self.total_samples[file_name] # No more chunk left in this file
-
 
             while(not reader_queue.empty()):
                 sample = reader_queue.get()
@@ -734,6 +734,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     self.all_dones.extend(sample['dones'])
                 time.sleep(0.01)
                 # print('length', len(all_acts))
+
+
+
+            for file_name in self.hdf5_train_file_names:
+                if not self.total_chunks[file_name] and file_name in self.total_samples:
+                    del self.total_samples[file_name] # No more chunk left in this file
 
             self.destroy_workers(reader_processes)
 

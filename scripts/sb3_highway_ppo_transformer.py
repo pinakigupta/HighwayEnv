@@ -98,8 +98,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
 
     n_cpu =  mp.cpu_count()
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = torch.device('cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -428,15 +428,17 @@ if __name__ == "__main__":
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 12500 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
                     trainer.train(
-                                    n_batches=num_mini_batches,
+                                    n_batches=2500,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
-                    # del train_data_loader
+                    trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=True)
+                    trainer.train(n_batches=5000)                   
                     print(f'Ended training for epoch {epoch}')
 
                     policy = trainer.policy
