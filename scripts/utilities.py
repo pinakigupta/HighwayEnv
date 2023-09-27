@@ -569,7 +569,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_acts = []
         self.all_dones = []
                    
-    def launch_reader_workers(self, lock, reader_queue):
+    def launch_reader_workers(self, reader_queue):
         # Create and start worker processes
         
         processes = []
@@ -579,7 +579,6 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             process = multiprocessing.Process(
                                                 target=self.reader_worker, 
                                                 args=(
-                                                        lock,
                                                         i, 
                                                         self.total_chunks, 
                                                         self.total_samples,
@@ -670,7 +669,6 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
     def reader_worker(
                         self, 
-                        lock, 
                         worker_id, 
                         total_chunks, 
                         total_samples,
@@ -714,7 +712,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.all_kin_obs = []
             self.all_dones = []
             reader_queue = self.manager.Queue()
-            reader_processes = self.launch_reader_workers(self.lock, reader_queue)
+            reader_processes = self.launch_reader_workers(reader_queue)
 
             for process in reader_processes:
                 process.join()
