@@ -31,6 +31,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
 import torchvision.models as models
 from contextlib import ExitStack
+from torchvision.models.video import R3D_18_Weights
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
@@ -239,8 +240,7 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
         self.resnet = models.video.r3d_18(pretrained=True)  # You can choose a different ResNet variant
         # Remove the classification (fully connected) layer
         self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-1])
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
+        self.set_grad_video_feature_extractor(requires_grad=False)
 
         self.height, self.width = observation_space.shape[1], observation_space.shape[2]
 
@@ -250,13 +250,19 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
                                         nn.Linear(hidden_dim, hidden_dim)
                                     )
 
+    def set_grad_video_feature_extractor(self, requires_grad=False):
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = requires_grad
+
     def forward(self, observations):
 
-        # Reshape observations to [batch_size, channels, height, width]
-        observations = observations.view(observations.size(0), 1, -1, self.height, self.width)
-        observations = torch.cat([observations, observations, observations], dim=1)
+        # Reshape observations to [batch_size, channels, stack_size, height, width]
+        observations = observations.view(observations.size(0),  -1, 1, self.height, self.width)
+        observations = torch.cat([observations, observations, observations], dim=2)
         # Normalize pixel values to the range [0, 1] (if necessary)
-        observations = observations / 255.0
+        # observations = observations / 255.0
+        transforms = R3D_18_Weights.KINETICS400_V1.transforms()
+        observations = transforms(observations)
 
         # print(self.feature_extractor)
         # Pass input through the feature extractor (without the classification layer)
@@ -537,7 +543,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 1500  # Assume a large number of samples
+        self.chunk_size = 5000  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
@@ -566,7 +572,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_acts = []
         self.all_dones = []
                    
-    def launch_reader_workers(self, lock, reader_queue):
+    def launch_reader_workers(self, reader_queue):
         # Create and start worker processes
         
         processes = []
@@ -576,7 +582,6 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             process = multiprocessing.Process(
                                                 target=self.reader_worker, 
                                                 args=(
-                                                        lock,
                                                         i, 
                                                         self.total_chunks, 
                                                         self.total_samples,
@@ -667,7 +672,6 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
     def reader_worker(
                         self, 
-                        lock, 
                         worker_id, 
                         total_chunks, 
                         total_samples,
@@ -711,15 +715,13 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.all_kin_obs = []
             self.all_dones = []
             reader_queue = self.manager.Queue()
-            reader_processes = self.launch_reader_workers(self.lock, reader_queue)
+            reader_processes = self.launch_reader_workers(reader_queue)
+            print(f"Launched all reader processes for step {self.step_num}", flush=True)
+
+
 
             for process in reader_processes:
                 process.join()
-
-            for file_name in self.hdf5_train_file_names:
-                if not self.total_chunks[file_name] and file_name in self.total_samples:
-                    del self.total_samples[file_name] # No more chunk left in this file
-
 
             while(not reader_queue.empty()):
                 sample = reader_queue.get()
@@ -733,6 +735,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     self.all_dones.extend(sample['dones'])
                 time.sleep(0.01)
                 # print('length', len(all_acts))
+
+
+
+            for file_name in self.hdf5_train_file_names:
+                if not self.total_chunks[file_name] and file_name in self.total_samples:
+                    del self.total_samples[file_name] # No more chunk left in this file
 
             self.destroy_workers(reader_processes)
 

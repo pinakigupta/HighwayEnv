@@ -426,19 +426,21 @@ if __name__ == "__main__":
                     #                                                                                       n_cpu = n_cpu,
                     #                                                                                       visited_data_files=visited_data_files
                     #                                                                                   )
-                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
+                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train_data_1.h5')
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 25000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 12500 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
                     trainer.train(
-                                    n_batches=num_mini_batches,
+                                    n_batches=2500,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
-                    # del train_data_loader
+                    trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=True)
+                    trainer.train(n_batches=5000)                   
                     print(f'Ended training for epoch {epoch}')
 
                     policy = trainer.policy
