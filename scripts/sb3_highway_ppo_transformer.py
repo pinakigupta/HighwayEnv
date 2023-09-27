@@ -77,16 +77,18 @@ if __name__ == "__main__":
         stack_size_thread.start()
 
     DAGGER = True
-    # policy_kwargs = dict(
-    #         # policy=MLPPolicy,
-    #         features_extractor_class=CustomExtractor,
-    #         features_extractor_kwargs=attention_network_kwargs,
-    #     )
-    policy_kwargs = dict(
-                            features_extractor_class=CustomVideoFeatureExtractor,
-                            # features_extractor_class=CustomImageExtractor,
-                            features_extractor_kwargs=dict(hidden_dim=64),
-                        )
+    if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
+        policy_kwargs = dict(
+                # policy=MLPPolicy,
+                features_extractor_class=CustomExtractor,
+                features_extractor_kwargs=attention_network_kwargs,
+            )
+    else:
+        policy_kwargs = dict(
+                                features_extractor_class=CustomVideoFeatureExtractor,
+                                # features_extractor_class=CustomImageExtractor,
+                                features_extractor_kwargs=dict(hidden_dim=64),
+                            )
 
 
     WARM_START = False
@@ -96,8 +98,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
 
     n_cpu =  mp.cpu_count()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # device = torch.device('cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -520,7 +522,7 @@ if __name__ == "__main__":
                                                                             zip_filename=zip_filename, 
                                                                             device=device,
                                                                             batch_size=batch_size,
-                                                                            n_cpu=2,
+                                                                            n_cpu=n_cpu,
                                                                             visited_data_files=[]
                                                                             # plot_path=f"heatmap_{epoch}.png" 
                                                                             )
