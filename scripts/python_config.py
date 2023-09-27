@@ -34,7 +34,7 @@ env_kwargs = {
             "absolute": False,
             "relative_features": ['x']
         },
-        "observation": {
+        "GrayscaleObservation": {
             "type": "GrayscaleObservation",
             "observation_shape": (128, 64),
             "stack_size": 4,
@@ -101,4 +101,6 @@ class TrainEnum(Enum):
     ANALYSIS = 7
 
 train = TrainEnum.BC
-zip_filename = 'expert_trial_data_large_1.zip'
+zip_filename = 'expert_trial_data_large.zip'
+env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation']
+

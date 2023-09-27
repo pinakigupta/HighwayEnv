@@ -415,7 +415,8 @@ if __name__ == "__main__":
                     print(f'Loadng training data loader for epoch {epoch}')
                     # train_data_loader                                            = create_dataloaders(
                     #                                                                                       zip_filename,
-                    #                                                                                       train_datasets, 
+                    #                  
+                    #                                                                      train_datasets, 
                     #                                                                                       device=device,
                     #                                                                                       batch_size=training_kwargs['batch_size'],
                     #                                                                                       n_cpu = n_cpu,
@@ -424,7 +425,7 @@ if __name__ == "__main__":
                     train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 6000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 12500 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
@@ -504,14 +505,14 @@ if __name__ == "__main__":
             final_policy.to(torch.device('cpu'))
             final_policy.eval()
             print('Saving final model')
-            # save_checkpoint(
-            #                     project = project, 
-            #                     run_name=run_name,
-            #                     epoch = None, 
-            #                     model = final_policy,
-            #                     metrics_plot_path = metrics_plot_path
-            #                 )
-            # print('Saved final model')
+            save_checkpoint(
+                                project = project, 
+                                run_name=run_name,
+                                epoch = None, 
+                                model = final_policy,
+                                metrics_plot_path = metrics_plot_path
+                            )
+            print('Saved final model')
 
             print('Beginnig final validation step')
             accuracy, precision, recall, f1 = calculate_validation_metrics(
@@ -534,29 +535,36 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             env = make_configure_env(**env_kwargs)
             env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
+            # BC_agent                            = retrieve_agent(
+            #                                                         artifact_version='trained_model_directory:latest',
+            #                                                         agent_model = 'agent_final.pt',
+            #                                                         device=device,
+            #                                                         project="BC_1"
+            #                                                     )
             BC_agent                            = retrieve_agent(
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'agent_final.pt',
-                                                                    device=device,
-                                                                    project="BC_1"
-                                                                )
+                                                        artifact_version='trained_model_directory:latest',
+                                                        agent_model = 'agent_final.pth',
+                                                        device=device,
+                                                        project="BC_1"
+                                                        )
             gamma = 1.0
             env.render()
-            # try:
-            #     env.viewer.set_agent_display(
-            #                                     functools.partial(
-            #                                                         display_vehicles_attention, 
-            #                                                         env=env, 
-            #                                                         fe=BC_agent.features_extractor,
-            #                                                         device=device
-            #                                                     )
-            #                                 )
-            # except:
-            #     pass
-            policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
-            policy.load_state_dict(BC_agent.state_dict())
+            # policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
+            # policy.load_state_dict(BC_agent.state_dict())
+            policy = BC_agent
             policy.to(device)
             policy.eval()
+            try:
+                env.viewer.set_agent_display(
+                                                functools.partial(
+                                                                    display_vehicles_attention, 
+                                                                    env=env, 
+                                                                    fe=policy.features_extractor,
+                                                                    device=device
+                                                                )
+                                            )
+            except:
+                pass
             image_space_obs = isinstance(env.observation_type,GrayscaleObservation)
             if image_space_obs:   
                 # fig = plt.figure(figsize=(8, 16))
@@ -569,7 +577,7 @@ if __name__ == "__main__":
                 while not (done or truncated):
                     # expert_action , _= env.vehicle.discrete_action()
                     # action = ACTIONS_ALL.inverse[expert_action]
-                    action, _ = policy.predict(obs, deterministic = True)
+                    action, _ = policy.predict(obs)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward

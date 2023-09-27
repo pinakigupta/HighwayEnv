@@ -35,10 +35,10 @@ from contextlib import ExitStack
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
-def process_file(train_data_file, result_queue, device, lock):
-    processed_data = CustomDataset(train_data_file, device)
-    with lock:
-        result_queue.put([processed_data])
+# def process_file(train_data_file, result_queue, device, lock):
+#     processed_data = CustomDataset(train_data_file, device)
+#     with lock:
+#         result_queue.put([processed_data])
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
@@ -122,7 +122,9 @@ class CustomDataset(Dataset):
     def __init__(self, data_file, device, pad_value=0, **kwargs):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
-        self.data = extract_post_processed_expert_data(data_file)
+        self.keys_attributes = kwargs['keys_attributes'] 
+        self.data_file = data_file
+        self.data = extract_post_processed_expert_data(data_file, self.keys_attributes)
         self.pad_value = pad_value
         self.device = device
         # print(" data lengths ", len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
@@ -135,21 +137,15 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         sample = {}
         try:
-            if 'obs' in self.data:
-                observation = torch.tensor(self.data['obs'][idx], dtype=torch.float32)
-                sample['obs'] = observation
-            if 'kin_obs' in self.data:
-                kin_observation = torch.tensor(self.data['kin_obs'][idx], dtype=torch.float32)
-                sample['obs'] = kin_observation
-            if 'acts' in self.data:
-                action = torch.tensor(self.data['acts'][idx], dtype=torch.float32)
-                sample['acts'] = action
-            if 'dones' in self.data:
-                dones = torch.tensor(self.data['dones'][idx], dtype=torch.float32)
-                sample['dones'] = dones
+            for key in self.keys_attributes:
+                if key in self.data:
+                    value = torch.tensor(self.data[key][idx], dtype=torch.float32)
+                    sample[key] = value
+
         except Exception as e:
-            print(e , "for ", id(self), len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
-            raise e
+            pass
+            # print(f' {e} , for , { id(self)}. key {key} , value {value} ')
+            # raise e
 
         return sample
         
@@ -279,8 +275,8 @@ def save_checkpoint(project, run_name, epoch, model, **kwargs):
     jit_model_path = f"models_archive/agent_{epoch}.pt"
     zip_filename = f"models_archive/agent.zip"
     torch.save( obj = model , f= model_path, pickle_protocol=5) 
-    torch.jit.trace(torch.load(model_path), torch.randn(1, *model.observation_space.shape)).save(jit_model_path)
-    os.remove(model_path)
+    # torch.jit.trace(torch.load(model_path), torch.randn(1, *model.observation_space.shape)).save(jit_model_path)
+    # os.remove(model_path)
     # with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
     #     # Add the file to the zip archive
     #     zipf.write(model_path)
@@ -346,12 +342,26 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                 visited_data_files.add(train_data_file)
                 with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
-                    train_datasets.extend([CustomDataset(file_in_zip, device)])
+                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'acts'])
+                    print(f"Loaded custom data set for {train_data_file}")
+                    new_key = 'obs'
+                    old_key = 'kin_obs'
+                    modified_dataset = []
+                    for i in range(len(samples)):
+                        my_dict = samples[i]
+                        if old_key in my_dict and new_key not in my_dict:
+                            my_dict[new_key] = my_dict.pop(old_key)
+                        modified_dataset.append(my_dict)
+
+                    # print('modified_dataset', modified_dataset)
+
+                    train_datasets.append(modified_dataset)
                     print(f"Dataset appended for  {train_data_file}")
 
     print("DATA loader scanned all files")
 
     # shutil.rmtree(extract_path)
+
 
     # Create a combined dataset from the individual datasets
     combined_train_dataset = ConcatDataset(train_datasets)
@@ -363,20 +373,20 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     shuffled_combined_train_dataset = Subset(combined_train_dataset, shuffled_indices)
 
     # Calculate the class frequencies
-    all_actions = [sample['acts'] for sample in combined_train_dataset]
-    action_frequencies = np.bincount(all_actions)
-    class_weights = 1.0 / np.sqrt(action_frequencies)
-    # class_weights =  np.array([np.exp(-freq/action_frequencies.sum()) for freq in action_frequencies])
-    class_weights = class_weights / class_weights.sum()
-    print(" class_weights at the end ", class_weights, " action_frequencies ", action_frequencies)
+    # all_actions = [sample['acts'] for sample in combined_train_dataset]
+    # action_frequencies = np.bincount(all_actions)
+    # class_weights = 1.0 / np.sqrt(action_frequencies)
+    # # class_weights =  np.array([np.exp(-freq/action_frequencies.sum()) for freq in action_frequencies])
+    # class_weights = class_weights / class_weights.sum()
+    # print(" class_weights at the end ", class_weights, " action_frequencies ", action_frequencies)
 
-    # Calculate the least represented count
-    least_represented_count = np.min(action_frequencies)
+    # # Calculate the least represented count
+    # least_represented_count = np.min(action_frequencies)
 
-    # Get the number of unique action types
-    num_action_types = len(np.unique(all_actions))
-    num_samples=int(least_represented_count * num_action_types )
-    print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
+    # # Get the number of unique action types
+    # num_action_types = len(np.unique(all_actions))
+    # num_samples=int(least_represented_count * num_action_types )
+    # print(" class_weights ", class_weights, " num_samples ", num_samples, " original samples fraction ", num_samples/len(all_actions))
     train_data_loader = DataLoader(
                                         shuffled_combined_train_dataset, 
                                         batch_size=kwargs['batch_size'], 
@@ -545,6 +555,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.lock = self.manager.Lock()
         self.iter = 0
         self.step_num = 0
+        self.keys_to_consider = [
+                                    'obs', 
+                                    # 'kin_obs', 
+                                    'acts', 
+                                    'dones'
+                                    ]
 
 
     def _reset_tuples(self):
@@ -607,14 +623,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             # print([worker.pid for worker in processes if worker.is_alive()])
             
     def load_batch(self, batch_samples):
+
+        batch = {}
+
         try:
-            batch = {
-                'obs': torch.tensor([sample['obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-                'kin_obs': torch.tensor([sample['kin_obs'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-                'acts': torch.tensor([sample['acts'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-                'dones': torch.tensor([sample['dones'] for sample in batch_samples], dtype=torch.float32).to(self.device),
-                # Add other keys as needed
-            }
+            for key in self.keys_to_consider:
+                batch[key] = torch.tensor([sample[key] for sample in batch_samples], dtype=torch.float32).to(self.device)
         except Exception as e:
             print(batch_samples[0].keys())
             for k, v,in batch_samples.items():
@@ -624,10 +638,10 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
         # Clear GPU memory for individual tensors after creating the batch
         for sample in batch_samples:
-            del sample['obs']
-            del sample['kin_obs']
-            del sample['acts']
-            del sample['dones']
+            for key in self.keys_to_consider:
+                if key in sample:
+                    del sample[key]
+                    
         return batch   
      
     def __iter__(self):
@@ -679,12 +693,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             starting_sample = self.chunk_size*chunk_num
             total_samples_for_chunk = min(total_samples[file_name]-starting_sample, self.chunk_size)
             chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
-            chunk =                            {
-                                                    'obs' : hf['obs'][chunk_indices],
-                                                    'kin_obs': hf['kin_obs'][chunk_indices],
-                                                    'acts' : hf['act'][chunk_indices],
-                                                    'dones': hf['dones'][chunk_indices]
-                                                }
+            chunk = {key: hf[key][chunk_indices] for key in [
+                                    'obs', 
+                                    # 'kin_obs', 
+                                    'act', 
+                                    'dones'
+                                    ]}
             reader_queue.put(chunk)
             # print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
 
@@ -712,26 +726,30 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
             while(not reader_queue.empty()):
                 sample = reader_queue.get()
-                self.all_obs.extend(sample['obs'])
-                self.all_kin_obs.extend(sample['kin_obs'])
-                self.all_acts.extend(sample['acts'])
-                self.all_dones.extend(sample['dones'])
+                if 'obs' in sample:
+                    self.all_obs.extend(sample['obs'])
+                if 'kin_obs' in sample:
+                    self.all_kin_obs.extend(sample['kin_obs'])
+                if 'act' in sample:
+                    self.all_acts.extend(sample['act'])
+                if 'dones' in sample:
+                    self.all_dones.extend(sample['dones'])
                 time.sleep(0.01)
                 # print('length', len(all_acts))
 
             self.destroy_workers(reader_processes)
 
-            # print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
+            print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
 
             # Randomize the aggregated chunks across all files by shuffling
             all_indices = list(range(len(self.all_acts) ))
             random.shuffle(all_indices)
-            self.all_obs[:] = [self.all_obs[i] for i in all_indices]
-            self.all_kin_obs[:] = [self.all_kin_obs[i] for i in all_indices]
-            self.all_acts[:] = [self.all_acts[i] for i in all_indices]
-            self.all_dones[:] = [self.all_dones[i] for i in all_indices]
+            self.all_obs[:] = [self.all_obs[i] for i in all_indices if self.all_obs]
+            self.all_kin_obs[:] = [self.all_kin_obs[i] for i in all_indices if self.all_kin_obs] 
+            self.all_acts[:] = [self.all_acts[i] for i in all_indices if self.all_acts]
+            self.all_dones[:] = [self.all_dones[i] for i in all_indices if self.all_dones]
 
-            # print(f"Collected all samples of size {len(self.all_acts)}")    
+            # print(f"Collected all samples of size {len(self.all_obs)}")    
             #Yield chunks as they come
             for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,self.step_num):
                 yield batch
@@ -744,7 +762,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         print(f"Launching writer worker processes for step {step_num}", flush=True)
         samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
         self.all_worker_indices = self.calculate_worker_indices(total_samples_for_chunk)
-        processes = self.launch_writer_workers(samples_queue, total_samples_for_chunk)
+        worker_processes = self.launch_writer_workers(samples_queue, total_samples_for_chunk)
 
         all_samples = [] 
         progress_bar = tqdm(total=total_samples_for_chunk, desc=f'Processing writer chunk {step_num}')
@@ -754,16 +772,18 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             if sample is None:
                 continue
             all_samples.append(sample)
-            # print("total_samples_yielded ",total_samples_yielded)
+            # print("total_samples_yielded ",total_samples_yielded, " total_samples_for_chunk ", total_samples_for_chunk,\
+            #        " all_samples ", len(all_samples))
             if len(all_samples)-total_samples_yielded >= self.batch_size:
                 yield self.load_batch(all_samples[total_samples_yielded:total_samples_yielded+self.batch_size])
                 total_samples_yielded += self.batch_size
                 # del all_samples[:self.batch_size]
-            progress_bar.update(self.batch_size)
+                progress_bar.update(self.batch_size)
+                # time.sleep(0.01)
         progress_bar.close()
         # self._reset_tuples()
         # Collect and yield batches from each process
-        self.destroy_workers(processes)
+        self.destroy_workers(worker_processes)
         print(f" Terminated all writer process for  step {step_num}", flush=True)
 
 
@@ -796,14 +816,17 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.count +=1
             # Append the sample to the list
             try:
-                samples_queue.put(
-                                        {
-                                            "obs": self.all_obs[index], 
-                                            "kin_obs": self.all_kin_obs[index],
-                                            "acts": self.all_acts[index], 
-                                            "dones": self.all_dones[index]
-                                        }
-                                    )
+                sample = {}
+                if self.all_obs:
+                    sample['obs'] = self.all_obs[index]
+                if self.all_kin_obs:
+                    sample['kin_obs'] = self.all_kin_obs[index]
+                if self.all_acts:
+                    sample['acts'] = self.all_acts[index]
+                if self.all_dones:
+                    sample['dones'] = self.all_dones[index]
+
+                samples_queue.put(sample )
             except (IndexError, EOFError) as e:
                 print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
                 pass

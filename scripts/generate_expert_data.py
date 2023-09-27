@@ -429,24 +429,17 @@ def extract_expert_data(filename):
     return  exp_obs, exp_kin_obs, exp_acts, exp_done
 
 
-def extract_post_processed_expert_data(filename):
+def extract_post_processed_expert_data(filename, keys_to_read):
     # Open the HDF5 file in read mode
     data = {}
+    visited_keys = set()
     with h5py.File(filename, 'r', rdcc_nbytes=1024**3, rdcc_w0=0) as hf:
-        # Read the 'obs' dataset
-        if 'obs' in hf:
-            obs_array = hf['obs'][:]  # [:] to read the entire dataset  
-            data['obs'] = obs_array
-        if 'kin_obs' in hf:
-            kin_obs_array = hf['kin_obs'][:]  # [:] to read the entire dataset
-            data['kin_obs'] = kin_obs_array
-        # If you've saved other datasets (e.g., 'act' and 'done'), you can read them similarly
-        if 'act' in hf:
-            act_array = hf['act'][:]
-            data['acts'] = act_array
-        if 'dones' in hf:
-            done_array = hf['dones'][:]
-            data['dones'] = done_array
+        for key in ['obs', 'act']:
+            for hf_key in hf.keys():
+                if hf_key in key  and (hf_key not in visited_keys):
+                    visited_keys.add(hf_key)
+                    data[key] = hf[hf_key][:]  # Read the dataset and store it in the dictionary
+    data['acts'] = data['act']
 
     return data
 
@@ -465,7 +458,7 @@ def retrieve_agent( artifact_version, agent_model , device, project = None):
     # final_gail_agent_path = os.path.join(artifact_dir, "final_gail_agent.pth")
     # final_gail_agent = torch.load(final_gail_agent_path)
     print(" optimal_agent_path ", optimal_agent_path)
-    optimal_agent_path = torch.jit.load(optimal_agent_path, map_location=device)
+    optimal_agent_path = torch.load(optimal_agent_path, map_location=device)
     return optimal_agent_path
 
 def expert_data_collector(
