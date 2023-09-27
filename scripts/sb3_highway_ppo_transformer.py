@@ -12,6 +12,8 @@ from sb3_contrib import  RecurrentPPO
 import os
 import json
 import wandb
+import ipyplot
+import torchvision.transforms.functional as TF
 from datetime import datetime
 import time
 from torch import FloatTensor
@@ -573,6 +575,7 @@ if __name__ == "__main__":
             else:
                 image_space_obs = True
 
+            height, width = env.observation_space.shape[1], env.observation_space.shape[2]
             if image_space_obs:   
                 fig = plt.figure(figsize=(8, 16))
                 import cv2
@@ -589,10 +592,13 @@ if __name__ == "__main__":
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
                     if image_space_obs:
-                        for i in range(1):
-                            image = obs[3,:]
-                            input_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
-                            transformed_obs = policy.feature_extractor.
+                        observations = torch.tensor(obs, dtype=torch.float32)
+                        observations = observations.view( -1, 1, height, width)
+                        observations = torch.cat([observations, observations, observations], dim=1)
+                        transformed_obs = policy.features_extractor.video_preprocessor(observations)
+                        for i in range(4,4):
+                            raw_image = obs[i,:]
+                            image =  transformed_obs[0, i,:].cpu().numpy()
                             # action_logits = policy.action_net(input_tensor)
                             # action_logits = policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.Tensor(obs).unsqueeze(0)))[0])
                             # selected_action = torch.argmax(action_logits, dim=1)
@@ -604,8 +610,15 @@ if __name__ == "__main__":
                             # heatmap = cv2.resize(heatmap, (image.shape[1], image.shape[0]))
                             # heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
                             # result  = cv2.addWeighted(image.astype(np.uint8), 0.5, heatmap, 0.5, 0)
-                            plt.imshow(image, cmap='gray', origin='lower', aspect = 0.5)
-                            plt.xlim(20, 40)
+
+                            ax1 = plt.subplot(121)  # 2 rows, 1 column, subplot 1
+                            ax1.imshow(raw_image, cmap='gray', origin='lower', aspect=1.0)
+                            ax1.set_xlim(20, 40)
+
+                            ax2 = plt.subplot(122)  # 2 rows, 1 column, subplot 2
+                            ax2.imshow(image, cmap='gray', origin='lower', aspect=1.0)
+                            ax2.set_xlim(20, 80)   
+
                             plt.show(block=False)
                             plt.pause(0.01)
                     env.render()
