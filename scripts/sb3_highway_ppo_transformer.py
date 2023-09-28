@@ -12,6 +12,8 @@ from sb3_contrib import  RecurrentPPO
 import os
 import json
 import wandb
+import ipyplot
+import torchvision.transforms.functional as TF
 from datetime import datetime
 import time
 from torch import FloatTensor
@@ -83,6 +85,8 @@ if __name__ == "__main__":
                 features_extractor_class=CustomExtractor,
                 features_extractor_kwargs=attention_network_kwargs,
             )
+        append_key_to_dict_of_dict(env_kwargs,'config','screen_width',960*3)
+        append_key_to_dict_of_dict(env_kwargs,'config','screen_height',180*2)
     else:
         policy_kwargs = dict(
                                 # features_extractor_class=CustomVideoFeatureExtractor,
@@ -535,7 +539,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
+            append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             env = make_configure_env(**env_kwargs)
             env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
@@ -546,7 +550,7 @@ if __name__ == "__main__":
             #                                                         project="BC_1"
             #                                                     )
             BC_agent                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:latest',
+                                                        artifact_version='trained_model_directory:v149',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
                                                         project="BC_1"
@@ -558,7 +562,7 @@ if __name__ == "__main__":
             policy = BC_agent
             policy.to(device)
             policy.eval()
-            try:
+            if isinstance(env.observation_type, KinematicObservation):
                 env.viewer.set_agent_display(
                                                 functools.partial(
                                                                     display_vehicles_attention, 
@@ -566,12 +570,14 @@ if __name__ == "__main__":
                                                                     fe=policy.features_extractor,
                                                                     device=device
                                                                 )
-                                            )
-            except:
-                pass
-            image_space_obs = isinstance(env.observation_type,GrayscaleObservation)
+                                             )
+                image_space_obs = False
+            else:
+                image_space_obs = True
+
+            height, width = env.observation_space.shape[1], env.observation_space.shape[2]
             if image_space_obs:   
-                # fig = plt.figure(figsize=(8, 16))
+                fig = plt.figure(figsize=(8, 16))
                 import cv2
             for _ in range(num_deploy_rollouts):
                 obs, info = env.reset()
@@ -585,10 +591,14 @@ if __name__ == "__main__":
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    if image_space_obs and False:
-                        for i in range(1):
-                            image = obs[3,:]
-                            input_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
+                    if image_space_obs:
+                        observations = torch.tensor(obs, dtype=torch.float32)
+                        observations = observations.view( -1, 1, height, width)
+                        observations = torch.cat([observations, observations, observations], dim=1)
+                        transformed_obs = policy.features_extractor.video_preprocessor(observations)
+                        for i in range(4,4):
+                            raw_image = obs[i,:]
+                            image =  transformed_obs[0, i,:].cpu().numpy()
                             # action_logits = policy.action_net(input_tensor)
                             # action_logits = policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.Tensor(obs).unsqueeze(0)))[0])
                             # selected_action = torch.argmax(action_logits, dim=1)
@@ -600,8 +610,15 @@ if __name__ == "__main__":
                             # heatmap = cv2.resize(heatmap, (image.shape[1], image.shape[0]))
                             # heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
                             # result  = cv2.addWeighted(image.astype(np.uint8), 0.5, heatmap, 0.5, 0)
-                            plt.imshow(image, cmap='gray', origin='lower', aspect = 0.5)
-                            plt.xlim(20, 40)
+
+                            ax1 = plt.subplot(121)  # 2 rows, 1 column, subplot 1
+                            ax1.imshow(raw_image, cmap='gray', origin='lower', aspect=1.0)
+                            ax1.set_xlim(20, 40)
+
+                            ax2 = plt.subplot(122)  # 2 rows, 1 column, subplot 2
+                            ax2.imshow(image, cmap='gray', origin='lower', aspect=1.0)
+                            ax2.set_xlim(20, 80)   
+
                             plt.show(block=False)
                             plt.pause(0.01)
                     env.render()

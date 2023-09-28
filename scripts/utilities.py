@@ -231,6 +231,9 @@ class CustomExtractor(BaseFeaturesExtractor):
 
 # Create a 3D ResNet model for feature extraction
 class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
+    
+    video_preprocessor = R3D_18_Weights.KINETICS400_V1.transforms()
+
     def __init__(self, observation_space, hidden_dim=64):
         super(CustomVideoFeatureExtractor, self).__init__(observation_space, hidden_dim)
 
@@ -264,8 +267,8 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
         observations = torch.cat([observations, observations, observations], dim=2)
         # Normalize pixel values to the range [0, 1] (if necessary)
         # observations = observations / 255.0
-        transforms = R3D_18_Weights.KINETICS400_V1.transforms()
-        observations = transforms(observations)
+        
+        observations = self.video_preprocessor(observations)
 
         # print(self.feature_extractor)
         # Pass input through the feature extractor (without the classification layer)

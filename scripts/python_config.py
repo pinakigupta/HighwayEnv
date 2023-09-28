@@ -100,7 +100,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 zip_filename = 'expert_trial_data_large.zip'
 env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 # env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
