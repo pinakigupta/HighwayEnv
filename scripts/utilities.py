@@ -247,6 +247,9 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
         # Additional fully connected layer for custom hidden feature dimension
         self.fc_hidden = nn.Sequential(
                                         nn.Linear(self.resnet.fc.in_features, hidden_dim),
+                                        nn.Tanh(),
+                                        nn.Linear(hidden_dim, hidden_dim),
+                                        nn.Tanh(),
                                         nn.Linear(hidden_dim, hidden_dim)
                                     )
 
@@ -494,14 +497,15 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
 class CustomImageExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space, hidden_dim=64):
         super(CustomImageExtractor, self).__init__(observation_space, hidden_dim)
-        
+        self.channels = 3
         if not isinstance(observation_space, gym.spaces.Box):
             raise ValueError("Observation space must be continuous (e.g., image-based)")
+        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
         
         # Define a pretrained ResNet model as the feature extractor trunk
         self.resnet = torch.hub.load('pytorch/vision', 'resnet18', pretrained=True)
-        self.resnet.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        
+        # self.resnet.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
+
         # Adjust the last fully connected layer for feature dimension control
         # self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_dim)
         self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-1])
@@ -509,25 +513,45 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         for param in self.feature_extractor.parameters():
             param.requires_grad = False
         
+        self.lstm = nn.LSTM(input_size=self.resnet.fc.in_features, hidden_size=hidden_dim, num_layers=4, batch_first=True)
+        
         # Additional fully connected layer for custom hidden feature dimension
-        self.fc_hidden = nn.Sequential( 
-                                        nn.Linear(self.resnet.fc.in_features, hidden_dim),
+        self.fc_hidden = nn.Sequential(
+                                        nn.Linear(self.lstm.hidden_size, hidden_dim),
+                                        nn.Tanh(),
+                                        nn.Linear(hidden_dim, hidden_dim),
+                                        nn.Tanh(),
                                         nn.Linear(hidden_dim, hidden_dim)
-                                    )
-        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
+                                      )
     
     def forward(self, observations):
 
-        # Reshape observations to [batch_size, channels, height, width]
-        observations = observations.view(observations.size(0), -1, self.height, self.width)
-        # Normalize pixel values to the range [0, 1] (if necessary)
+        # Reshape observations to [batch_size, stack_size, height, width]
+        observations = observations.view(observations.size(0), -1, 1, self.height, self.width)
         observations = observations / 255.0
+
+        # Expand the grayscale image along the channel dimension to create an RGB image
+        observations = observations.repeat(1, 1, self.channels , 1, 1)        # Normalize pixel values to the range [0, 1] (if necessary)
+        
+        # Reshape the input for feature extraction
+        batch_size, seq_len, c, h, w = observations.size()
+        observations = observations.view(batch_size * seq_len, c, h, w)
 
         # Forward pass through the ResNet trunk for feature extraction
         resnet_features = self.feature_extractor(observations).squeeze()
-        
+
+        # Flatten the features and pass through the LSTM
+        resnet_features = resnet_features.view(batch_size, seq_len, -1)  # Flatten the spatial dimensions
+
+          # Pass through the LSTM layer
+        lstm_features, _ = self.lstm(resnet_features)
+
+        # Reshape the output of the LSTM to match the expected input size of fc_hidden
+        lstm_features = lstm_features.contiguous().view(batch_size , seq_len, -1)
+        lstm_features = lstm_features[:, -1, :]  # Select the last time step
+
         # Apply a fully connected layer for the custom hidden feature dimension
-        hidden_features = torch.nn.functional.relu(self.fc_hidden(resnet_features))
+        hidden_features = torch.nn.functional.relu(self.fc_hidden(lstm_features))
         
         return hidden_features  # Return the extracted features
 
@@ -543,7 +567,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 5000  # Assume a large number of samples
+        self.chunk_size = 7500  # Assume a large number of samples
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
