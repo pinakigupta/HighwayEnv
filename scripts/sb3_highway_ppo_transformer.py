@@ -537,6 +537,7 @@ if __name__ == "__main__":
             env_kwargs.update({'reward_oracle':None})
             # env_kwargs.update({'render_mode': 'human'})
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
+            append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
@@ -550,7 +551,7 @@ if __name__ == "__main__":
             #                                                         project="BC_1"
             #                                                     )
             BC_agent                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:v149',
+                                                        artifact_version='trained_model_directory:v147',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
                                                         project="BC_1"
@@ -575,7 +576,7 @@ if __name__ == "__main__":
             else:
                 image_space_obs = True
 
-            height, width = env.observation_space.shape[1], env.observation_space.shape[2]
+            
             if image_space_obs:   
                 fig = plt.figure(figsize=(8, 16))
                 import cv2
@@ -592,11 +593,12 @@ if __name__ == "__main__":
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
                     if image_space_obs:
+                        height, width = env.observation_space.shape[1], env.observation_space.shape[2]
                         observations = torch.tensor(obs, dtype=torch.float32)
                         observations = observations.view( -1, 1, height, width)
                         observations = torch.cat([observations, observations, observations], dim=1)
                         transformed_obs = policy.features_extractor.video_preprocessor(observations)
-                        for i in range(4,4):
+                        for i in range(3,4):
                             raw_image = obs[i,:]
                             image =  transformed_obs[0, i,:].cpu().numpy()
                             # action_logits = policy.action_net(input_tensor)

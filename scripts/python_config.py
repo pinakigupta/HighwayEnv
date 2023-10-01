@@ -9,6 +9,8 @@ env_kwargs = {
         "EGO_LENGTH": 5,
         "EGO_WIDTH": 2,
         'simulation_frequency': 10,
+        "min_lanes_count": 2,
+        "max_lanes_count": 7,
         "lanes_count": 'random',
         "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
         "vehicles_count": 'random',
@@ -102,7 +104,7 @@ class TrainEnum(Enum):
 
 train = TrainEnum.BCDEPLOY
 zip_filename = 'expert_trial_data_large.zip'
-env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
-# env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
+# env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
+env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
 
