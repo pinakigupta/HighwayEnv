@@ -27,8 +27,6 @@ class IDMVehicle(ControlledVehicle):
     COMFORT_ACC_MIN = -5.0  # [m/s2]
     """Desired maximum deceleration."""
 
-    DISTANCE_WANTED = 5.0 + ControlledVehicle.LENGTH  # [m]
-    """Desired jam distance to the front vehicle."""
 
     TIME_WANTED = 1.5  # [s]
     """Desired time gap to the front vehicle."""
@@ -53,11 +51,14 @@ class IDMVehicle(ControlledVehicle):
                  timer: float = None,
                  **kwargs):
         # Lateral policy parameters
+
         self.LANE_CHANGE_MIN_ACC_GAIN = 0.2  # [m/s2]
         self.LANE_CHANGE_MAX_BRAKING_IMPOSED = 2.0  # [m/s2]
         self.LANE_CHANGE_DELAY = 3.0  # [s]
         self._discrete_action = "Reset"
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
+        self.DISTANCE_WANTED = 5.0 + self.LENGTH  # [m]
+        """Desired jam distance to the front vehicle."""
         if ('politeness' in self.kwargs) and (self.kwargs['politeness'] is 'random'):
             self.POLITENESS = self.road.np_random.uniform(0.2, 0.8) #0.8  # in [0, 1]
         else:
@@ -572,8 +573,8 @@ class MDPVehicle(IDMVehicle):
         self.target_speeds = np.array(target_speeds) if target_speeds is not None else self.DEFAULT_TARGET_SPEEDS
         self.speed_index = self.speed_to_index(self.target_speed)
         self.target_speed = self.index_to_speed(self.speed_index)
-        self.LENGTH = kwargs['EGO_LENGTH']
-        self.WIDTH =  kwargs['EGO_WIDTH']
+        # self.LENGTH = kwargs['EGO_LENGTH']
+        # self.WIDTH =  kwargs['EGO_WIDTH']
 
     def discrete_action(self):
         return super(MDPVehicle,self).discrete_action()

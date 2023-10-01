@@ -17,10 +17,6 @@ class Vehicle(RoadObject):
     It's state is propagated depending on its steering and acceleration actions.
     """
 
-    LENGTH = 5.0
-    """ Vehicle length [m] """
-    WIDTH = 2.0
-    """ Vehicle width [m] """
     DEFAULT_INITIAL_SPEEDS = [23, 25]
     """ Range for random initial speeds [m/s] """
     MAX_SPEED = 40.
@@ -94,8 +90,16 @@ class Vehicle(RoadObject):
             else:
                 x0 = np.max([lane.local_coordinates(v.position)[0] for v in road.vehicles]) 
                 x0 += offset * road.np_random.uniform(0.9, 1.1) 
-        target_speed = road.np_random.uniform(1.0, 1.25*lane.speed_limit)               
-        v = cls(road, lane.position(x0, 0), lane.heading_at(x0), speed, target_speed = target_speed, **kwargs)
+        target_speed = road.np_random.uniform(1.0, 1.25*lane.speed_limit)
+                     
+        v = cls(
+                road, 
+                lane.position(x0, 0), 
+                lane.heading_at(x0), 
+                speed, 
+                target_speed = target_speed,
+                **kwargs
+                )
         return v
 
     @classmethod
@@ -232,6 +236,9 @@ class Vehicle(RoadObject):
             'long_off': self.lane_offset[0],
             'lat_off': self.lane_offset[1],
             'ang_off': self.lane_offset[2],
+            'L': self.LENGTH,
+            'W': self.WIDTH,
+            'lane': self.lane_index[2]
         }
         if not observe_intentions:
             d["cos_d"] = d["sin_d"] = 0

@@ -6,8 +6,14 @@ env_kwargs = {
     'expert': 'MDPVehicle',
     'config': {
         'deploy': False,
-        "EGO_LENGTH": 5,
-        "EGO_WIDTH": 2,
+        "EGO_LENGTH": 'random',
+        "EGO_WIDTH": 'random',
+        "LENGTH": 'random',
+        'WIDTH': 'random',
+        "min_length": 3,
+        "max_length": 10,
+        "min_width": 1.5,
+        "max_width": 3.5,
         'simulation_frequency': 10,
         "min_lanes_count": 2,
         "max_lanes_count": 7,
@@ -31,7 +37,10 @@ env_kwargs = {
                 "vx",
                 "vy",
                 "cos_h",
-                "sin_h"
+                "sin_h",
+                'L',
+                'W',
+                'lane' 
             ],
             "absolute": False,
             "relative_features": ['x']
@@ -43,21 +52,6 @@ env_kwargs = {
             "weights": [0.2989, 0.5870, 0.1140],  # weights for RGB conversion
             "scaling": .75,
         },
-        # "observation": {
-        #     "type": "Kinematics",
-        #     "vehicles_count": 10,
-        #     "features": [
-        #         "presence",
-        #         "x",
-        #         "y",
-        #         "vx",
-        #         "vy",
-        #         "cos_h",
-        #         "sin_h"
-        #     ],
-        #     "absolute": False,
-        #     "relative_features": ['x']
-        # },
         "policy_frequency": 2,
         "duration": 40,
         "screen_width": 960,
@@ -84,7 +78,7 @@ sweep_config = {
             "values": [0.001]  # Values for the "duration" field to be swept
         },              
         "batch_size": {
-            "values": [ 256 ]  # Values for the "duration" field to be swept
+            "values": [ 64 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
             "values": [1]  # Values for the "duration" field to be swept
@@ -102,9 +96,23 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 zip_filename = 'expert_trial_data_large.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
+attention_network_kwargs = dict(
+    # in_size=5*15,
+    embedding_layer_kwargs={
+                                "in_size": len(env_kwargs['config']['KinematicObservation']['features']), 
+                                "layer_sizes": [64, 64], 
+                                "reshape": False
+                            },
+    attention_layer_kwargs={
+                                "feature_size": 64, 
+                                "heads": 2, 
+                                # "dropout_factor" :0.2
+                           },
+    # num_layers = 3,
+)
 

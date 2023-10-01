@@ -19,8 +19,6 @@ class RoadObject(ABC):
     For now we assume all objects are rectangular.
     """
 
-    LENGTH: float = 2  # Object length [m]
-    WIDTH: float = 2  # Object width [m]
 
     def __init__(self, road: 'Road', position: Sequence[float], heading: float = 0, speed: float = 0, **kwargs):
         """
@@ -29,6 +27,14 @@ class RoadObject(ABC):
         :param heading: the angle from positive direction of horizontal axis
         :param speed: cartesian speed of object in the surface
         """
+        self.LENGTH = 5
+        self.WIDTH = 2
+        if 'LENGTH' in kwargs:
+            self.LENGTH = kwargs['LENGTH'] if kwargs['LENGTH'] is not 'random' else \
+                  road.np_random.uniform(kwargs['min_length'], kwargs['max_length'])  
+        if 'WIDTH' in kwargs:
+            self.WIDTH = kwargs['WIDTH'] if kwargs['WIDTH'] is not 'random' else \
+                  road.np_random.uniform(kwargs['min_width'], kwargs['max_width'])  
         self.road = road
         self.position = np.array(position, dtype=np.float64)
         self.heading = heading
@@ -45,7 +51,6 @@ class RoadObject(ABC):
         # If False, this object will not check its own collisions, but it can still collides with other objects that do
         # check their collisions.
         self.check_collisions = True
-
         self.diagonal = np.sqrt(self.LENGTH**2 + self.WIDTH**2)
         self.crashed = False
         self.hit = False

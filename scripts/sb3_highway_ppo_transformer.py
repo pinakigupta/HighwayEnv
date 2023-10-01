@@ -40,18 +40,6 @@ ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
 
 
-
-attention_network_kwargs = dict(
-    # in_size=5*15,
-    embedding_layer_kwargs={"in_size": 7, "layer_sizes": [64, 64], "reshape": False},
-    attention_layer_kwargs={
-                                "feature_size": 64, 
-                                "heads": 2, 
-                                # "dropout_factor" :0.2
-                           },
-    # num_layers = 3,
-)
-
 def timenow():
     return now.strftime("%H%M")
 
@@ -78,6 +66,7 @@ if __name__ == "__main__":
         stack_size_thread.start()
 
     DAGGER = True
+    
     if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
         policy_kwargs = dict(
                 # policy=MLPPolicy,
@@ -90,7 +79,7 @@ if __name__ == "__main__":
         policy_kwargs = dict(
                                 features_extractor_class=CustomVideoFeatureExtractor,
                                 # features_extractor_class=CustomImageExtractor,
-                                features_extractor_kwargs=dict(hidden_dim=64),
+                                features_extractor_kwargs=dict(hidden_dim=64, augment_image=True),
                             )
 
 
@@ -111,8 +100,8 @@ if __name__ == "__main__":
     print(sweep_config['parameters'])
 
     batch_size = sweep_config['parameters']['batch_size']['values'][0]
-    minibatch_size = batch_size//4
     num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
+    minibatch_size = batch_size
     num_deploy_rollouts = 5
 
     try:
@@ -429,21 +418,30 @@ if __name__ == "__main__":
                     #                                                                                       n_cpu = n_cpu,
                     #                                                                                       visited_data_files=visited_data_files
                     #                                                                                   )
-                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size = minibatch_size, n_cpu=n_cpu, type='train')
+                    train_data_loader = CustomDataLoader(
+                                                            zip_filename, 
+                                                            device, 
+                                                            visited_data_files, 
+                                                            batch_size = minibatch_size, 
+                                                            n_cpu=n_cpu, 
+                                                            type='train'
+                                                        )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 12500 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
-                    trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
+                    TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
+                    if TrainPartiallyPreTrained: 
+                        trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
-                    # with torch.autograd.detect_anomaly():
                     trainer.train(
                                     n_batches=2500,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
-                    trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=True)
-                    trainer.train(n_batches=25000)                   
+                    if TrainPartiallyPreTrained:
+                        trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=True)
+                        trainer.train(n_batches=25000)                   
                     print(f'Ended training for epoch {epoch}')
 
                     policy = trainer.policy
@@ -566,14 +564,14 @@ if __name__ == "__main__":
             policy.to(device)
             policy.eval()
             if isinstance(env.observation_type, KinematicObservation):
-                env.viewer.set_agent_display(
-                                                functools.partial(
-                                                                    display_vehicles_attention, 
-                                                                    env=env, 
-                                                                    fe=policy.features_extractor,
-                                                                    device=device
-                                                                )
-                                             )
+                # env.viewer.set_agent_display(
+                #                                 functools.partial(
+                #                                                     display_vehicles_attention, 
+                #                                                     env=env, 
+                #                                                     fe=policy.features_extractor,
+                #                                                     device=device
+                #                                                 )
+                #                              )
                 image_space_obs = False
             else:
                 image_space_obs = True
@@ -590,7 +588,8 @@ if __name__ == "__main__":
                 while not (done or truncated):
                     # expert_action , _= env.vehicle.discrete_action()
                     # action = ACTIONS_ALL.inverse[expert_action]
-                    action, _ = policy.predict(obs)
+                    # action, _ = policy.predict(obs)
+                    action=4
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward

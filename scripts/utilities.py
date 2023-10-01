@@ -244,8 +244,13 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
                             transforms.ColorJitter(brightness=(0.7, 1.3), contrast=(0.7, 1.3))
                           ]
 
-    def __init__(self, observation_space, hidden_dim=64):
+    def __init__(self, observation_space, hidden_dim=64, **kwargs):
         super(CustomVideoFeatureExtractor, self).__init__(observation_space, hidden_dim)
+
+        if 'augment_image' in kwargs and kwargs['augment_image']:
+            self.augment_image = True
+        else:
+            self.augment_image = False
 
         if not isinstance(observation_space, gym.spaces.Box):
             raise ValueError("Observation space must be continuous (e.g., image-based)")
@@ -270,7 +275,7 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
         for param in self.feature_extractor.parameters():
             param.requires_grad = requires_grad
 
-    def forward(self, observations, image_augmentation=True):
+    def forward(self, observations):
 
         # Reshape observations to [batch_size, channels, stack_size, height, width]
         observations = observations.view(observations.size(0),  -1, 1, self.height, self.width)
@@ -278,7 +283,7 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
         # Normalize pixel values to the range [0, 1] (if necessary)
         # observations = observations / 255.0
 
-        if image_augmentation:
+        if self.augment_image:
             # Create a Compose transform to apply all of the transforms in the sequence to each frame in the video
             compose_transforms = transforms.Compose(self.image_augmentations)
             observations = compose_transforms(observations)
