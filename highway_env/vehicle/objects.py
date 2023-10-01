@@ -30,11 +30,17 @@ class RoadObject(ABC):
         self.LENGTH = 5
         self.WIDTH = 2
         if 'LENGTH' in kwargs:
-            self.LENGTH = kwargs['LENGTH'] if kwargs['LENGTH'] is not 'random' else \
-                  road.np_random.uniform(kwargs['min_length'], kwargs['max_length'])  
+            if kwargs['LENGTH'] == 'random':
+                self.LENGTH = road.np_random.uniform(kwargs['min_length'], kwargs['max_length'])
+            else:
+                self.LENGTH = kwargs['LENGTH']
+                    
         if 'WIDTH' in kwargs:
-            self.WIDTH = kwargs['WIDTH'] if kwargs['WIDTH'] is not 'random' else \
-                  road.np_random.uniform(kwargs['min_width'], kwargs['max_width'])  
+            if kwargs['WIDTH'] == 'random':
+                self.LENGTH = road.np_random.uniform(kwargs['min_width'], kwargs['max_width'])
+            else:
+                self.LENGTH = kwargs['WIDTH']
+
         self.road = road
         self.position = np.array(position, dtype=np.float64)
         self.heading = heading
@@ -51,6 +57,7 @@ class RoadObject(ABC):
         # If False, this object will not check its own collisions, but it can still collides with other objects that do
         # check their collisions.
         self.check_collisions = True
+        # print('self.LENGTH ', self.LENGTH, kwargs['LENGTH'])
         self.diagonal = np.sqrt(self.LENGTH**2 + self.WIDTH**2)
         self.crashed = False
         self.hit = False
