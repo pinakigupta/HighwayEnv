@@ -588,8 +588,7 @@ if __name__ == "__main__":
                 while not (done or truncated):
                     # expert_action , _= env.vehicle.discrete_action()
                     # action = ACTIONS_ALL.inverse[expert_action]
-                    # action, _ = policy.predict(obs)
-                    action=4
+                    action, _ = policy.predict(obs)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
