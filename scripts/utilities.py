@@ -32,6 +32,7 @@ from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, S
 import torchvision.models as models
 from contextlib import ExitStack
 from torchvision.models.video import R3D_18_Weights
+from torchvision import transforms
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
@@ -233,6 +234,15 @@ class CustomExtractor(BaseFeaturesExtractor):
 class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
     
     video_preprocessor = R3D_18_Weights.KINETICS400_V1.transforms()
+    # Create a lambda function to add random Gaussian noise
+    random_noise = lambda image: image + torch.randn(image.size()).to(image.device) * 0.05
+    image_augmentations = [
+                            # transforms.RandomResizedCrop(112),
+                            transforms.RandomHorizontalFlip(),
+                            # transforms.RandomGaussianNoise(std=(0, 0.05)),
+                            random_noise,
+                            transforms.ColorJitter(brightness=(0.7, 1.3), contrast=(0.7, 1.3))
+                          ]
 
     def __init__(self, observation_space, hidden_dim=64):
         super(CustomVideoFeatureExtractor, self).__init__(observation_space, hidden_dim)
@@ -260,13 +270,18 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
         for param in self.feature_extractor.parameters():
             param.requires_grad = requires_grad
 
-    def forward(self, observations):
+    def forward(self, observations, image_augmentation=True):
 
         # Reshape observations to [batch_size, channels, stack_size, height, width]
         observations = observations.view(observations.size(0),  -1, 1, self.height, self.width)
         observations = torch.cat([observations, observations, observations], dim=2)
         # Normalize pixel values to the range [0, 1] (if necessary)
         # observations = observations / 255.0
+
+        if image_augmentation:
+            # Create a Compose transform to apply all of the transforms in the sequence to each frame in the video
+            compose_transforms = transforms.Compose(self.image_augmentations)
+            observations = compose_transforms(observations)
         
         observations = self.video_preprocessor(observations)
 

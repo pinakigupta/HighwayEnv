@@ -12,7 +12,6 @@ from sb3_contrib import  RecurrentPPO
 import os
 import json
 import wandb
-import ipyplot
 import torchvision.transforms.functional as TF
 from datetime import datetime
 import time
@@ -89,8 +88,8 @@ if __name__ == "__main__":
         append_key_to_dict_of_dict(env_kwargs,'config','screen_height',180*2)
     else:
         policy_kwargs = dict(
-                                # features_extractor_class=CustomVideoFeatureExtractor,
-                                features_extractor_class=CustomImageExtractor,
+                                features_extractor_class=CustomVideoFeatureExtractor,
+                                # features_extractor_class=CustomImageExtractor,
                                 features_extractor_kwargs=dict(hidden_dim=64),
                             )
 
@@ -112,6 +111,7 @@ if __name__ == "__main__":
     print(sweep_config['parameters'])
 
     batch_size = sweep_config['parameters']['batch_size']['values'][0]
+    minibatch_size = batch_size//4
     num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
     num_deploy_rollouts = 5
 
@@ -397,6 +397,7 @@ if __name__ == "__main__":
                                         demonstrations=None, #training_transitions,
                                         rng=np.random.default_rng(),
                                         batch_size=kwargs['batch_size'],
+                                        minibatch_size=kwargs['minibatch_size'],
                                         device = device,
                                         policy=policy
                                     )        
@@ -412,7 +413,7 @@ if __name__ == "__main__":
                                                 "recall"    : [],
                                                 "f1"        : []
                                             }
-                trainer = create_trainer(env, policy, batch_size=batch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
+                trainer = create_trainer(env, policy, batch_size=batch_size, minibatch_size=minibatch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
                 train_datasets = []
@@ -422,17 +423,17 @@ if __name__ == "__main__":
                     # train_data_loader                                            = create_dataloaders(
                     #                                                                                       zip_filename,
                     #                  
-                    #                                                                      train_datasets, 
+                    #                                                                                       train_datasets, 
                     #                                                                                       device=device,
-                    #                                                                                       batch_size=training_kwargs['batch_size'],
+                    #                                                                                       batch_size=minibatch_size,
                     #                                                                                       n_cpu = n_cpu,
                     #                                                                                       visited_data_files=visited_data_files
                     #                                                                                   )
-                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
+                    train_data_loader = CustomDataLoader(zip_filename, device, visited_data_files, batch_size = minibatch_size, n_cpu=n_cpu, type='train')
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 12500 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
-                    # trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
+                    trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     # with torch.autograd.detect_anomaly():
@@ -441,8 +442,8 @@ if __name__ == "__main__":
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
-                    # trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=True)
-                    # trainer.train(n_batches=10000)                   
+                    trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=True)
+                    trainer.train(n_batches=25000)                   
                     print(f'Ended training for epoch {epoch}')
 
                     policy = trainer.policy
@@ -508,6 +509,7 @@ if __name__ == "__main__":
                                                                     device=device,
                                                                     num_epochs=num_epochs, 
                                                                     batch_size=batch_size,
+                                                                    minibatch_size=minibatch_size
                                                                 )
             final_policy = bc_trainer.policy
             final_policy.to(torch.device('cpu'))
