@@ -118,7 +118,7 @@ class IDMVehicle(ControlledVehicle):
         # Lateral: MOBIL
         self.follow_road()
         if self.enable_lane_change:
-            self.change_lane_policy()
+            target_lane_index = self.change_lane_policy()
         action['steering'] = self.steering_control(self.target_lane_index)
         action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
 
@@ -127,7 +127,7 @@ class IDMVehicle(ControlledVehicle):
         action['acceleration'] = self.acceleration(ego_vehicle=self,
                                                    front_vehicle=front_vehicle,
                                                    rear_vehicle=rear_vehicle)
-        delta_id = self.target_lane_index[2] - self.lane_index[2]
+        delta_id = target_lane_index[2] - self.lane_index[2]
         front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.lane_index)
         acceleration = self.acceleration(ego_vehicle=self,
                                                    front_vehicle=front_vehicle,
@@ -226,6 +226,7 @@ class IDMVehicle(ControlledVehicle):
         """
         # If a lane change is already ongoing
         if self.lane_index != self.target_lane_index:
+            target_lane_index = self.target_lane_index
             # If we are on correct route but bad lane: abort it if someone else is already changing into the same lane
             if self.lane_index[:2] == self.target_lane_index[:2]:
                 for v in self.road.vehicles:
@@ -236,19 +237,17 @@ class IDMVehicle(ControlledVehicle):
                         d = self.lane_distance_to(v, observed=True)
                         d_star = self.desired_gap(self, v)
                         if 0 < d < d_star:
-                            self.target_lane_index = self.lane_index
+                            target_lane_index = self.lane_index
                             break
-            return
+            return target_lane_index
 
         # else, at a given frequency,
         if not utils.do_every(self.LANE_CHANGE_DELAY, self.timer):
-            return
+            return self.lane_index
         self.timer = 0
 
         # decide to make a lane change
         self.side_lanes = self.road.network.side_lanes(self.lane_index)
-        # if isinstance(self, MDPVehicle):
-        #     print(" side_lanes ", [ indices[2] for indices in side_lanes])
         for lane_index in self.side_lanes:
             # Is the candidate lane close enough?
             if not self.road.network.get_lane(lane_index).is_reachable_from(self.observed_position):
@@ -258,7 +257,10 @@ class IDMVehicle(ControlledVehicle):
                 continue
             # Does the MOBIL model recommend a lane change?
             if self.mobil(lane_index):
-                self.target_lane_index = lane_index
+                # self.target_lane_index = lane_index
+                return lane_index # Assume left lane change priority 
+        return self.lane_index
+        
 
     def mobil(self, lane_index: LaneIndex) -> bool:
         """
