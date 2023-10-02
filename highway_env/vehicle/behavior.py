@@ -425,7 +425,8 @@ class LinearVehicle(IDMVehicle):
         :return: a array of features
         """
         lane = self.road.network.get_lane(target_lane_index)
-        lane_coords = lane.local_coordinates(self.position)
+        position = self.observed_position if isinstance(self, MDPVehicle) else self.position
+        lane_coords = lane.local_coordinates(position)
         lane_next_coords = lane_coords[0] + self.speed * self.TAU_PURSUIT
         lane_future_heading = lane.heading_at(lane_next_coords)
         features = np.array([utils.wrap_to_pi(lane_future_heading - self.heading) *

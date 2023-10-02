@@ -41,8 +41,11 @@ class Vehicle(RoadObject):
         self.log = []
         self.history = deque(maxlen=self.HISTORY_SIZE)
         self.kwargs = kwargs
+        self.position_noise = 0
         if 'target_speed' in kwargs:
             self.target_speed = kwargs['target_speed']
+        if 'position_noise' in kwargs:
+            self.position_noise = kwargs['position_noise']
 
     @classmethod
     def create_random(cls, 
@@ -146,6 +149,8 @@ class Vehicle(RoadObject):
             self.position += self.impact
             self.crashed = True
             self.impact = None
+        self.observed_position = self.position
+        self.observed_position[0] +=  self.position_noise()
         self.heading += self.speed * np.sin(beta) / (self.LENGTH / 2) * dt
         self.speed += self.action['acceleration'] * dt
         self.on_state_update()
@@ -224,8 +229,8 @@ class Vehicle(RoadObject):
             origin_vehicle = self
         d = {
             'presence': 1,
-            'x': self.position[0],
-            'y': self.position[1],
+            'x': self.observed_position[0],
+            'y': self.observed_position[1],
             'vx': self.velocity[0],
             'vy': self.velocity[1],
             'heading': self.heading,

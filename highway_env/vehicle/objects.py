@@ -34,15 +34,17 @@ class RoadObject(ABC):
                 self.LENGTH = road.np_random.uniform(kwargs['min_length'], kwargs['max_length'])
             else:
                 self.LENGTH = kwargs['LENGTH']
+        
                     
         if 'WIDTH' in kwargs:
             if kwargs['WIDTH'] == 'random':
-                self.LENGTH = road.np_random.uniform(kwargs['min_width'], kwargs['max_width'])
+                self.WIDTH = road.np_random.uniform(kwargs['min_width'], kwargs['max_width'])
             else:
-                self.LENGTH = kwargs['WIDTH']
+                self.WIDTH = kwargs['WIDTH']
 
         self.road = road
         self.position = np.array(position, dtype=np.float64)
+        self.observed_position = self.position
         self.heading = heading
         self.speed = speed
         self.lane_index = self.road.network.get_closest_lane_index(self.position, self.heading) if self.road else np.nan

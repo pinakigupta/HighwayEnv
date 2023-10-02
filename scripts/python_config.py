@@ -1,4 +1,6 @@
 from enum import Enum
+import numpy as np
+import functools
 
 env_kwargs = {
     'id': 'highway-v0',
@@ -6,14 +8,17 @@ env_kwargs = {
     'expert': 'MDPVehicle',
     'config': {
         'deploy': False,
-        "EGO_LENGTH": 'random',
-        "EGO_WIDTH": 'random',
-        "LENGTH": 'random',
-        'WIDTH': 'random',
-        "min_length": 3,
-        "max_length": 10,
-        "min_width": 1.5,
-        "max_width": 3.5,
+         **{
+                "EGO_LENGTH": 'random',
+                "EGO_WIDTH": 'random',
+                "LENGTH": 'random',
+                'WIDTH': 'random',
+                "min_length": 8,
+                "max_length": 10,
+                "min_width": 1.5,
+                "max_width": 3.5,
+            },
+        'position_noise': functools.partial(np.random.normal, loc=0, scale=1.0),
         'simulation_frequency': 10,
         "min_lanes_count": 2,
         "max_lanes_count": 7,

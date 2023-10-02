@@ -551,7 +551,7 @@ if __name__ == "__main__":
             #                                                         project="BC_1"
             #                                                     )
             BC_agent                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:v147',
+                                                        artifact_version='trained_model_directory:latest',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
                                                         project="BC_1"
@@ -564,14 +564,14 @@ if __name__ == "__main__":
             policy.to(device)
             policy.eval()
             if isinstance(env.observation_type, KinematicObservation):
-                # env.viewer.set_agent_display(
-                #                                 functools.partial(
-                #                                                     display_vehicles_attention, 
-                #                                                     env=env, 
-                #                                                     fe=policy.features_extractor,
-                #                                                     device=device
-                #                                                 )
-                #                              )
+                env.viewer.set_agent_display(
+                                                functools.partial(
+                                                                    display_vehicles_attention, 
+                                                                    env=env, 
+                                                                    fe=policy.features_extractor,
+                                                                    device=device
+                                                                )
+                                             )
                 image_space_obs = False
             else:
                 image_space_obs = True
