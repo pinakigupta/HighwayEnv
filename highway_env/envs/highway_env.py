@@ -165,7 +165,7 @@ class HighwayEnv(AbstractEnv):
         if front_vehicle and (not self.config['deploy']):
             s = self.vehicle.lane_distance_to(front_vehicle)
             timegap = s/max(self.vehicle.speed,1.0)
-            if s < self.vehicle.LENGTH/2 or timegap < self.config['headway_timegap']:
+            if s < 0 : # or timegap < self.config['headway_timegap']:
                 terminated = True
                 self.vehicle.crashed = True
         return terminated
