@@ -10,7 +10,7 @@ env_kwargs = {
         "EGO_WIDTH": 'random',
         "LENGTH": 'random',
         'WIDTH': 'random',
-        "min_length": 3,
+        "min_length": 4,
         "max_length": 10,
         "min_width": 1.5,
         "max_width": 3.5,
@@ -81,7 +81,7 @@ sweep_config = {
             "values": [ 64 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [1]  # Values for the "duration" field to be swept
+            "values": [20]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -96,8 +96,8 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BCDEPLOY
-zip_filename = 'expert_trial_data_large.zip'
+train = TrainEnum.BC
+zip_filename = 'expert_data_dagger.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
