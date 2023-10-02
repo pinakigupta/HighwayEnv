@@ -191,8 +191,6 @@ class IDMVehicle(ControlledVehicle):
             d = ego_vehicle.lane_distance_to(front_vehicle)
             acceleration -= self.COMFORT_ACC_MAX * \
                 np.power(self.desired_gap(ego_vehicle, front_vehicle) / utils.not_zero(d), 2)
-            if isinstance(self, MDPVehicle):
-                print(" d ", d, " ratio ", self.desired_gap(ego_vehicle, front_vehicle) / utils.not_zero(d))
         #     print("ego_target_speed ", ego_target_speed, "speed limit" , ego_vehicle.lane.speed_limit,
         #         " current speed ", ego_vehicle.speed,
         #         " acceleration w/o front considered ", acceleration_lk, " final acceleration ", acceleration)

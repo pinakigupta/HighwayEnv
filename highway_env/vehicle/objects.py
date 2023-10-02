@@ -1,4 +1,5 @@
 from abc import ABC
+import math
 from typing import Sequence, Tuple, TYPE_CHECKING, Optional
 import numpy as np
 
@@ -177,7 +178,7 @@ class RoadObject(ABC):
             lane = self.lane
         bumper_buffer = (other.LENGTH + self.LENGTH)/2
         center_distance = lane.local_coordinates(other.position)[0] - lane.local_coordinates(self.position)[0]
-        return center_distance-bumper_buffer
+        return center_distance-bumper_buffer*math.copysign(1,center_distance)
 
     @property
     def on_road(self) -> bool:
