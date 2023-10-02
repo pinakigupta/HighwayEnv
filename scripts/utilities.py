@@ -590,7 +590,10 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.n_cpu =  n_cpu
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 7500  # Assume a large number of samples
+        if 'chunk_size' in kwargs:
+            self.chunk_size = kwargs['chunk_size']
+        else:
+            self.chunk_size = 7500
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
@@ -877,9 +880,9 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     sample['acts'] = self.all_acts[index]
                 if self.all_dones:
                     sample['dones'] = self.all_dones[index]
-
-                samples_queue.put(sample )
-            except (IndexError, EOFError) as e:
+                if sample:
+                    samples_queue.put(sample)
+            except (IndexError, EOFError, BrokenPipeError) as e:
                 print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
                 pass
             # time.sleep(0.01)

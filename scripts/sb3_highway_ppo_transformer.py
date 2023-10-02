@@ -128,7 +128,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 2,
+                                    delta_iterations = 10,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -411,7 +411,7 @@ if __name__ == "__main__":
                     print(f'Loadng training data loader for epoch {epoch}')
                     # train_data_loader                                            = create_dataloaders(
                     #                                                                                       zip_filename,
-                    #                  
+                                     
                     #                                                                                       train_datasets, 
                     #                                                                                       device=device,
                     #                                                                                       batch_size=minibatch_size,
@@ -424,18 +424,19 @@ if __name__ == "__main__":
                                                             visited_data_files, 
                                                             batch_size = minibatch_size, 
                                                             n_cpu=n_cpu, 
+                                                            chunk_size=15000,
                                                             type='train'
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 12500 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 50000 if last_epoch else 5000 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     trainer.train(
-                                    n_batches=2500,
+                                    n_batches=num_mini_batches,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
