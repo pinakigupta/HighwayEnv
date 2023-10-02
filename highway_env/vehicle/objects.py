@@ -175,7 +175,9 @@ class RoadObject(ABC):
             return np.nan
         if not lane:
             lane = self.lane
-        return lane.local_coordinates(other.position)[0] - lane.local_coordinates(self.position)[0]
+        bumper_buffer = (other.LENGTH + self.LENGTH)/2
+        center_distance = lane.local_coordinates(other.position)[0] - lane.local_coordinates(self.position)[0]
+        return center_distance-bumper_buffer
 
     @property
     def on_road(self) -> bool:
