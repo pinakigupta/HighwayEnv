@@ -251,7 +251,7 @@ class IDMVehicle(ControlledVehicle):
         #     print(" side_lanes ", [ indices[2] for indices in side_lanes])
         for lane_index in self.side_lanes:
             # Is the candidate lane close enough?
-            if not self.road.network.get_lane(lane_index).is_reachable_from(self.position):
+            if not self.road.network.get_lane(lane_index).is_reachable_from(self.observed_position):
                 continue
             # Only change lane when the vehicle is moving
             if np.abs(self.speed) < 1:
@@ -426,8 +426,8 @@ class LinearVehicle(IDMVehicle):
         :return: a array of features
         """
         lane = self.road.network.get_lane(target_lane_index)
-        position = self.observed_position if isinstance(self, MDPVehicle) else self.position
-        lane_coords = lane.local_coordinates(position)
+        # position = self.observed_position if isinstance(self, MDPVehicle) else self.position 
+        lane_coords = lane.local_coordinates(self.observed_position)
         lane_next_coords = lane_coords[0] + self.speed * self.TAU_PURSUIT
         lane_future_heading = lane.heading_at(lane_next_coords)
         features = np.array([utils.wrap_to_pi(lane_future_heading - self.heading) *
