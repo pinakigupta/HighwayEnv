@@ -188,11 +188,11 @@ class IDMVehicle(ControlledVehicle):
             max(ego_vehicle.speed, 0) / abs(utils.not_zero(ego_target_speed)), self.DELTA))
         acceleration_lk = acceleration
         if front_vehicle:
-            d = ego_vehicle.lane_distance_to(front_vehicle)
+            d = ego_vehicle.lane_distance_to(front_vehicle, observed=True)
             acceleration -= self.COMFORT_ACC_MAX * \
                 np.power(self.desired_gap(ego_vehicle, front_vehicle) / utils.not_zero(d), 2)
-            if isinstance(self, MDPVehicle):
-                print(" d ", d)
+            # if isinstance(self, MDPVehicle):
+            #     print(" d ", d)
         #     print("ego_target_speed ", ego_target_speed, "speed limit" , ego_vehicle.lane.speed_limit,
         #         " current speed ", ego_vehicle.speed,
         #         " acceleration w/o front considered ", acceleration_lk, " final acceleration ", acceleration)
@@ -233,7 +233,7 @@ class IDMVehicle(ControlledVehicle):
                             and v.lane_index != self.target_lane_index \
                             and isinstance(v, ControlledVehicle) \
                             and v.target_lane_index == self.target_lane_index:
-                        d = self.lane_distance_to(v)
+                        d = self.lane_distance_to(v, observed=True)
                         d_star = self.desired_gap(self, v)
                         if 0 < d < d_star:
                             self.target_lane_index = self.lane_index
@@ -324,8 +324,8 @@ class IDMVehicle(ControlledVehicle):
             _, rear = self.road.neighbour_vehicles(self)
             _, new_rear = self.road.neighbour_vehicles(self, self.road.network.get_lane(self.target_lane_index))
             # Check for free room behind on both lanes
-            if (not rear or rear.lane_distance_to(self) > safe_distance) and \
-                    (not new_rear or new_rear.lane_distance_to(self) > safe_distance):
+            if (not rear or rear.lane_distance_to(self, observed=True) > safe_distance) and \
+                    (not new_rear or new_rear.lane_distance_to(self, observed=True) > safe_distance):
                 # Reverse
                 return -self.COMFORT_ACC_MAX / 2
         return acceleration
@@ -402,7 +402,7 @@ class LinearVehicle(IDMVehicle):
             vt = ego_vehicle.target_speed - ego_vehicle.speed
             d_safe = self.DISTANCE_WANTED + np.maximum(ego_vehicle.speed, 0) * self.TIME_WANTED
             if front_vehicle:
-                d = ego_vehicle.lane_distance_to(front_vehicle)
+                d = ego_vehicle.lane_distance_to(front_vehicle, observed=True)
                 dv = min(front_vehicle.speed - ego_vehicle.speed, 0)
                 dp = min(d - d_safe, 0)
         return np.array([vt, dv, dp])
@@ -471,7 +471,7 @@ class LinearVehicle(IDMVehicle):
 
         # Disable front position control
         if front_vehicle:
-            d = self.lane_distance_to(front_vehicle)
+            d = self.lane_distance_to(front_vehicle, observed=True)
             if d != self.DISTANCE_WANTED + self.TIME_WANTED * self.speed:
                 phi2 *= 0
         else:

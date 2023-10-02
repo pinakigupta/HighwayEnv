@@ -164,7 +164,7 @@ class RoadObject(ABC):
         points = (rotation @ points).T + np.tile(self.position, (4, 1))
         return np.vstack([points, points[0:1]])
 
-    def lane_distance_to(self, other: 'RoadObject', lane: 'AbstractLane' = None) -> float:
+    def lane_distance_to(self, other: 'RoadObject', lane: 'AbstractLane' = None, observed:bool = False) -> float:
         """
         Compute the signed distance to another object along a lane.
 
@@ -177,7 +177,10 @@ class RoadObject(ABC):
         if not lane:
             lane = self.lane
         bumper_buffer = (other.LENGTH + self.LENGTH)/2
-        center_distance = lane.local_coordinates(other.position)[0] - lane.local_coordinates(self.position)[0]
+        if observed:
+            center_distance = lane.local_coordinates(other.observed_position)[0] - lane.local_coordinates(self.observed_position)[0]
+        else:
+            center_distance = lane.local_coordinates(other.position)[0] - lane.local_coordinates(self.position)[0]
         return center_distance-bumper_buffer*math.copysign(1,center_distance)
 
     @property
