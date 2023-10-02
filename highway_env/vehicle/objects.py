@@ -37,9 +37,9 @@ class RoadObject(ABC):
                     
         if 'WIDTH' in kwargs:
             if kwargs['WIDTH'] == 'random':
-                self.LENGTH = road.np_random.uniform(kwargs['min_width'], kwargs['max_width'])
+                self.WIDTH = road.np_random.uniform(kwargs['min_width'], kwargs['max_width'])
             else:
-                self.LENGTH = kwargs['WIDTH']
+                self.WIDTH = kwargs['WIDTH']
 
         self.road = road
         self.position = np.array(position, dtype=np.float64)
