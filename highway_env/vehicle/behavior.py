@@ -598,6 +598,9 @@ class MDPVehicle(IDMVehicle):
             self.speed_index = self.speed_to_index(self.speed) + 1
         elif action == "SLOWER":
             self.speed_index = self.speed_to_index(self.speed) - 1
+        elif action == "LANE_LEFT" or action == "LANE_RIGHT":
+            super(IDMVehicle, self).act(action)
+            return
         else:
             super(IDMVehicle, self).act(action)
             return
