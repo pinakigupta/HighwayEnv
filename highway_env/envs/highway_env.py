@@ -64,7 +64,7 @@ class HighwayEnv(AbstractEnv):
         self._create_road()
         self._create_vehicles()
         self.ego_x0 = self.vehicle.position[0]
-        self.step(4)
+        self.step({'long':4, 'lat':1})
 
     def _create_road(self) -> None:
         """Create a road composed of straight adjacent lanes."""
@@ -152,7 +152,7 @@ class HighwayEnv(AbstractEnv):
             "right_lane_reward": 0 , #lane / max(len(neighbours) - 1, 1),
             "high_speed_reward": 0 , #np.clip(scaled_speed, 0, 1),
             # "on_road_reward": float(self.vehicle.on_road),
-            "lane_change_reward": action in [0, 2] ,
+            "lane_change_reward": action['lat'] in [0, 2] ,
             "travel_reward": travel_reward,
             #np.clip(float(self._is_truncated()), 0, 1) ,
         }

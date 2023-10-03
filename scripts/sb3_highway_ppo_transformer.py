@@ -137,7 +137,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
             append_key_to_dict_of_dict(env_kwargs,'config','EGO_LENGTH',8)
             append_key_to_dict_of_dict(env_kwargs,'config','EGO_WIDTH',4)
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',40)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',80)
             env = make_vec_env(
                                 make_configure_env, 
                                 n_envs=n_cpu, 
@@ -541,7 +541,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
+            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             env = make_configure_env(**env_kwargs)
             env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
@@ -552,7 +552,7 @@ if __name__ == "__main__":
             #                                                         project="BC_1"
             #                                                     )
             BC_agent                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:latest',
+                                                        artifact_version='trained_model_directory:v162',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
                                                         project="BC_1"
@@ -583,7 +583,7 @@ if __name__ == "__main__":
                 import cv2
             for _ in range(num_deploy_rollouts):
                 obs, info = env.reset()
-                env.step(4)
+                env.step({'long':4, 'lat':1})
                 done = truncated = False
                 cumulative_reward = 0
                 while not (done or truncated):
@@ -591,7 +591,7 @@ if __name__ == "__main__":
                     # action = ACTIONS_ALL.inverse[expert_action]
                     action, _ = policy.predict(obs)
                     env.vehicle.actions = []
-                    obs, reward, done, truncated, info = env.step(action)
+                    obs, reward, done, truncated, info = env.step({'long':4, 'lat':1})
                     cumulative_reward += gamma * reward
                     if image_space_obs:
                         height, width = env.observation_space.shape[1], env.observation_space.shape[2]

@@ -54,7 +54,7 @@ class IDMVehicle(ControlledVehicle):
 
 
         self.LANE_CHANGE_DELAY = 3.0  # [s]
-        self._discrete_action = "Reset"
+        self._discrete_action = {'long':'Reset', 'lat':'Reset'}
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         self.DISTANCE_WANTED = 5.0 + self.LENGTH  # [m]
         """Desired jam distance to the front vehicle."""
@@ -132,19 +132,20 @@ class IDMVehicle(ControlledVehicle):
                                                    front_vehicle=front_vehicle,
                                                    rear_vehicle=rear_vehicle)
         if(delta_id > 0):
-            self._discrete_action = "LANE_RIGHT"
+            self._discrete_action['lat'] = "LANE_RIGHT"
         elif(delta_id < 0):
-            self._discrete_action = "LANE_LEFT"
-        elif acceleration > self.DELTA_SPEED/2.5:
-            self._discrete_action = "FASTER2"
+            self._discrete_action['lat'] = "LANE_LEFT"
+
+        if acceleration > self.DELTA_SPEED/2.5:
+            self._discrete_action['long'] = "FASTER2"
         elif acceleration > self.DELTA_SPEED/5:
-            self._discrete_action = "FASTER"
+            self._discrete_action['long'] = "FASTER"
         elif acceleration < -self.DELTA_SPEED/2.5:
-            self._discrete_action = "SLOWER2"
+            self._discrete_action['long'] = "SLOWER2"
         elif acceleration < -self.DELTA_SPEED/5:
-            self._discrete_action = "SLOWER"
+            self._discrete_action['long'] = "SLOWER"
         else:
-            self._discrete_action = "IDLE"
+            self._discrete_action['long'] = "IDLE"
         return self._discrete_action, action
 
     def step(self, dt: float):
@@ -527,7 +528,7 @@ class MDPVehicle(IDMVehicle):
         :param target_speeds: the discrete list of speeds the vehicle is able to track, through faster/slower actions
         :param route: the planned route of the vehicle, to handle intersections
         """
-        self.mdp_action = "Reset"
+        self.mdp_action = {'long':'Reset', 'lat':'Reset'}
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         self.target_speeds = np.array(target_speeds) if target_speeds is not None else self.DEFAULT_TARGET_SPEEDS
         self.speed_index = self.speed_to_index(self.target_speed)
@@ -551,23 +552,25 @@ class MDPVehicle(IDMVehicle):
         if action is not None:
             self.mdp_action = action
         # print("self.discrete_action ", self.discrete_action, id(self), " action ", action)
-        if action == "FASTER":
+        if action['long'] == "FASTER":
             self.speed_index = self.speed_to_index(self.speed) + 1
-        elif action == "SLOWER":
+        elif action['long'] == "SLOWER":
             self.speed_index = self.speed_to_index(self.speed) - 1
-        elif action == "FASTER2":
+        elif action['long'] == "FASTER2":
             self.speed_index = self.speed_to_index(self.speed) + 2
-        elif action == "SLOWER2":
+        elif action['long'] == "SLOWER2":
             self.speed_index = self.speed_to_index(self.speed) - 2
-        elif action == "LANE_LEFT" or action == "LANE_RIGHT":
-            super(IDMVehicle, self).act(action)
-            return
-        else:
-            super(IDMVehicle, self).act(action)
-            return
+
         self.speed_index = int(np.clip(self.speed_index, 0, self.target_speeds.size - 1))
         self.target_speed = self.index_to_speed(self.speed_index)
-        super(IDMVehicle, self).act()
+        super(IDMVehicle, self).act(action)
+        # elif action == "LANE_LEFT" or action == "LANE_RIGHT":
+        #     super(IDMVehicle, self).act(action)
+        #     return
+        # else:
+        #     super(IDMVehicle, self).act(action)
+        #     return
+        # super(IDMVehicle, self).act()
 
     def index_to_speed(self, index: int) -> float:
         """

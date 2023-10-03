@@ -9,16 +9,16 @@ env_kwargs = {
     'config': {
         'deploy': False,
          **{
-                "EGO_LENGTH": 'random',
-                "EGO_WIDTH": 'random',
-                "LENGTH": 'random',
-                'WIDTH': 'random',
+                "EGO_LENGTH": 5,
+                "EGO_WIDTH": 3,
+                "LENGTH": 5,
+                'WIDTH': 3,
                 "min_length": 8,
                 "max_length": 10,
                 "min_width": 1.5,
                 "max_width": 3.5,
             },
-        'position_noise': functools.partial(np.random.normal, loc=0, scale=1.0),
+        'position_noise': functools.partial(np.random.normal, loc=0, scale=0.01),
         'simulation_frequency': 10,
         "min_lanes_count": 2,
         "max_lanes_count": 7,
@@ -101,7 +101,7 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 zip_filename = 'expert_data_dagger.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
