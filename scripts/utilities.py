@@ -19,6 +19,7 @@ import seaborn as sns
 from highway_env.utils import lmap
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import wandb
+import json
 from tqdm import tqdm
 from attention_network import EgoAttentionNetwork
 import gymnasium as gym
@@ -37,10 +38,14 @@ from torchvision import transforms
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
-# def process_file(train_data_file, result_queue, device, lock):
-#     processed_data = CustomDataset(train_data_file, device)
-#     with lock:
-#         result_queue.put([processed_data])
+import gym
+import numpy as np
+from gym import spaces
+
+
+
+
+
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
@@ -98,7 +103,6 @@ def write_module_hierarchy_to_file(model, file):
 
 def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-        action_dim = env.action_space.n
         def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
             progress = step_num / decay_steps
             learning_rate = initial_learning_rate * (1 - progress) + end_learning_rate * progress
@@ -744,12 +748,20 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             starting_sample = self.chunk_size*chunk_num
             total_samples_for_chunk = min(total_samples[file_name]-starting_sample, self.chunk_size)
             chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
-            chunk = {key: hf[key][chunk_indices] for key in [
+            chunk = {}
+            for key in [
                                     'obs', 
                                     # 'kin_obs', 
                                     'act', 
                                     'dones'
-                                    ]}
+                                    ]:
+                    try:
+                        # Attempt to deserialize the data as JSON
+                        chunk[key] = [json.loads(data_str) for data_str in hf[key][chunk_indices]]
+                    except json.JSONDecodeError:
+                        # If JSON deserialization fails, assume it's a primitive type
+                        chunk[key] = hf[key][chunk_indices]                
+
             reader_queue.put(chunk)
             # print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
 

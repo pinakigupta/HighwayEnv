@@ -101,8 +101,8 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
-zip_filename = 'expert_data_dagger.zip'
+train = TrainEnum.BC
+zip_filename = 'expert_data_dagger_1.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

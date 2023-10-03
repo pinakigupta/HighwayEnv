@@ -369,7 +369,6 @@ if __name__ == "__main__":
                                 env_kwargs=env_kwargs
                             )
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-            action_dim = env.action_space.n
             rng=np.random.default_rng()
             project = "BC_1"
             policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
