@@ -541,7 +541,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             env = make_configure_env(**env_kwargs)
-            # env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
+            env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
             # BC_agent                            = retrieve_agent(
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',

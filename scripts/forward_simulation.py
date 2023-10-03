@@ -35,8 +35,8 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
             dict_action = action
         return self.env.step(dict_action)
 
-    def reset(self):
-        return self.env.reset()
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
 
     def convert_to_multi_discrete(self, dict_action_space):
         # Convert a Dict action space to a MultiDiscrete action space
