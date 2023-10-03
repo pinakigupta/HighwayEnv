@@ -91,6 +91,10 @@ class ControlledVehicle(Vehicle):
             self.target_speed += self.DELTA_SPEED
         elif action == "SLOWER":
             self.target_speed -= self.DELTA_SPEED
+        if action == "FASTER2":
+            self.target_speed += 2*self.DELTA_SPEED
+        elif action == "SLOWER2":
+            self.target_speed -= 2*self.DELTA_SPEED
         elif action == "LANE_RIGHT":
             # pass
             _from, _to, _id = self.lane_index

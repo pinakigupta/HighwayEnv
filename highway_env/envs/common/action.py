@@ -185,7 +185,9 @@ class DiscreteMetaAction(ActionType):
         1: 'IDLE',
         2: 'LANE_RIGHT',
         3: 'FASTER',
-        4: 'SLOWER'
+        4: 'SLOWER',
+        5: 'FASTER2',
+        6: 'SLOWER2',
     })
     """A mapping of action indexes to labels."""
 

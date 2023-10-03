@@ -136,8 +136,12 @@ class IDMVehicle(ControlledVehicle):
             self._discrete_action = "LANE_RIGHT"
         elif(delta_id < 0):
             self._discrete_action = "LANE_LEFT"
+        elif acceleration > self.DELTA_SPEED/2.5:
+            self._discrete_action = "FASTER2"
         elif acceleration > self.DELTA_SPEED/5:
             self._discrete_action = "FASTER"
+        elif acceleration < -self.DELTA_SPEED/2.5:
+            self._discrete_action = "SLOWER2"
         elif acceleration < -self.DELTA_SPEED/5:
             self._discrete_action = "SLOWER"
         else:
@@ -600,6 +604,10 @@ class MDPVehicle(IDMVehicle):
             self.speed_index = self.speed_to_index(self.speed) + 1
         elif action == "SLOWER":
             self.speed_index = self.speed_to_index(self.speed) - 1
+        elif action == "FASTER2":
+            self.speed_index = self.speed_to_index(self.speed) + 2
+        elif action == "SLOWER2":
+            self.speed_index = self.speed_to_index(self.speed) - 2
         elif action == "LANE_LEFT" or action == "LANE_RIGHT":
             super(IDMVehicle, self).act(action)
             return
