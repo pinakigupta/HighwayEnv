@@ -105,8 +105,8 @@ if __name__ == "__main__":
     num_deploy_rollouts = 5
 
     try:
+        project= project_names[train.value]                           
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
-            project= f"BC_1"                           
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             policy = None
@@ -163,7 +163,6 @@ if __name__ == "__main__":
             
 
             checkptcallback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
-            project= f"RL"
             run_name = f"sweep_{month}{day}_{timenow()}"
             # Create the custom callback
             metrics_callback = CustomMetricsCallback()
@@ -269,7 +268,6 @@ if __name__ == "__main__":
             record_videos(env=env, name_prefix = 'GAIL', video_folder='videos/GAIL')
             artifact_version= f'trained_model_directory:latest',
             agent_model = f'final_gail_agent.pth',
-            project= f"random_env_gail_1"
             optimal_gail_agent                       = retrieve_agent(
                                                                         artifact_version = artifact_version,
                                                                         agent_model = agent_model,
@@ -315,10 +313,10 @@ if __name__ == "__main__":
             #                                                     artifact_version='trained_model_directory:latest',
             #                                                     agent_model = 'RL_agent_final.pth',
                                                                 #   device = device,
-            #                                                     project="RL"
+            #                                                     project=project
             #                                                     )
             
-            wandb.init(project="RL", name="inference")
+            wandb.init(project=project, name="inference")
             # Access the run containing the logged artifact
 
             # Download the artifact
@@ -371,7 +369,6 @@ if __name__ == "__main__":
             env = make_configure_env(**env_kwargs)
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
-            project = "BC_1"
             policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             print("Default policy initialized ")
             run_name = f"sweep_{month}{day}_{timenow()}"
@@ -549,13 +546,13 @@ if __name__ == "__main__":
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',
             #                                                         device=device,
-            #                                                         project="BC_1"
+            #                                                         project=project
             #                                                     )
             BC_agent                            = retrieve_agent(
                                                         artifact_version='trained_model_directory:v162',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
-                                                        project="BC_1"
+                                                        project=project
                                                         )
             gamma = 1.0
             env.render()

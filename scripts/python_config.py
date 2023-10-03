@@ -101,6 +101,18 @@ class TrainEnum(Enum):
     BCDEPLOY = 6
     ANALYSIS = 7
 
+project_names= \
+    [
+        f"RL",                       # RLTRAIN = 0
+        f"RL",                       # RLDEPLOY = 1
+        f"random_env_gail_1",        # IRLTRAIN = 2
+        f"random_env_gail_1",        # IRLDEPLOY = 3
+        f"BC_1" ,                    # EXPERT_DATA_COLLECTION =4
+        f"BC_1" ,                    # BC = 5
+        f"BC_1" ,                    # BCDEPLOY = 6
+        f'None'                      # ANALYSIS = 7
+    ]
+
 train = TrainEnum.BC
 zip_filename = 'expert_data_dagger_1.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
