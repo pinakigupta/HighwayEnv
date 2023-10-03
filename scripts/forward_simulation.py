@@ -1,7 +1,6 @@
 import torch
 from torch import multiprocessing
 import gymnasium as gym
-from gym import spaces
 from highway_env.utils import print_overwrite
 import concurrent.futures
 import statistics
@@ -18,17 +17,17 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
     def __init__(self, env):
         super(DictToMultiDiscreteWrapper, self).__init__(env)
         
-        if isinstance(self.env.action_space, spaces.Dict):
+        if isinstance(self.env.action_space, gym.spaces.Dict):
             # Assuming that the 'action_space' of the original environment is a Dict
             self.original_action_space = self.env.action_space
-            self.multi_discrete_action_space = self.convert_to_multi_discrete(self.original_action_space)
+            self.action_space = self.convert_to_multi_discrete(self.original_action_space)
         else:
             self.original_action_space = self.env.action_space
-            self.multi_discrete_action_space = self.original_action_space
+            self.action_space = self.original_action_space
 
     def step(self, action):
         # If the environment uses Dict action space, convert the MultiDiscrete action to a Dict action
-        if isinstance(self.env.action_space, spaces.Dict):
+        if isinstance(self.env.original_action_space, gym.spaces.Dict):
             dict_action = self.convert_to_dict(action)
         else:
             dict_action = action
@@ -40,7 +39,7 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
     def convert_to_multi_discrete(self, dict_action_space):
         # Convert a Dict action space to a MultiDiscrete action space
         num_discrete_actions = [space.n for _, space in dict_action_space.spaces.items()]
-        return spaces.MultiDiscrete(num_discrete_actions)
+        return gym.spaces.MultiDiscrete(num_discrete_actions)
 
     def convert_to_dict(self, multi_discrete_action):
         # Convert a MultiDiscrete action to a Dict action

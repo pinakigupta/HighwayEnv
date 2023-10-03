@@ -362,12 +362,13 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             # env = make_configure_env(**env_kwargs)
             # env=env.unwrapped
-            env = make_vec_env(
-                                make_configure_env, 
-                                n_envs=n_cpu, 
-                                vec_env_cls=SubprocVecEnv, 
-                                env_kwargs=env_kwargs
-                            )
+            # env = make_vec_env(
+            #                     make_configure_env, 
+            #                     n_envs=n_cpu, 
+            #                     vec_env_cls=SubprocVecEnv, 
+            #                     env_kwargs=env_kwargs
+            #                 )
+            env = make_configure_env(**env_kwargs)
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
             project = "BC_1"

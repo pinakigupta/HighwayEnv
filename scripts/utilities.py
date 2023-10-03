@@ -373,7 +373,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
         for train_data_file in hdf5_train_file_names:
             if train_data_file not in visited_data_files:
                 visited_data_files.add(train_data_file)
-                with zipf.open(train_data_file) as file_in_zip:
+                with zipf.open(train_data_file) as file_in_ziip:
                     print(f"Opening the data file {train_data_file}")
                     samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'acts'])
                     print(f"Loaded custom data set for {train_data_file}")
