@@ -52,8 +52,7 @@ class IDMVehicle(ControlledVehicle):
                  **kwargs):
         # Lateral policy parameters
 
-        self.LANE_CHANGE_MIN_ACC_GAIN = 0.2  # [m/s2]
-        self.LANE_CHANGE_MAX_BRAKING_IMPOSED = 2.0  # [m/s2]
+
         self.LANE_CHANGE_DELAY = 3.0  # [s]
         self._discrete_action = "Reset"
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
@@ -266,55 +265,7 @@ class IDMVehicle(ControlledVehicle):
         return self.lane_index
         
 
-    def mobil(self, lane_index: LaneIndex) -> bool:
-        """
-        MOBIL lane change model: Minimizing Overall Braking Induced by a Lane change
 
-            The vehicle should change lane only if:
-            - after changing it (and/or following vehicles) can accelerate more;
-            - it doesn't impose an unsafe braking on its new following vehicle.
-
-        :param lane_index: the candidate lane for the change
-        :return: whether the lane change should be performed
-        """
-        # Is the maneuver unsafe for the new following vehicle?
-        new_preceding, new_following = self.road.neighbour_vehicles(self, lane_index)
-        new_following_a = self.acceleration(ego_vehicle=new_following, front_vehicle=new_preceding)
-        new_following_pred_a = self.acceleration(ego_vehicle=new_following, front_vehicle=self)
-        old_preceding, old_following = self.road.neighbour_vehicles(self)
-        self_pred_a = self.acceleration(ego_vehicle=self, front_vehicle=new_preceding)
-        self_a = self.acceleration(ego_vehicle=self, front_vehicle=old_preceding)
-        old_following_a = self.acceleration(ego_vehicle=old_following, front_vehicle=self)
-        old_following_pred_a = self.acceleration(ego_vehicle=old_following, front_vehicle=old_preceding)
-        jerk = self_pred_a - self_a + self.POLITENESS * (new_following_pred_a - new_following_a ) 
-                                                        #    + (old_following_pred_a - old_following_a)
-        delta_idx = lane_index[2] - self.lane_index[2]
-        # if isinstance(self, MDPVehicle):
-        #     print(f'jerk: {jerk:0.2f}, lane index: {lane_index[2]:0.2f} , current_lane index: {self.lane_index[2]:0.2f} , delta_idx: {delta_idx:0.2f}, self_a: {self_a:0.2f} , self_pred_a : {self_pred_a:0.2f}')
-        #     print(f'new_following_a: {new_following_a:0.2f}, new_following_pred_a:{new_following_pred_a:0.2f}, politeness: {self.POLITENESS:0.2f}')
-        #     print(f' ego id : {id(self)%1000},  old_preceding: {id(old_preceding)% 1000}, new_following : {id(new_following)% 1000} , new_preceding: {id(new_preceding)% 1000}')
-        #     print("------------------------------------------------------------------")
-
-            
-        if new_following_pred_a < -self.LANE_CHANGE_MAX_BRAKING_IMPOSED:
-            return False
-
-        # Do I have a planned route for a specific lane which is safe for me to access?
-        if self.route and self.route[0][2] is not None:
-            # Wrong direction
-            if np.sign(lane_index[2] - self.target_lane_index[2]) != np.sign(self.route[0][2] - self.target_lane_index[2]):
-                return False
-            # Unsafe braking required
-            elif self_pred_a < -self.LANE_CHANGE_MAX_BRAKING_IMPOSED:
-                return False
-
-        # Is there an acceleration advantage for me and/or my followers to change lane?
-        else:
-            if jerk < self.LANE_CHANGE_MIN_ACC_GAIN:
-                return False
-
-        # All clear, let's go!
-        return True
 
     def recover_from_stop(self, acceleration: float) -> float:
         """
