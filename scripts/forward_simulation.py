@@ -14,15 +14,17 @@ total_count_lock = multiprocessing.Lock()
 total_count = multiprocessing.Value("i", 0)
 
 class DictToMultiDiscreteWrapper(gym.Wrapper):
-    def __init__(self, env):
+    def __init__(self, env, key_order=None):
         super(DictToMultiDiscreteWrapper, self).__init__(env)
         
         if isinstance(self.env.action_space, gym.spaces.Dict):
             # Assuming that the 'action_space' of the original environment is a Dict
             self.original_action_space = self.env.action_space
+            self.key_order = key_order or list(self.original_action_space.spaces.keys())
             self.action_space = self.convert_to_multi_discrete(self.original_action_space)
         else:
             self.original_action_space = self.env.action_space
+            self.key_order = None  # No key order needed for non-dict action spaces
             self.action_space = self.original_action_space
 
     def step(self, action):
@@ -38,7 +40,7 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
 
     def convert_to_multi_discrete(self, dict_action_space):
         # Convert a Dict action space to a MultiDiscrete action space
-        num_discrete_actions = [space.n for _, space in dict_action_space.spaces.items()]
+        num_discrete_actions = [dict_action_space.spaces[key].n for key in self.key_order]
         return gym.spaces.MultiDiscrete(num_discrete_actions)
 
     def convert_to_dict(self, multi_discrete_action):
@@ -59,7 +61,8 @@ def make_configure_env(**kwargs):
                   )
     # env.configure(kwargs["config"])
     env.reset()
-    env = DictToMultiDiscreteWrapper(env)
+    custom_key_order = ['long','lat']
+    env = DictToMultiDiscreteWrapper(env,key_order=custom_key_order)
     return env
 
 

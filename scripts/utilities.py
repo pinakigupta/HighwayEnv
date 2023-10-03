@@ -684,7 +684,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
         try:
             for key in self.keys_to_consider:
-                batch[key] = torch.tensor([sample[key] for sample in batch_samples], dtype=torch.float32).to(self.device)
+                values = [list(sample[key].values()) if isinstance(sample[key], dict) else sample[key] for sample in batch_samples]     
+                batch[key] = torch.tensor(values, dtype=torch.float32).to(self.device)
         except Exception as e:
             print(batch_samples[0].keys())
             for k, v,in batch_samples.items():
@@ -758,7 +759,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     try:
                         # Attempt to deserialize the data as JSON
                         chunk[key] = [json.loads(data_str) for data_str in hf[key][chunk_indices]]
-                    except json.JSONDecodeError:
+                    except:
                         # If JSON deserialization fails, assume it's a primitive type
                         chunk[key] = hf[key][chunk_indices]                
 
@@ -895,7 +896,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 if sample:
                     samples_queue.put(sample)
             except (IndexError, EOFError, BrokenPipeError) as e:
-                print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
+                # print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
                 pass
             # time.sleep(0.01)
                         
