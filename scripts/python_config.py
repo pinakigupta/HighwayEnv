@@ -86,7 +86,7 @@ sweep_config = {
             "values": [ 128 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [1]  # Values for the "duration" field to be swept
+            "values": [20]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -108,12 +108,12 @@ project_names= \
         f"random_env_gail_1",        # IRLTRAIN = 2
         f"random_env_gail_1",        # IRLDEPLOY = 3
         f"BC_1" ,                    # EXPERT_DATA_COLLECTION =4
-        f"BC" ,                    # BC = 5
-        f"BC" ,                    # BCDEPLOY = 6
+        f"BC" ,                      # BC = 5
+        f"BC" ,                      # BCDEPLOY = 6
         f'None'                      # ANALYSIS = 7
     ]
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.BC
 zip_filename = 'expert_data_dagger_1.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 

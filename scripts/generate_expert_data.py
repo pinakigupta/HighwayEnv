@@ -21,14 +21,15 @@ from highway_env.vehicle.behavior import MDPVehicle
 from highway_env.envs.common.observation import  observation_factory
 from highway_env.envs.common.action import DiscreteMetaAction
 from forward_simulation import append_key_to_dict_of_dict
+from forward_simulation import make_configure_env
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
-def make_configure_env(**kwargs):
-    env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"], config=kwargs["config"])
-    # env.configure(kwargs["config"])
-    env.reset()
-    return env
+# def make_configure_env(**kwargs):
+#     env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"], config=kwargs["config"])
+#     # env.configure(kwargs["config"])
+#     env.reset()
+#     return env
 
 
 def worker(
@@ -42,7 +43,7 @@ def worker(
                 lock,
                 **env_kwargs 
                 ):
-    env = make_configure_env(**env_kwargs).unwrapped #env_value.value  # Retrieve the shared env object
+    env = make_configure_env(**env_kwargs) #env_value.value  # Retrieve the shared env object
     steps_collected = 0
     # oracle = env.controlled_vehicles[0]
     if env_kwargs['oracle']:
