@@ -54,7 +54,7 @@ class IDMVehicle(ControlledVehicle):
 
 
         self.LANE_CHANGE_DELAY = 3.0  # [s]
-        self._discrete_action = {'long':'Reset', 'lat':'Reset'}
+        self._discrete_action = {'long':'IDLE', 'lat':'STRAIGHT'}
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         self.DISTANCE_WANTED = 5.0 + self.LENGTH  # [m]
         """Desired jam distance to the front vehicle."""
@@ -528,7 +528,7 @@ class MDPVehicle(IDMVehicle):
         :param target_speeds: the discrete list of speeds the vehicle is able to track, through faster/slower actions
         :param route: the planned route of the vehicle, to handle intersections
         """
-        self.mdp_action = {'long':'Reset', 'lat':'Reset'}
+        self.mdp_action =  {'long':'IDLE', 'lat':'STRAIGHT'}
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         self.target_speeds = np.array(target_speeds) if target_speeds is not None else self.DEFAULT_TARGET_SPEEDS
         self.speed_index = self.speed_to_index(self.target_speed)
