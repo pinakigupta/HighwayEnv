@@ -29,7 +29,7 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
 
     def step(self, action):
         # If the environment uses Dict action space, convert the MultiDiscrete action to a Dict action
-        if isinstance(self.env.original_action_space, gym.spaces.Dict):
+        if isinstance(self.original_action_space, gym.spaces.Dict):
             dict_action = self.convert_to_dict(action)
         else:
             dict_action = action
@@ -45,10 +45,11 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
 
     def convert_to_dict(self, multi_discrete_action):
         # Convert a MultiDiscrete action to a Dict action
+        if isinstance(multi_discrete_action, dict):
+            return multi_discrete_action
         dict_action = {}
-        for key, space in self.original_action_space.spaces.items():
-            # num_discrete_actions = space.n
-            discrete_action = multi_discrete_action[key]
+        for i, key in enumerate(self.key_order):
+            discrete_action = multi_discrete_action[i]
             dict_action[key] = discrete_action
         return dict_action
     

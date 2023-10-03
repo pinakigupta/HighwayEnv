@@ -426,7 +426,7 @@ if __name__ == "__main__":
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 50000 if last_epoch else 5000 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 2600 if last_epoch else 5000 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -541,7 +541,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             env = make_configure_env(**env_kwargs)
-            env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
+            # env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
             # BC_agent                            = retrieve_agent(
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',
@@ -549,7 +549,7 @@ if __name__ == "__main__":
             #                                                         project=project
             #                                                     )
             BC_agent                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:v162',
+                                                        artifact_version='trained_model_directory:latest',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
                                                         project=project
@@ -588,7 +588,7 @@ if __name__ == "__main__":
                     # action = ACTIONS_ALL.inverse[expert_action]
                     action, _ = policy.predict(obs)
                     env.vehicle.actions = []
-                    obs, reward, done, truncated, info = env.step({'long':4, 'lat':1})
+                    obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
                     if image_space_obs:
                         height, width = env.observation_space.shape[1], env.observation_space.shape[2]
