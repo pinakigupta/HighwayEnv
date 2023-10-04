@@ -6,7 +6,6 @@ import numpy as np
 from bidict import bidict 
 from highway_env import utils
 from highway_env.utils import Vector
-from highway_env.vehicle.behavior import IDMVehicle
 from highway_env.vehicle.dynamics import BicycleVehicle
 from highway_env.vehicle.kinematics import Vehicle
 from highway_env.vehicle.behavior import MDPVehicle
@@ -195,8 +194,8 @@ class DiscreteMetaAction(ActionType):
         0: 'SLOWER',
         1: 'IDLE',
         2: 'FASTER',
-        3: 'FASTER2',
-        4: 'SLOWER2',
+        # 3: 'FASTER2',
+        # 4: 'SLOWER2',
     })
     """A mapping of longitudinal action indexes to labels."""
 

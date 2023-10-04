@@ -92,13 +92,26 @@ class HighwayEnv(AbstractEnv):
                 lane_id=self.config["initial_lane_id"],
                 spacing=self.config["ego_spacing"],
                 x0=100,
+                action_type = self.action_type,
                 **{
                     **self.config,
                     'LENGTH':self.config['EGO_LENGTH'],
                     'WIDTH':self.config['EGO_WIDTH']
                   }
             )
-            vehicle = self.action_type.vehicle_class(self.road, vehicle.position, vehicle.heading, vehicle.speed, **self.config)
+            vehicle = self.action_type.vehicle_class(
+                                                        road = self.road, 
+                                                        position = vehicle.position, 
+                                                        heading = vehicle.heading, 
+                                                        speed = vehicle.speed, 
+                                                        action_type = vehicle.action_type,
+                                                        **{
+                                                            **self.config,
+                                                            'LENGTH':self.config['EGO_LENGTH'],
+                                                            'WIDTH':self.config['EGO_WIDTH']
+                                                          }                                                    
+                                                      
+                                                    )
             self.controlled_vehicles.append(vehicle)
             self.road.vehicles.append(vehicle)
 
@@ -106,6 +119,7 @@ class HighwayEnv(AbstractEnv):
                 vehicle = other_vehicles_type.create_random(
                                                             self.road, 
                                                             spacing= 1 / self.config["vehicles_density"],
+                                                            action_type = self.action_type,
                                                             **self.config
                                                            )
                 vehicle.randomize_behavior()

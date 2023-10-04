@@ -9,6 +9,7 @@ from highway_env.vehicle.kinematics import Vehicle
 
 
 
+
 class IDMVehicle(ControlledVehicle):
     """
     A vehicle using both a longitudinal and a lateral decision policies.
@@ -136,11 +137,14 @@ class IDMVehicle(ControlledVehicle):
         elif(delta_id < 0):
             self._discrete_action['lat'] = "LANE_LEFT"
 
-        if acceleration > self.DELTA_SPEED/2.5:
+        if not self.action_type:
+            print("self.action_type.ACTIONS_LONGI ", self.action_type.ACTIONS_LONGI)
+            
+        if acceleration > self.DELTA_SPEED/2.5 and "FASTER2"  in self.action_type.ACTIONS_LONGI :
             self._discrete_action['long'] = "FASTER2"
         elif acceleration > self.DELTA_SPEED/5:
             self._discrete_action['long'] = "FASTER"
-        elif acceleration < -self.DELTA_SPEED/2.5:
+        elif acceleration < -self.DELTA_SPEED/2.5 and "SLOWER2" in self.action_type.ACTIONS_LONGI:
             self._discrete_action['long'] = "SLOWER2"
         elif acceleration < -self.DELTA_SPEED/5:
             self._discrete_action['long'] = "SLOWER"
@@ -515,6 +519,7 @@ class MDPVehicle(IDMVehicle):
                  target_speed: Optional[float] = None,
                  target_speeds: Optional[Vector] = None,
                  route: Optional[Route] = None,
+                 action_type = None,
                  **kwargs) -> None:
         """
         Initializes an MDPVehicle
@@ -533,6 +538,7 @@ class MDPVehicle(IDMVehicle):
         self.target_speeds = np.array(target_speeds) if target_speeds is not None else self.DEFAULT_TARGET_SPEEDS
         self.speed_index = self.speed_to_index(self.target_speed)
         self.target_speed = self.index_to_speed(self.speed_index)
+        self.action_type = action_type
         # self.LENGTH = kwargs['EGO_LENGTH']
         # self.WIDTH =  kwargs['EGO_WIDTH']
 
