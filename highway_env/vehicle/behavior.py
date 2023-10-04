@@ -564,13 +564,7 @@ class MDPVehicle(IDMVehicle):
         self.speed_index = int(np.clip(self.speed_index, 0, self.target_speeds.size - 1))
         self.target_speed = self.index_to_speed(self.speed_index)
         super(IDMVehicle, self).act(action)
-        # elif action == "LANE_LEFT" or action == "LANE_RIGHT":
-        #     super(IDMVehicle, self).act(action)
-        #     return
-        # else:
-        #     super(IDMVehicle, self).act(action)
-        #     return
-        # super(IDMVehicle, self).act()
+
 
     def index_to_speed(self, index: int) -> float:
         """
