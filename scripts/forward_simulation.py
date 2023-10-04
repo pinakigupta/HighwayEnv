@@ -19,17 +19,15 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
         
         if isinstance(self.env.action_space, gym.spaces.Dict):
             # Assuming that the 'action_space' of the original environment is a Dict
-            self.original_action_space = self.env.action_space
-            self.key_order = key_order or list(self.original_action_space.spaces.keys())
-            self.action_space = self.convert_to_multi_discrete(self.original_action_space)
+            self.key_order = key_order or list(self.env.action_space.spaces.keys())
+            self.action_space = self.convert_to_multi_discrete(self.env.action_space)
         else:
-            self.original_action_space = self.env.action_space
             self.key_order = None  # No key order needed for non-dict action spaces
-            self.action_space = self.original_action_space
+            self.action_space = self.env.action_space
 
     def step(self, action):
         # If the environment uses Dict action space, convert the MultiDiscrete action to a Dict action
-        if isinstance(self.original_action_space, gym.spaces.Dict):
+        if isinstance(self.env.action_space, gym.spaces.Dict):
             dict_action = self.convert_to_dict(action)
         else:
             dict_action = action
@@ -49,8 +47,8 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
             return multi_discrete_action
         dict_action = {}
         for i, key in enumerate(self.key_order):
-            discrete_action = multi_discrete_action[i]
-            dict_action[key] = discrete_action
+            discrete_action = multi_discrete_action[i] # This is numeric at this point
+            dict_action[key] =  self.env.action_type.actions[key][discrete_action]
         return dict_action
     
 def make_configure_env(**kwargs):

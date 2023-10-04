@@ -113,7 +113,7 @@ project_names= \
         f'None'                      # ANALYSIS = 7
     ]
 
-train = TrainEnum.BC
+train = TrainEnum.BCDEPLOY
 zip_filename = 'expert_data_dagger_1.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
