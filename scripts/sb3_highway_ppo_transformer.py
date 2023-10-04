@@ -585,7 +585,7 @@ if __name__ == "__main__":
                 cumulative_reward = 0
                 while not (done or truncated):
                     # expert_action , _= env.vehicle.discrete_action()
-                    # action = ACTIONS_ALL.inverse[expert_action]
+                    # action = [env.action_type.actions_indexes[key][expert_action[key]] for key in ['long', 'lat']] 
                     action, _ = policy.predict(obs)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
