@@ -170,6 +170,7 @@ class RoadObject(ABC):
 
         :param other: the other object
         :param lane: a lane
+        :param observed : if True use observed position which may add a noise over true position
         :return: the distance to the other other [m]
         """
         if not other:
