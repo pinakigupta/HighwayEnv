@@ -41,11 +41,12 @@ class Vehicle(RoadObject):
         self.log = []
         self.history = deque(maxlen=self.HISTORY_SIZE)
         self.kwargs = kwargs
-        self.position_noise = 0
+        self.position_noise = 0 
         if 'target_speed' in kwargs:
             self.target_speed = kwargs['target_speed']
         if 'position_noise' in kwargs:
             self.position_noise = kwargs['position_noise']
+        self.action_type = kwargs['action_type'] if 'action_type' in kwargs else None
 
     @classmethod
     def create_random(cls, 
@@ -57,6 +58,7 @@ class Vehicle(RoadObject):
                       spacing: float = 1,
                       x0:Optional[float] = None,
                       seed:Optional[int] = None,
+                      action_type = None,
                       **kwargs) \
             -> "Vehicle":
         """
@@ -75,6 +77,7 @@ class Vehicle(RoadObject):
         """
         # if seed is not None:
         #     np.random.seed(seed)
+        
         _from = lane_from or road.np_random.choice(list(road.network.graph.keys()))
         _to = lane_to or road.np_random.choice(list(road.network.graph[_from].keys()))
         _id = lane_id if lane_id is not None else road.np_random.choice(len(road.network.graph[_from][_to]))
@@ -94,13 +97,14 @@ class Vehicle(RoadObject):
                 x0 = np.max([lane.local_coordinates(v.position)[0] for v in road.vehicles]) 
                 x0 += offset * road.np_random.uniform(0.9, 1.1) 
         target_speed = road.np_random.uniform(1.0, 1.25*lane.speed_limit)
-                     
+        action_type = action_type             
         v = cls(
                 road, 
                 lane.position(x0, 0), 
                 lane.heading_at(x0), 
                 speed, 
                 target_speed = target_speed,
+                action_type = action_type,
                 **kwargs
                 )
         return v
