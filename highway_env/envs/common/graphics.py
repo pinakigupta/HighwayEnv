@@ -110,11 +110,11 @@ class EnvViewer(object):
         pygame.display.set_caption(
                                    "Highway-env, ego v: "
                                    + f"{self.env.vehicle.speed:.2f}" 
-                                    # " ACTION: " +   str(self.env.vehicle.mdp_action) 
-                                    # + ":" + str(self.env.vehicle.discrete_action()[0])
-                                    # + " { " + str(self.env.vehicle.lane_index[2]) + " : " + 
-                                    # str(self.env.vehicle.target_lane_index[2]) +  " : "  
-                                    # + str([idx[2] for idx in self.env.vehicle.side_lanes]) + " } "
+                                    " ACTION:IDEAL ACTION " +   str(self.env.vehicle.mdp_action) 
+                                    + ":" + str(self.env.vehicle.discrete_action()[0])
+                                    + " { " + str(self.env.vehicle.lane_index[2]) + " : " + 
+                                    str(self.env.vehicle.target_lane_index[2]) +  " : "  
+                                    + str([idx[2] for idx in self.env.vehicle.side_lanes]) + " } "
                                   )
 
                                    
