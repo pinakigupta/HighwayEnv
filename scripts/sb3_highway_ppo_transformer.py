@@ -578,15 +578,19 @@ if __name__ == "__main__":
             if image_space_obs:   
                 fig = plt.figure(figsize=(8, 16))
                 import cv2
+            predicted_labels = []
+            true_labels = []
             for _ in range(num_deploy_rollouts):
                 obs, info = env.reset()
                 env.step({'long':4, 'lat':1})
                 done = truncated = False
                 cumulative_reward = 0
                 while not (done or truncated):
-                    # expert_action , _= env.vehicle.discrete_action()
-                    # action = [env.action_type.actions_indexes[key][expert_action[key]] for key in ['long', 'lat']] 
-                    action, _ = policy.predict(obs)
+                    expert_action , _= env.vehicle.discrete_action()
+                    expert_action = [env.action_type.actions_indexes[key][expert_action[key]] for key in ['long', 'lat']] 
+                    true_labels.append(expert_action)
+                    action, _ = policy.predict(obs, deterministic=True)
+                    predicted_labels.append(action)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
@@ -624,6 +628,16 @@ if __name__ == "__main__":
                     env.render()
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
+            true_labels = true_labels @ label_weights
+            predicted_labels = predicted_labels @ label_weights
+            accuracy = accuracy_score(true_labels, predicted_labels)
+            precision = precision_score(true_labels, predicted_labels, average=None)
+            recall    = recall_score(true_labels, predicted_labels, average=None)
+            f1        = f1_score(true_labels, predicted_labels, average=None)
+            print("Accuracy:", accuracy, np.mean(accuracy))
+            print("Precision:", precision, np.mean(precision))
+            print("Recall:", recall, np.mean(recall))
+            print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
             train_data_loader                                             = create_dataloaders(
                                                                                                     zip_filename,
@@ -695,6 +709,7 @@ if __name__ == "__main__":
                                                                             n_cpu=n_cpu,
                                                                             visited_data_files=[],
                                                                             val_batch_count=100,
+                                                                            label_weights = label_weights,
                                                                             plot_path=None
                                                                           )
     except KeyboardInterrupt:
