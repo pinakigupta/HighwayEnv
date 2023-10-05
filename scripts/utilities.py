@@ -441,11 +441,9 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
     file_names = [file_name for file_name in zipfile.ZipFile(zip_filename, 'r').namelist() if file_name.endswith('.h5') and "val" in file_name]
     val_data_loader = CustomDataLoader(
                                         zip_filename, 
-                                        device=kwargs['device'], 
-                                        visited_data_files=kwargs['visited_data_files'], 
-                                        batch_size=kwargs['batch_size'], 
-                                        n_cpu=kwargs['n_cpu'], 
-                                        type='val'
+                                        **{**kwargs,
+                                            'type':'val'
+                                          }
                                       ) 
     
     conf_matrix = None
@@ -705,6 +703,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         return batch   
      
     def __iter__(self):
+        num_yielded_batches = 0 
         while True: # Keep iterating till num batches is met
             print(f"++++++++++++++++++ ITER PASS {self.iter} +++++++++++++++++++")
             self.iter += 1
@@ -713,8 +712,11 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     self.total_samples[file_name] = len(hf['act'])
                     self.total_chunks[file_name] = list(range(math.ceil(self.total_samples[file_name]/self.chunk_size)))
             for batch in self.iter_once_all_files(): # Keep iterating
-                # print('batch.keys()', batch.keys())
                 yield batch
+                num_yielded_batches += 1
+                
+                if self.kwargs['type'] == 'val' and num_yielded_batches >= self.kwargs['val_batch_count']:
+                    return  # Exit the generator loop
             if self.kwargs['type'] is 'val': # Only one iteration through all the files is file
                 break
 

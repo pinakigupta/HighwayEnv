@@ -694,6 +694,7 @@ if __name__ == "__main__":
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             visited_data_files=[],
+                                                                            val_batch_count=100,
                                                                             plot_path=None
                                                                           )
     except KeyboardInterrupt:
