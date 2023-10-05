@@ -439,10 +439,11 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
     predicted_labels = []
     # Iterate through the validation data and make predictions
     # CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
+    print(f"Calcuating validaton metrices for {kwargs['type']}-------------> ")
     val_data_loader = CustomDataLoader(
                                         zip_filename, 
                                         **{**kwargs,
-                                            'type':'val'
+                                            'type':kwargs['type']
                                           }
                                       ) 
     
@@ -482,40 +483,14 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
     print("F1 Score:", f1, np.mean(f1))
 
 
-    # predicted_labels = []
-    # true_labels = []
-    # with torch.no_grad():
-    #     with zipfile.ZipFile(zip_filename, 'r') as zipf:
-    #         hdf5_val_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
-    #         for val_data_file in hdf5_val_file_names:
-    #             with zipf.open(val_data_file) as file_in_zip:
-    #                 hdf5_data = file_in_zip.read()
-    #                 in_memory_file = io.BytesIO(hdf5_data)
-    #                 val_obs, val_acts, val_dones = extract_post_processed_expert_data(in_memory_file)
-    #                 predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
-    #                 true_labels.extend(val_acts)
 
-    # # Calculate evaluation metrics for training
-    # tr_accuracy = accuracy_score(true_labels, predicted_labels)
-    # tr_precision = precision_score(true_labels, predicted_labels, average=None)
-    # tr_recall = recall_score(true_labels, predicted_labels, average=None)
-    # tr_f1 = f1_score(true_labels, predicted_labels, average=None)
-
-
-
-    # print("--------  Training data metrics for reference---------------")
-    # print("Accuracy:", accuracy, np.mean(tr_accuracy))
-    # print("Precision:", precision,  np.mean(tr_precision))
-    # print("Recall:", recall, np.mean(tr_recall))
-    # print("F1 Score:", f1, np.mean(tr_f1))
-
-    if False:
+    if True:
         plt.figure(figsize=(8, 6))
-        class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
+        class_labels = labels
         sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
         plt.xlabel("Predicted Labels")
         plt.ylabel("True Labels")
-        plt.title("Confusion Matrix")
+        plt.title(f"Confusion Matrix for {kwargs['type']}")
         heatmap_png = 'heatmap.png'
         plt.savefig(heatmap_png)
 
@@ -591,13 +566,14 @@ class CustomImageExtractor(BaseFeaturesExtractor):
 import random
 import math
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
-    def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu, **kwargs):
+    def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu, validation=False, **kwargs):
         self.kwargs = kwargs
         self.zip_filename = zip_filename
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
         self.n_cpu =  n_cpu
+        self.is_validation = validation or self.kwargs['type'] == 'val'
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
         if 'chunk_size' in kwargs:
@@ -720,9 +696,9 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 yield batch
                 num_yielded_batches += 1
                 
-                if self.kwargs['type'] == 'val' and num_yielded_batches >= self.kwargs['val_batch_count']:
+                if self.is_validation and num_yielded_batches >= self.kwargs['val_batch_count']:
                     return  # Exit the generator loop
-            if self.kwargs['type'] is 'val': # Only one iteration through all the files is file
+            if self.is_validation: # Only one iteration through all the files is file
                 break
 
     def __iter_once__(self):    

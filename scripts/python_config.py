@@ -116,7 +116,7 @@ project_names= \
     ]
 
 train = TrainEnum.VALIDATION
-zip_filename = 'expert_data_dagger_1.zip'
+zip_filename = 'expert_data_dagger_2.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

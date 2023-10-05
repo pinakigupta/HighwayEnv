@@ -426,7 +426,7 @@ if __name__ == "__main__":
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 600 if last_epoch else 600 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 50000 if last_epoch else 600 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -708,9 +708,24 @@ if __name__ == "__main__":
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             visited_data_files=[],
-                                                                            val_batch_count=500,
+                                                                            val_batch_count=5000,
                                                                             chunk_size=500,
                                                                             label_weights=label_weights,
+                                                                            type='val',
+                                                                            plot_path=None
+                                                                          )
+            accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                            policy, 
+                                                                            zip_filename=zip_filename,
+                                                                            device=device,
+                                                                            batch_size=batch_size,
+                                                                            n_cpu=n_cpu,
+                                                                            visited_data_files=[],
+                                                                            val_batch_count=5000,
+                                                                            chunk_size=500,
+                                                                            label_weights=label_weights,
+                                                                            type='train',
+                                                                            validation=True,
                                                                             plot_path=None
                                                                           )
     except KeyboardInterrupt:
