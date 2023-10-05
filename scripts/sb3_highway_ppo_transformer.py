@@ -297,7 +297,6 @@ if __name__ == "__main__":
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    env.render()
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
         elif train == TrainEnum.RLDEPLOY:
@@ -351,7 +350,6 @@ if __name__ == "__main__":
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    env.render()
                     end_time = time.time()
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
@@ -534,7 +532,7 @@ if __name__ == "__main__":
         elif train == TrainEnum.BCDEPLOY:
             env_kwargs.update({'reward_oracle':None})
             # env_kwargs.update({'render_mode': 'human'})
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
@@ -586,6 +584,7 @@ if __name__ == "__main__":
                 done = truncated = False
                 cumulative_reward = 0
                 while not (done or truncated):
+                    start_time = time.time()
                     expert_action , _= env.vehicle.discrete_action()
                     expert_action = [env.action_type.actions_indexes[key][expert_action[key]] for key in ['long', 'lat']] 
                     true_labels.append(expert_action)
@@ -593,6 +592,7 @@ if __name__ == "__main__":
                     predicted_labels.append(action)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
+                    end_time = time.time()
                     cumulative_reward += gamma * reward
                     if image_space_obs:
                         height, width = env.observation_space.shape[1], env.observation_space.shape[2]
@@ -625,7 +625,9 @@ if __name__ == "__main__":
 
                             plt.show(block=False)
                             plt.pause(0.01)
-                    env.render()
+                    # env.render()
+                    frequency = 1/(end_time-start_time)
+                    print(f"Execution frequency is {frequency}")
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
             true_labels = true_labels @ label_weights

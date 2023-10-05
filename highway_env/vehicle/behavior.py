@@ -559,9 +559,9 @@ class MDPVehicle(IDMVehicle):
             self.mdp_action = action
         # print("self.discrete_action ", self.discrete_action, id(self), " action ", action)
         if action['long'] == "FASTER":
-            self.speed_index = self.speed_to_index(self.speed) + 1
+            self.speed_index = self.speed_to_index(self.speed) + 2
         elif action['long'] == "SLOWER":
-            self.speed_index = self.speed_to_index(self.speed) - 1
+            self.speed_index = self.speed_to_index(self.speed) - 2
         elif action['long'] == "FASTER2":
             self.speed_index = self.speed_to_index(self.speed) + 2
         elif action['long'] == "SLOWER2":
