@@ -14,8 +14,8 @@ total_count_lock = multiprocessing.Lock()
 total_count = multiprocessing.Value("i", 0)
 
 class DictToMultiDiscreteWrapper(gym.Wrapper):
-    def __init__(self, env, key_order=None):
-        super(DictToMultiDiscreteWrapper, self).__init__(env)
+    def __init__(self, env, key_order=None, **kwargs):
+        super(DictToMultiDiscreteWrapper, self).__init__(env, **kwargs)
         
         if isinstance(self.env.action_space, gym.spaces.Dict):
             # Assuming that the 'action_space' of the original environment is a Dict

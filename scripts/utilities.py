@@ -446,13 +446,16 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
                                         batch_size=kwargs['batch_size'], 
                                         n_cpu=kwargs['n_cpu'], 
                                         type='val'
-                                      )
+                                      ) 
     
     conf_matrix = None
     labels=list(ACTIONS_ALL.keys())
     for batch in val_data_loader:
         predicted_labels = [policy.predict(obs.cpu().numpy())[0] for obs in batch['obs']]
         true_labels = batch['acts'].cpu().numpy()
+        label_weights = np.array([3, 1])
+        true_labels = true_labels @ label_weights
+        predicted_labels = predicted_labels @ label_weights
         batch_accuracy = accuracy_score(true_labels, predicted_labels)
         batch_precision = precision_score(true_labels, predicted_labels, average=None)
         batch_recall    = recall_score(true_labels, predicted_labels, average=None)

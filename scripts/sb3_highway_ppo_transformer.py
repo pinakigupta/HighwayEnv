@@ -678,6 +678,24 @@ if __name__ == "__main__":
 
             plt.tight_layout()
             plt.show()
+        elif train == TrainEnum.VALIDATION:
+            policy                            = retrieve_agent(
+                                                                artifact_version='trained_model_directory:latest',
+                                                                agent_model = 'agent_final.pth',
+                                                                device=device,
+                                                                project=project
+                                                              )
+            policy.to(device)
+            policy.eval()
+            accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                            policy, 
+                                                                            zip_filename=zip_filename,
+                                                                            device=device,
+                                                                            batch_size=batch_size,
+                                                                            n_cpu=n_cpu,
+                                                                            visited_data_files=[],
+                                                                            plot_path=None
+                                                                          )
     except KeyboardInterrupt:
         if TRACE:
             tracemalloc.stop()  # Stop memory tracing when done

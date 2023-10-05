@@ -100,6 +100,7 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
     ANALYSIS = 7
+    VALIDATION = 8
 
 project_names= \
     [
@@ -110,10 +111,11 @@ project_names= \
         f"BC_1" ,                    # EXPERT_DATA_COLLECTION =4
         f"BC" ,                      # BC = 5
         f"BC" ,                      # BCDEPLOY = 6
-        f'None'                      # ANALYSIS = 7
+        f'None',                     # ANALYSIS = 7
+        f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.VALIDATION
 zip_filename = 'expert_data_dagger_1.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
