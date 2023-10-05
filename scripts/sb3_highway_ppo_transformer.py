@@ -297,7 +297,6 @@ if __name__ == "__main__":
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    env.render()
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
         elif train == TrainEnum.RLDEPLOY:
@@ -351,7 +350,6 @@ if __name__ == "__main__":
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    env.render()
                     end_time = time.time()
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
@@ -534,7 +532,7 @@ if __name__ == "__main__":
         elif train == TrainEnum.BCDEPLOY:
             env_kwargs.update({'reward_oracle':None})
             # env_kwargs.update({'render_mode': 'human'})
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
