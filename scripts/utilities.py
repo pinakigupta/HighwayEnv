@@ -465,10 +465,11 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
                 
 
     # Calculate evaluation metrics
-    accuracy  = np.mean(batch_accuracy) 
-    precision = np.mean(batch_precision)
-    recall    = np.mean(batch_recall)
-    f1        = np.mean(batch_f1)
+    axis = None
+    accuracy  = np.mean(batch_accuracy,  axis=axis) 
+    precision = np.mean(batch_precision, axis=axis)
+    recall    = np.mean(batch_recall, axis=axis)
+    f1        = np.mean(batch_f1, axis=axis)
 
     # Print the metrics
     print("Accuracy:", accuracy, np.mean(accuracy))
