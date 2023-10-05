@@ -115,8 +115,8 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.VALIDATION
-zip_filename = 'expert_data_dagger_2.zip'
+train = TrainEnum.BCDEPLOY
+zip_filename = 'expert_data_dagger_1.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
@@ -134,4 +134,5 @@ attention_network_kwargs = dict(
                            },
     # num_layers = 3,
 )
+label_weights = np.array([3, 1])
 

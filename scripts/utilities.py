@@ -438,7 +438,6 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
     predicted_labels = []
     # Iterate through the validation data and make predictions
     # CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
-    file_names = [file_name for file_name in zipfile.ZipFile(zip_filename, 'r').namelist() if file_name.endswith('.h5') and "val" in file_name]
     val_data_loader = CustomDataLoader(
                                         zip_filename, 
                                         **{**kwargs,
@@ -451,9 +450,8 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
     for batch in val_data_loader:
         predicted_labels = [policy.predict(obs.cpu().numpy())[0] for obs in batch['obs']]
         true_labels = batch['acts'].cpu().numpy()
-        label_weights = np.array([3, 1])
-        true_labels = true_labels @ label_weights
-        predicted_labels = predicted_labels @ label_weights
+        true_labels = true_labels @ kwargs['label_weights']
+        predicted_labels = predicted_labels @ kwargs['label_weights']
         batch_accuracy = accuracy_score(true_labels, predicted_labels)
         batch_precision = precision_score(true_labels, predicted_labels, average=None)
         batch_recall    = recall_score(true_labels, predicted_labels, average=None)
