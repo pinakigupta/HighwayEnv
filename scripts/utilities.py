@@ -37,7 +37,8 @@ from torchvision import transforms
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
-
+ACTIONS_LAT = DiscreteMetaAction.ACTIONS_LAT
+ACTIONS_LONGI = DiscreteMetaAction.ACTIONS_LONGI
 import gym
 import numpy as np
 from gym import spaces
@@ -447,15 +448,20 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
     
     conf_matrix = None
     labels=list(ACTIONS_ALL.keys())
+    accuracies = []
+    precisions = []
+    recalls = []
+    f1s = []
+    labels = list(range(len(ACTIONS_LAT.keys())*len(ACTIONS_LAT.keys())))
     for batch in val_data_loader:
         predicted_labels = [policy.predict(obs.cpu().numpy())[0] for obs in batch['obs']]
-        true_labels = batch['acts'].cpu().numpy()
-        true_labels = true_labels @ kwargs['label_weights']
-        predicted_labels = predicted_labels @ kwargs['label_weights']
-        batch_accuracy = accuracy_score(true_labels, predicted_labels)
-        batch_precision = precision_score(true_labels, predicted_labels, average=None)
-        batch_recall    = recall_score(true_labels, predicted_labels, average=None)
-        batch_f1        = f1_score(true_labels, predicted_labels, average=None)
+        true_labels         = batch['acts'].cpu().numpy()
+        true_labels         = true_labels @ kwargs['label_weights']
+        predicted_labels    = predicted_labels @ kwargs['label_weights']
+        accuracies.append(accuracy_score (true_labels, predicted_labels))
+        precisions.append(precision_score(true_labels, predicted_labels, average=None, labels=labels))
+        recalls.append(recall_score(true_labels, predicted_labels, average=None, labels=labels))
+        f1s.append(f1_score(true_labels, predicted_labels, average=None, labels=labels))
         if conf_matrix is not None:
             conf_matrix += confusion_matrix(true_labels, predicted_labels, labels=labels )
         else:
@@ -463,11 +469,11 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
                 
 
     # Calculate evaluation metrics
-    axis = None
-    accuracy  = np.mean(batch_accuracy,  axis=axis) 
-    precision = np.mean(batch_precision, axis=axis)
-    recall    = np.mean(batch_recall, axis=axis)
-    f1        = np.mean(batch_f1, axis=axis)
+    axis = 0
+    accuracy  = np.mean(accuracies,  axis=axis) 
+    precision = np.mean(precisions, axis=axis)
+    recall    = np.mean(recalls, axis=axis)
+    f1        = np.mean(f1s, axis=axis)
 
     # Print the metrics
     print("Accuracy:", accuracy, np.mean(accuracy))
