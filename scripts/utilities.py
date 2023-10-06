@@ -491,7 +491,7 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
         plt.xlabel("Predicted Labels")
         plt.ylabel("True Labels")
         plt.title(f"Confusion Matrix for {kwargs['type']}")
-        heatmap_png = 'heatmap.png'
+        heatmap_png = f'heatmap_{kwargs["type"]}.png'
         plt.savefig(heatmap_png)
 
     if False: # For now keep this local as the remote artifact size is growing too much
@@ -566,13 +566,14 @@ class CustomImageExtractor(BaseFeaturesExtractor):
 import random
 import math
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
-    def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu, validation=False, **kwargs):
+    def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu, validation=False, verbose=False, **kwargs):
         self.kwargs = kwargs
         self.zip_filename = zip_filename
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
         self.n_cpu =  n_cpu
+        self.verbose = verbose
         self.is_validation = validation or self.kwargs['type'] == 'val'
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
@@ -686,7 +687,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
     def __iter__(self):
         num_yielded_batches = 0 
         while True: # Keep iterating till num batches is met
-            print(f"++++++++++++++++++ ITER PASS {self.iter} +++++++++++++++++++")
+            if self.verbose:
+                print(f"++++++++++++++++++ ITER PASS {self.iter} +++++++++++++++++++")
             self.iter += 1
             for file_name in self.hdf5_train_file_names:
                 with ZipfContextManager(self.zip_filename, file_name) as hf:
@@ -813,7 +815,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
 
     def generate_batches_from_one_chunk(self, total_samples_for_chunk ,step_num):
-        print(f"Launching writer worker processes for step {step_num}", flush=True)
+        if self.verbose:
+            print(f"Launching writer worker processes for step {step_num}", flush=True)
         samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
         self.all_worker_indices = self.calculate_worker_indices(total_samples_for_chunk)
         worker_processes = self.launch_writer_workers(samples_queue, total_samples_for_chunk)
@@ -838,7 +841,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         # self._reset_tuples()
         # Collect and yield batches from each process
         self.destroy_workers(worker_processes)
-        print(f" Terminated all writer process for  step {step_num}", flush=True)
+        if self.verbose:
+            print(f" Terminated all writer process for  step {step_num}", flush=True)
 
 
 

@@ -383,6 +383,7 @@ if __name__ == "__main__":
                                         batch_size=kwargs['batch_size'],
                                         minibatch_size=kwargs['minibatch_size'],
                                         device = device,
+                                        l2_weight = 0.0001,
                                         policy=policy
                                     )        
         
@@ -424,7 +425,7 @@ if __name__ == "__main__":
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 50000 if last_epoch else 600 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 56000 if last_epoch else 15600 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -521,13 +522,31 @@ if __name__ == "__main__":
             print('Beginnig final validation step')
             accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                             final_policy, 
-                                                                            zip_filename=zip_filename, 
+                                                                            zip_filename=zip_filename,
                                                                             device=device,
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
-                                                                            visited_data_files=[]
-                                                                            # plot_path=f"heatmap_{epoch}.png" 
-                                                                            )
+                                                                            visited_data_files=[],
+                                                                            val_batch_count=5000,
+                                                                            chunk_size=500,
+                                                                            label_weights=label_weights,
+                                                                            type='val',
+                                                                            plot_path=None
+                                                                          )
+            accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                            policy, 
+                                                                            zip_filename=zip_filename,
+                                                                            device=device,
+                                                                            batch_size=batch_size,
+                                                                            n_cpu=n_cpu,
+                                                                            visited_data_files=[],
+                                                                            val_batch_count=5000,
+                                                                            chunk_size=500,
+                                                                            label_weights=label_weights,
+                                                                            type='train',
+                                                                            validation=True,
+                                                                            plot_path=None
+                                                                          )
             print('Ending final validation step and plotting the heatmap ')
         elif train == TrainEnum.BCDEPLOY:
             env_kwargs.update({'reward_oracle':None})

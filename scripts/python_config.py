@@ -18,7 +18,7 @@ env_kwargs = {
                 "min_width": 2,
                 "max_width": 3.5,
             },
-        'position_noise': functools.partial(np.random.normal, loc=0, scale=0.01),
+        'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
         'simulation_frequency': 10,
         "min_lanes_count": 2,
         "max_lanes_count": 7,
@@ -86,7 +86,7 @@ sweep_config = {
             "values": [ 128 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [20]  # Values for the "duration" field to be swept
+            "values": [1]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -116,7 +116,7 @@ project_names= \
     ]
 
 train = TrainEnum.VALIDATION
-zip_filename = 'expert_data_dagger_2.zip'
+zip_filename = 'expert_data_dagger.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
