@@ -667,7 +667,9 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
         try:
             for key in self.keys_to_consider:
-                values = [list(sample[key].values()) if isinstance(sample[key], dict) else sample[key] for sample in batch_samples]     
+                values = [list(sample[key].values()) if isinstance(sample[key], dict) else sample[key] for sample in batch_samples] 
+                if key == 'acts' and 'label_weights' in self.kwargs:
+                    values = values @ self.kwargs['label_weights']
                 batch[key] = torch.tensor(values, dtype=torch.float32).to(self.device)
         except Exception as e:
             print(batch_samples[0].keys())
@@ -702,16 +704,6 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     return  # Exit the generator loop
             if self.is_validation: # Only one iteration through all the files is file
                 break
-
-    def __iter_once__(self):    
-        for train_data_file in self.hdf5_train_file_names :
-            # if train_data_file  in self.visited_data_files:
-            #     continue
-            # self.visited_data_files.add(train_data_file)
-            for item in self.iter_once_one_file(train_data_file):
-                yield item
-            # print(f"Iter once through file {train_data_file}")
-
 
     def reader_worker(
                         self, 

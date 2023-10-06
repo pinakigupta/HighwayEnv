@@ -421,6 +421,7 @@ if __name__ == "__main__":
                                                             batch_size = minibatch_size, 
                                                             n_cpu=n_cpu, 
                                                             chunk_size=15000,
+                                                            label_weights=label_weights,
                                                             type='train'
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
