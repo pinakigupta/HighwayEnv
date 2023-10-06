@@ -56,11 +56,12 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
 class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
     def __init__(self, env, action_weights, **kwargs):
         super(MultiDiscreteToSingleDiscreteWrapper, self).__init__(env, **kwargs)
-        self.action_weights = action_weights  # Action weights for mapping multi to single
+        self.nvec = self.env.action_space.nvec
+        self.action_weights = np.copy(self.nvec) # Action weights for mapping multi to single
+        self.action_weights[-1] = 1
         self.inv_action_weights = 1/self.action_weights
-        if isinstance(self.env.action_space, gym.spaces.MultiDiscrete):
-            self.action_space = self.convert_to_single_discrete()
-            self.dim = self.env.action_space.nvec
+        if isinstance(self.env.action_space, gym.spaces.MultiDiscrete):            
+            self.action_space = gym.spaces.Discrete(np.prod(self.nvec))
         else:
             self.action_space = self.env.action_space
 
@@ -75,13 +76,6 @@ class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
     
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
-
-    def convert_to_single_discrete(self)->gym.spaces:
-        # Convert a MultiDiscrete action to a single action using action_weights
-        # np_multi_discrete_action = np.array(multi_discrete_action)
-        # single_action = np_multi_discrete_action @ self.action_weights
-        # single_action = gym.spaces.Discrete(0)
-        return gym.spaces.Discrete(9)
     
     def convert_to_multi_discrete(self, single_action:gym.spaces)->gym.spaces:
         if  isinstance(self.env.action_space, gym.spaces.MultiDiscrete):
