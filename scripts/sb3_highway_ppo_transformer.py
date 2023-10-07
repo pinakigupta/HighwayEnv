@@ -425,7 +425,7 @@ if __name__ == "__main__":
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 56000 if last_epoch else 15600 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 25000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -534,7 +534,7 @@ if __name__ == "__main__":
                                                                             plot_path=None
                                                                           )
             accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                            policy, 
+                                                                            final_policy, 
                                                                             zip_filename=zip_filename,
                                                                             device=device,
                                                                             batch_size=batch_size,
