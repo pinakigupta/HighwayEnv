@@ -6,8 +6,6 @@ import concurrent.futures
 import statistics
 import numpy as np
 from utils import record_videos
-from python_config import label_weights
-from highway_env.envs.common.action import DiscreteAction
 # ==================================
 #     Environment configuration
 # ==================================
@@ -61,7 +59,7 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
         return dict_action
 
 class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
-    def __init__(self, env, action_weights, **kwargs):
+    def __init__(self, env, **kwargs):
         super(MultiDiscreteToSingleDiscreteWrapper, self).__init__(env, **kwargs)
         self.nvec = self.env.action_space.nvec
         self.action_weights = np.copy(self.nvec) # Action weights for mapping multi to single
@@ -108,7 +106,7 @@ def make_configure_env(**kwargs):
     env.reset()
     custom_key_order = ['long','lat']
     env = DictToMultiDiscreteWrapper(env,key_order=custom_key_order)
-    env = MultiDiscreteToSingleDiscreteWrapper(env, action_weights=label_weights)
+    env = MultiDiscreteToSingleDiscreteWrapper(env)
     return env
 
 
