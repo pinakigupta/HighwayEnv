@@ -384,6 +384,7 @@ if __name__ == "__main__":
                                         minibatch_size=kwargs['minibatch_size'],
                                         device = device,
                                         l2_weight = 0.0001,
+                                        # ent_weight= 0.01,
                                         policy=policy
                                     )        
         
@@ -529,7 +530,7 @@ if __name__ == "__main__":
                                                                             visited_data_files=[],
                                                                             val_batch_count=5000,
                                                                             chunk_size=500,
-                                                                            label_weights=label_weights,
+                                                                            # label_weights=label_weights,
                                                                             type='val',
                                                                             plot_path=None
                                                                           )
@@ -542,7 +543,7 @@ if __name__ == "__main__":
                                                                             visited_data_files=[],
                                                                             val_batch_count=5000,
                                                                             chunk_size=500,
-                                                                            label_weights=label_weights,
+                                                                            # label_weights=label_weights,
                                                                             type='train',
                                                                             validation=True,
                                                                             plot_path=None
@@ -607,7 +608,7 @@ if __name__ == "__main__":
                     expert_action , _= env.vehicle.discrete_action()
                     expert_action = [env.action_type.actions_indexes[key][expert_action[key]] for key in ['long', 'lat']] 
                     true_labels.append(expert_action)
-                    action, _ = policy.predict(obs, deterministic=True)
+                    action, _ = policy.predict(obs)
                     predicted_labels.append(action)
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
@@ -731,7 +732,7 @@ if __name__ == "__main__":
                                                                             visited_data_files=[],
                                                                             val_batch_count=5000,
                                                                             chunk_size=500,
-                                                                            label_weights=label_weights,
+                                                                            # label_weights=label_weights,
                                                                             type='val',
                                                                             plot_path=None
                                                                           )
@@ -744,7 +745,7 @@ if __name__ == "__main__":
                                                                             visited_data_files=[],
                                                                             val_batch_count=5000,
                                                                             chunk_size=500,
-                                                                            label_weights=label_weights,
+                                                                            # label_weights=label_weights,
                                                                             type='train',
                                                                             validation=True,
                                                                             plot_path=None

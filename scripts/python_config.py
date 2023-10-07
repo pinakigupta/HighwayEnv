@@ -86,7 +86,7 @@ sweep_config = {
             "values": [ 128 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [25]  # Values for the "duration" field to be swept
+            "values": [1]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -116,7 +116,7 @@ project_names= \
     ]
 
 train = TrainEnum.BC
-zip_filename = 'expert_data_dagger_1.zip'
+zip_filename = 'temp.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
@@ -125,7 +125,8 @@ attention_network_kwargs = dict(
     embedding_layer_kwargs={
                                 "in_size": len(env_kwargs['config']['KinematicObservation']['features']), 
                                 "layer_sizes": [64, 64], 
-                                "reshape": False
+                                "reshape": False,
+                                "activation": 'RELU'
                             },
     attention_layer_kwargs={
                                 "feature_size": 64, 
