@@ -210,13 +210,13 @@ class EventHandler(object):
     def handle_discrete_action_event(cls, action_type: DiscreteMetaAction, event: pygame.event.EventType) -> None:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RIGHT and action_type.longitudinal:
-                action_type.act(action_type.actions_indexes["FASTER"])
+                action_type.act(action_type.actions_indexes['long']["FASTER"])
             if event.key == pygame.K_LEFT and action_type.longitudinal:
-                action_type.act(action_type.actions_indexes["SLOWER"])
+                action_type.act(action_type.actions_indexes['long']["SLOWER"])
             if event.key == pygame.K_DOWN and action_type.lateral:
-                action_type.act(action_type.actions_indexes["LANE_RIGHT"])
+                action_type.act(action_type.actions_indexes['lat']["LANE_RIGHT"])
             if event.key == pygame.K_UP:
-                action_type.act(action_type.actions_indexes["LANE_LEFT"])
+                action_type.act(action_type.actions_indexes['lat']["LANE_LEFT"])
 
     @classmethod
     def handle_continuous_action_event(cls, action_type: ContinuousAction, event: pygame.event.EventType) -> None:

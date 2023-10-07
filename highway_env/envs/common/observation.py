@@ -189,16 +189,17 @@ class KinematicObservation(ObservationType):
         For now, assume that the road is straight along the x axis.
         :param Dataframe df: observation data
         """
+        lanes = [0, 10]
         if not self.features_range:
             side_lanes = self.env.road.network.all_side_lanes(self.observer_vehicle.lane_index)
             self.features_range = {
                 "x":  [-5.0 * Vehicle.MAX_SPEED, 5.0 * Vehicle.MAX_SPEED],
-                "y":  [-AbstractLane.DEFAULT_WIDTH * len(side_lanes), AbstractLane.DEFAULT_WIDTH * len(side_lanes)],
-                "vx": [-2*Vehicle.MAX_SPEED, 2*Vehicle.MAX_SPEED],
-                "vy": [-2*Vehicle.MAX_SPEED, 2*Vehicle.MAX_SPEED],
-                'L':  [0, 20],
-                'W':  [0, 5],
-                'lane': [0, 10],
+                "y":  [0 , self.env.vehicle.lane.DEFAULT_WIDTH*lanes[1]],
+                "vx": [-0.2*Vehicle.MAX_SPEED, 1.25*Vehicle.MAX_SPEED],
+                "vy": [-0.02*Vehicle.MAX_SPEED, 0.02*Vehicle.MAX_SPEED],
+                'L':  [0.75*self.env.config['min_length'], 1.25*self.env.config['max_length']],
+                'W':  [0.75*self.env.config['min_width'] , 1.25*self.env.config['max_width']],
+                'lane': lanes,
             }
         for feature, f_range in self.features_range.items():
             if feature in df:
