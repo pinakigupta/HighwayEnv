@@ -85,12 +85,16 @@ class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
     
-    def convert_to_multi_discrete(self, single_action:gym.spaces)->gym.spaces:
-        if  isinstance(self.env.action_space, gym.spaces.MultiDiscrete):
-            # If the action space is not MultiDiscrete, return the input as is
-            return single_action # Already multi 
+    def convert_to_multi_discrete(self, action:gym.spaces)->gym.spaces:
+        if  isinstance(action, gym.spaces.Discrete) or isinstance(action, np.ndarray):
+            # Hardcoding this for two variables for now
+            rem = action%self.action_weights[0]
+            mod = (action-rem)/self.action_weights[0]
+            return np.array([mod, rem])
+        
+        return action # Already multi 
 
-        return single_action @ self.inv_action_weights
+        
     
     def convert_to_single_discrete(self, multi_action:gym.spaces)->gym.spaces:
         return multi_action @ self.action_weights
