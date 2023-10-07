@@ -107,6 +107,7 @@ def worker(
                 discrete_action = v.discrete_action()[0]
                 # print('env.action_type.actions_indexes ', env.action_type.actions_indexes, ' discrete_action ', discrete_action)
                 acts =  {k:env.action_type.actions_indexes[k][v] for k,v in discrete_action.items()}
+                acts = env.discrete_action(acts)
                 if v not in all_obs:
                     all_obs[v] = []
                     all_acts[v] = []
@@ -253,10 +254,13 @@ def collect_expert_data(
                 count += 1
                 # print(' arr1 and arr2 ', arr1)
                     # raise ValueError("arr1 is empty, dataset creation aborted")
-                data_str = json.dumps(arr3)
+                try:
+                    arr3 = json.dumps(arr3)
+                except:
+                    pass
                 episode_group.create_dataset(f'exp_obs{i}',     data=arr1,  dtype='float32')
                 episode_group.create_dataset(f'exp_kin_obs{i}', data=arr2,  dtype='float32')
-                episode_group.create_dataset(f'exp_acts{i}',    data=data_str,  dtype='S100')
+                episode_group.create_dataset(f'exp_acts{i}',    data=arr3,  dtype='S100')
                 episode_group.create_dataset(f'exp_done{i}',    data=arr4,  dtype=bool)
             steps_count += count
             if count > 0:

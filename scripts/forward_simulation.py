@@ -22,7 +22,10 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
         if isinstance(self.env.action_space, gym.spaces.Dict):
             # Assuming that the 'action_space' of the original environment is a Dict
             self.key_order = key_order or list(self.env.action_space.spaces.keys())
-            self.action_space = self.convert_to_multi_discrete(self.env.action_space)
+            self.ndim = [self.env.action_space[key].n for key in self.key_order]
+            self.action_space = gym.spaces.MultiDiscrete(self.ndim)
+            # self.multi_discrete_action = self.action_space.sample()
+            # self.action_space = self.convert_to_multi_discrete(self.env.action_space)
         else:
             self.key_order = None  # No key order needed for non-dict action spaces
             self.action_space = self.env.action_space
@@ -34,14 +37,18 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
         else:
             dict_action = action
         return self.env.step(dict_action)
+    
+    def discrete_action(self, discrete_action):
+        return self.convert_to_multi_discrete(self.env.discrete_action(discrete_action))
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
-    def convert_to_multi_discrete(self, dict_action_space):
+    def convert_to_multi_discrete(self, dict_action):
         # Convert a Dict action space to a MultiDiscrete action space
-        num_discrete_actions = [dict_action_space.spaces[key].n for key in self.key_order]
-        return gym.spaces.MultiDiscrete(num_discrete_actions)
+        action_list = [dict_action[key] for key in self.key_order]
+        # self.action_space.sample()[:] = action_list
+        return action_list
 
     def convert_to_dict(self, multi_discrete_action):
         # Convert a MultiDiscrete action to a Dict action
@@ -74,6 +81,9 @@ class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
             multi_action = action
         return self.env.step(multi_action)
     
+    def discrete_action(self, discrete_action):
+        return self.convert_to_single_discrete(self.env.discrete_action(discrete_action))
+    
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
     
@@ -83,6 +93,9 @@ class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
             return single_action # Already multi 
 
         return single_action @ self.inv_action_weights
+    
+    def convert_to_single_discrete(self, multi_action:gym.spaces)->gym.spaces:
+        return multi_action @ self.action_weights
         
 def make_configure_env(**kwargs):
     env = gym.make(
