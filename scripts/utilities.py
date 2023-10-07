@@ -880,6 +880,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             except (IndexError, EOFError, BrokenPipeError) as e:
                 # print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
                 pass
+            except Exception as e:
+                pass
             # time.sleep(0.01)
                         
         # samples_queue.put(None)

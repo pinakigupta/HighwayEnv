@@ -218,6 +218,9 @@ class HighwayEnv(AbstractEnv):
         reward = self.ep_rward
         self.ep_rward = 0
         return reward
+    
+    def discrete_action(self, action):
+        return action
 
 
 class HighwayEnvFast(HighwayEnv):
