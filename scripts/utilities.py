@@ -5,12 +5,9 @@ import os, shutil
 os.environ["HDF5_USE_THREADING"] = "true"
 import h5py
 import copy
-# import h5pyd as h5py
 import sys
-from stable_baselines3.common.policies import ActorCriticPolicy
-from models.nets import PolicyNetwork
+from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
 from torch.utils.data import Dataset, DataLoader
-from torch.nn.utils.rnn import pad_sequence
 import torch
 from generate_expert_data import extract_post_processed_expert_data  
 import pygame  
@@ -34,6 +31,8 @@ import torchvision.models as models
 from contextlib import ExitStack
 from torchvision.models.video import R3D_18_Weights
 from torchvision import transforms
+import random
+import math
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
@@ -101,6 +100,27 @@ def write_module_hierarchy_to_file(model, file):
                         file.write(f'{indent}    ├─{name}: {submodule.shape}\n')
 
     write_module_recursive(model, file, processed_submodules=set())
+
+class RandomPolicy(BasePolicy):
+    def __init__(self, env, device, *args, **kwargs):
+        super(RandomPolicy, self).__init__(
+                                            *args, 
+                                            observation_space=env.observation_space,
+                                            action_space=env.action_space,
+                                            **kwargs
+                                          )
+        # self.action_space = env.action_space
+        # self.device = device
+        self.n = self.action_space.n
+
+    def _predict(self, obs, deterministic=False):
+        # Generate random actions from a uniform distribution
+        action = np.array(np.random.randint(0, self.n))
+        return action, None
+    
+    def predict(self, obs):
+        return self._predict(obs)
+    
 
 def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
@@ -448,22 +468,28 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
                                       ) 
     
     conf_matrix = None
-    labels=list(ACTIONS_ALL.keys())
     accuracies = []
     precisions = []
     recalls = []
+    cross_entropies = []
+    entropies = []
     f1s = []
     labels = list(range(len(ACTIONS_LAT.keys())*len(ACTIONS_LAT.keys())))
+    policy.eval()
     for batch in val_data_loader:
         predicted_labels = [policy.predict(obs.cpu().numpy())[0] for obs in batch['obs']]
         true_labels         = batch['acts'].cpu().numpy()
         if 'label_weights' in kwargs:
             true_labels         = true_labels @ kwargs['label_weights']
             predicted_labels    = predicted_labels @ kwargs['label_weights']
+        with torch.no_grad():
+            _, log_prob, entropy = policy.evaluate_actions(batch['obs'], batch['acts'])
         accuracies.append(accuracy_score (true_labels, predicted_labels))
         precisions.append(precision_score(true_labels, predicted_labels, average=None, labels=labels))
         recalls.append(recall_score(true_labels, predicted_labels, average=None, labels=labels))
         f1s.append(f1_score(true_labels, predicted_labels, average=None, labels=labels))
+        cross_entropies.append(-log_prob.mean().detach().cpu().numpy())
+        entropies.append(entropy.mean().detach().cpu().numpy())
         if conf_matrix is not None:
             conf_matrix += confusion_matrix(true_labels, predicted_labels, labels=labels )
         else:
@@ -476,9 +502,12 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
     precision = np.mean(precisions, axis=axis)
     recall    = np.mean(recalls, axis=axis)
     f1        = np.mean(f1s, axis=axis)
+    cross_entropies = np.mean(cross_entropies)
+    entropies = np.mean(entropies)
 
     # Print the metrics
     print("Accuracy:", accuracy, np.mean(accuracy))
+    print("cross_entropy:", np.mean(cross_entropies), "entropy:", np.mean(entropies))
     print("Precision:", precision, np.mean(precision))
     print("Recall:", recall, np.mean(recall))
     print("F1 Score:", f1, np.mean(f1))
@@ -564,8 +593,7 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         
         return hidden_features  # Return the extracted features
 
-import random
-import math
+
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
     def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu, validation=False, verbose=False, **kwargs):
         self.kwargs = kwargs
@@ -753,14 +781,14 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
     def iter_once_all_files(self):
         self.step_num =0         
         while self.total_samples:
-            print(f"Launching all reader processes for step {self.step_num}", flush=True)
+            # print(f"Launching all reader processes for step {self.step_num}", flush=True)
             self.all_acts = []
             self.all_obs = []
             self.all_kin_obs = []
             self.all_dones = []
             reader_queue = self.manager.Queue()
             reader_processes = self.launch_reader_workers(reader_queue)
-            print(f"Launched all reader processes for step {self.step_num}", flush=True)
+            # print(f"Launched all reader processes for step {self.step_num}", flush=True)
 
 
 

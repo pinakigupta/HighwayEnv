@@ -15,8 +15,6 @@ import wandb
 import torchvision.transforms.functional as TF
 from datetime import datetime
 import time
-from torch import FloatTensor
-import shutil
 from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
@@ -101,7 +99,7 @@ if __name__ == "__main__":
 
     batch_size = sweep_config['parameters']['batch_size']['values'][0]
     num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
-    minibatch_size = batch_size
+    minibatch_size = batch_size//4
     num_deploy_rollouts = 5
 
     try:
@@ -109,16 +107,17 @@ if __name__ == "__main__":
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = None
+            policy = True
             if policy:
-                oracle_agent                            = retrieve_agent(
-                                                                            artifact_version='trained_model_directory:latest',
-                                                                            agent_model = 'agent_final.pt',
-                                                                            device=device,
-                                                                            project=project
-                                                                        )
-                policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs).unwrapped, device, **policy_kwargs)
-                policy.load_state_dict(oracle_agent.state_dict())
+                # oracle_agent                            = retrieve_agent(
+                #                                                             artifact_version='trained_model_directory:latest',
+                #                                                             agent_model = 'agent_final.pt',
+                #                                                             device=device,
+                #                                                             project=project
+                #                                                         )
+                # policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs), device, **policy_kwargs)
+                policy = RandomPolicy(env=make_configure_env(**env_kwargs), device=device, **policy_kwargs)
+                # policy.load_state_dict(oracle_agent.state_dict())
                 policy.eval()
                 print('EXPERT_DATA_COLLECTION using PREVIOUS POLICY for exploration')
             else:
@@ -426,7 +425,7 @@ if __name__ == "__main__":
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 25000 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 6000 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -609,8 +608,10 @@ if __name__ == "__main__":
                     expert_action = [env.action_type.actions_indexes[key][expert_action[key]] for key in ['long', 'lat']] 
                     true_labels.append(expert_action)
                     action, _ = policy.predict(obs)
+                    # action_logits = torch.nn.functional.softmax(policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.tensor(obs).to(device)))[0]))
+                    # action = np.array(torch.argmax(action_logits, dim=-1).item())
                     predicted_labels.append(action)
-                    env.vehicle.actions = []
+                    # env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     end_time = time.time()
                     cumulative_reward += gamma * reward
@@ -650,8 +651,8 @@ if __name__ == "__main__":
                     print(f"Execution frequency is {frequency}")
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
-            true_labels = true_labels @ label_weights
-            predicted_labels = predicted_labels @ label_weights
+            # true_labels = true_labels @ label_weights
+            # predicted_labels = predicted_labels @ label_weights
             accuracy = accuracy_score(true_labels, predicted_labels)
             precision = precision_score(true_labels, predicted_labels, average=None)
             recall    = recall_score(true_labels, predicted_labels, average=None)
@@ -730,26 +731,26 @@ if __name__ == "__main__":
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             visited_data_files=[],
-                                                                            val_batch_count=5000,
+                                                                            val_batch_count=500,
                                                                             chunk_size=500,
                                                                             # label_weights=label_weights,
                                                                             type='val',
                                                                             plot_path=None
                                                                           )
-            accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                            policy, 
-                                                                            zip_filename=zip_filename,
-                                                                            device=device,
-                                                                            batch_size=batch_size,
-                                                                            n_cpu=n_cpu,
-                                                                            visited_data_files=[],
-                                                                            val_batch_count=5000,
-                                                                            chunk_size=500,
-                                                                            # label_weights=label_weights,
-                                                                            type='train',
-                                                                            validation=True,
-                                                                            plot_path=None
-                                                                          )
+            # accuracy, precision, recall, f1 = calculate_validation_metrics(
+            #                                                                 policy, 
+            #                                                                 zip_filename=zip_filename,
+            #                                                                 device=device,
+            #                                                                 batch_size=batch_size,
+            #                                                                 n_cpu=n_cpu,
+            #                                                                 visited_data_files=[],
+            #                                                                 val_batch_count=5000,
+            #                                                                 chunk_size=500,
+            #                                                                 # label_weights=label_weights,
+            #                                                                 type='train',
+            #                                                                 validation=True,
+            #                                                                 plot_path=None
+            #                                                               )
     except KeyboardInterrupt:
         if TRACE:
             tracemalloc.stop()  # Stop memory tracing when done

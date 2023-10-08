@@ -71,7 +71,7 @@ def worker(
         all_done = {}
         all_kinematic_obs = {}
         
-        act = {'long':4, 'lat':1}
+        act = {'long': 'SLOWER', 'lat': 'STRAIGHT'}
 
         if exit_event.is_set():
             # print('Exit condition is triggered. Breaking ', worker_id)
