@@ -520,7 +520,17 @@ if __name__ == "__main__":
                 print('Saved final model')
 
             print('Beginnig final validation step')
+            train_datasets =[]
+            data_loader                                            = create_dataloaders(
+                                                                                                    zip_filename,
+                                                                                                    train_datasets, 
+                                                                                                    device=device,
+                                                                                                    batch_size=minibatch_size,
+                                                                                                    n_cpu = n_cpu,
+                                                                                                    visited_data_files=set([])
+                                                                                                )
             metrics                         = calculate_validation_metrics(
+                                                                            data_loader,
                                                                             final_policy, 
                                                                             zip_filename=zip_filename,
                                                                             device=val_device,
@@ -532,6 +542,7 @@ if __name__ == "__main__":
                                                                             plot_path=None
                                                                           )
             metrics                        = calculate_validation_metrics(
+                                                                            data_loader,
                                                                             final_policy, 
                                                                             zip_filename=zip_filename,
                                                                             device=val_device,

@@ -462,7 +462,12 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
 
 def process_batch(result_queue, policy, batch_data_queue, labels, worker_index,lock, batch_count, **kwargs):
     while True:
-        batch = batch_data_queue.get()
+        try:
+            batch = batch_data_queue.get(timeout=0.1)
+        except Exception as e:
+            # print(f'Timeout error {e} in {worker_index} batch_data_queue')
+            time.sleep(0.1)
+            continue
         predicted_labels = [policy.predict(obs.numpy())[0] for obs in batch['obs']]
         true_labels = batch['acts'].numpy()
         if 'label_weights' in kwargs:
@@ -470,34 +475,35 @@ def process_batch(result_queue, policy, batch_data_queue, labels, worker_index,l
             predicted_labels    = predicted_labels @ kwargs['label_weights']
         with torch.no_grad():
             _, log_prob, entropy = policy.evaluate_actions(batch['obs'], batch['acts'])
-        # if lock.acquire(timeout=1):
-        result_queue.put( {
-            'accuracy': accuracy_score(true_labels, predicted_labels),
-            'precision': precision_score(true_labels, predicted_labels, average=None, labels=labels),
-            'recall': recall_score(true_labels, predicted_labels, average=None, labels=labels),
-            'f1': f1_score(true_labels, predicted_labels, average=None, labels=labels),
-            'cross_entropy': -log_prob.mean().detach().cpu().numpy(),
-            'entropy': entropy.mean().detach().cpu().numpy(),
-            'conf_matrix': confusion_matrix(true_labels, predicted_labels, labels=labels)
-            })
-            # batch_count +=1
+        try:
+            result_queue.put( {
+                'accuracy': accuracy_score(true_labels, predicted_labels),
+                'precision': precision_score(true_labels, predicted_labels, average=None, labels=labels),
+                'recall': recall_score(true_labels, predicted_labels, average=None, labels=labels),
+                'f1': f1_score(true_labels, predicted_labels, average=None, labels=labels),
+                'cross_entropy': -log_prob.mean().detach().cpu().numpy(),
+                'entropy': entropy.mean().detach().cpu().numpy(),
+                'conf_matrix': confusion_matrix(true_labels, predicted_labels, labels=labels)
+                }, timeout=0.1)
+        except Exception as e:
+            print(f"Time out error {e} in {worker_index} result_queue")
             # lock.release()
 
 
-def calculate_validation_metrics(policy,zip_filename, **kwargs):
+def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs):
     true_labels = []
     predicted_labels = []
     # Iterate through the validation data and make predictions
     # CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
     print(f"Calcuating validaton metrices for {kwargs['type']}-------------> ")
-    val_data_loader = CustomDataLoader(
-                                        zip_filename, 
-                                        **{**kwargs,
-                                            'type':kwargs['type'],
-                                            'validation': True,
-                                            'visited_data_files': []
-                                          }
-                                      ) 
+    # val_data_loader = CustomDataLoader(
+    #                                     zip_filename, 
+    #                                     **{**kwargs,
+    #                                         'type':kwargs['type'],
+    #                                         'validation': True,
+    #                                         'visited_data_files': []
+    #                                       }
+    #                                   ) 
     
     conf_matrix = None
     accuracies = []
