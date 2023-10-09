@@ -400,24 +400,24 @@ if __name__ == "__main__":
                 metricses = {}
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    # train_data_loader                                            = create_dataloaders(
-                    #                                                                                       zip_filename,
+                    train_data_loader                                            = create_dataloaders(
+                                                                                                          zip_filename,
                                      
-                    #                                                                                       train_datasets, 
-                    #                                                                                       device=device,
-                    #                                                                                       batch_size=minibatch_size,
-                    #                                                                                       n_cpu = n_cpu,
-                    #                                                                                       visited_data_files=visited_data_files
-                    #                                                                                   )
-                    train_data_loader = CustomDataLoader(
-                                                            zip_filename, 
-                                                            device, 
-                                                            visited_data_files, 
-                                                            batch_size = minibatch_size, 
-                                                            n_cpu=n_cpu, 
-                                                            chunk_size=15000,
-                                                            type='train'
-                                                        )
+                                                                                                          train_datasets, 
+                                                                                                          device=device,
+                                                                                                          batch_size=minibatch_size,
+                                                                                                          n_cpu = n_cpu,
+                                                                                                          visited_data_files=visited_data_files
+                                                                                                      )
+                    # train_data_loader = CustomDataLoader(
+                    #                                         zip_filename, 
+                    #                                         device, 
+                    #                                         visited_data_files, 
+                    #                                         batch_size = minibatch_size, 
+                    #                                         n_cpu=n_cpu, 
+                    #                                         chunk_size=15000,
+                    #                                         type='train'
+                    #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 16000 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
@@ -722,11 +722,7 @@ if __name__ == "__main__":
             metrics                      = calculate_validation_metrics(
                                                                             policy, 
                                                                             zip_filename=zip_filename,
-<<<<<<< HEAD
                                                                             device=val_device,
-=======
-                                                                            device=torch.device('cpu'),
->>>>>>> 961434af88cd9b0fd1b821264e9fdb52feede7c0
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             val_batch_count=500,
@@ -737,11 +733,7 @@ if __name__ == "__main__":
             metrics                      = calculate_validation_metrics(
                                                                             policy, 
                                                                             zip_filename=zip_filename,
-<<<<<<< HEAD
                                                                             device=val_device,
-=======
-                                                                            device=torch.device('cpu'),
->>>>>>> 961434af88cd9b0fd1b821264e9fdb52feede7c0
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             val_batch_count=500,

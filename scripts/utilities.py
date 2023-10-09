@@ -166,7 +166,14 @@ class CustomDataset(Dataset):
         try:
             for key in self.keys_attributes:
                 if key in self.data:
-                    value = torch.tensor(self.data[key][idx], dtype=torch.float32)
+                    try:
+                        # Attempt to deserialize the data as JSON
+                        value = json.loads(self.data[key][idx]) 
+                    except:
+                        # If JSON deserialization fails, assume it's a primitive type
+                        value = self.data[key][idx]
+                    value = torch.tensor(value, dtype=torch.float32)
+                    # value = torch.tensor(self.data[key][idx], dtype=torch.float32)
                     sample[key] = value
 
         except Exception as e:
@@ -394,12 +401,12 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
         for train_data_file in hdf5_train_file_names:
             if train_data_file not in visited_data_files:
                 visited_data_files.add(train_data_file)
-                with zipf.open(train_data_file) as file_in_ziip:
+                with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
-                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'acts'])
+                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])
                     print(f"Loaded custom data set for {train_data_file}")
-                    new_key = 'obs'
-                    old_key = 'kin_obs'
+                    new_key = 'acts'
+                    old_key = 'act'
                     modified_dataset = []
                     for i in range(len(samples)):
                         my_dict = samples[i]
