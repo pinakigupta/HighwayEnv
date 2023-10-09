@@ -463,18 +463,18 @@ def process_batch(result_queue, policy, batch_data_queue, labels, worker_index,l
             predicted_labels    = predicted_labels @ kwargs['label_weights']
         with torch.no_grad():
             _, log_prob, entropy = policy.evaluate_actions(batch['obs'], batch['acts'])
-        if lock.acquire(timeout=1):
-            result_queue.put( {
-                'accuracy': accuracy_score(true_labels, predicted_labels),
-                'precision': precision_score(true_labels, predicted_labels, average=None, labels=labels),
-                'recall': recall_score(true_labels, predicted_labels, average=None, labels=labels),
-                'f1': f1_score(true_labels, predicted_labels, average=None, labels=labels),
-                'cross_entropy': -log_prob.mean().detach().cpu().numpy(),
-                'entropy': entropy.mean().detach().cpu().numpy(),
-                'conf_matrix': confusion_matrix(true_labels, predicted_labels, labels=labels)
-                })
-            batch_count +=1
-            lock.release()
+        # if lock.acquire(timeout=1):
+        result_queue.put( {
+            'accuracy': accuracy_score(true_labels, predicted_labels),
+            'precision': precision_score(true_labels, predicted_labels, average=None, labels=labels),
+            'recall': recall_score(true_labels, predicted_labels, average=None, labels=labels),
+            'f1': f1_score(true_labels, predicted_labels, average=None, labels=labels),
+            'cross_entropy': -log_prob.mean().detach().cpu().numpy(),
+            'entropy': entropy.mean().detach().cpu().numpy(),
+            'conf_matrix': confusion_matrix(true_labels, predicted_labels, labels=labels)
+            })
+            # batch_count +=1
+            # lock.release()
 
 
 def calculate_validation_metrics(policy,zip_filename, **kwargs):
@@ -545,7 +545,7 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
         else:
             conf_matrix = result['conf_matrix']
         progress_bar.update(1)
-        time.sleep(0.1)
+        # time.sleep(0.1)
     progress_bar.close()
 
 

@@ -728,7 +728,7 @@ if __name__ == "__main__":
             accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                             policy, 
                                                                             zip_filename=zip_filename,
-                                                                            device=device,
+                                                                            device=torch.device('cpu'),
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             visited_data_files=[],
@@ -741,7 +741,7 @@ if __name__ == "__main__":
             accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                             policy, 
                                                                             zip_filename=zip_filename,
-                                                                            device=device,
+                                                                            device=torch.device('cpu'),
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             visited_data_files=[],
