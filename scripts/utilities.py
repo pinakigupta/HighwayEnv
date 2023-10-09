@@ -486,7 +486,9 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
     val_data_loader = CustomDataLoader(
                                         zip_filename, 
                                         **{**kwargs,
-                                            'type':kwargs['type']
+                                            'type':kwargs['type'],
+                                            'validation': True,
+                                            'visited_data_files': []
                                           }
                                       ) 
     
@@ -598,7 +600,16 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
         time.sleep(0.25)  # Sleep for a second (you can adjust the sleep duration)
         print([worker.pid for worker in processes if worker.is_alive()])
 
-    return accuracy, precision, recall, f1
+    metrics = {
+               'accuracy':      accuracy,
+               'precision':     np.mean(precision), 
+               'recall':        np.mean(recall), 
+               'f1':            np.mean(f1),
+               'cross_entropy': np.mean(cross_entropies),
+               'entropy':       np.mean(entropies),
+
+            }
+    return metrics
 
 
 class CustomImageExtractor(BaseFeaturesExtractor):

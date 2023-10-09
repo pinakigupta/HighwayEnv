@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     batch_size = sweep_config['parameters']['batch_size']['values'][0]
     num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
-    minibatch_size = batch_size//4
+    minibatch_size = batch_size
     num_deploy_rollouts = 5
 
     try:
@@ -392,17 +392,12 @@ if __name__ == "__main__":
                 num_epochs = training_kwargs['num_epochs'] # These are dagger epochs
                 checkpoint_interval = num_epochs//2
                 append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
-                _validation_metrics =       {
-                                                "accuracy"  : [], 
-                                                "precision" : [], 
-                                                "recall"    : [],
-                                                "f1"        : []
-                                            }
                 trainer = create_trainer(env, policy, batch_size=batch_size, minibatch_size=minibatch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
                 train_datasets = []
                 visited_data_files = set([])
+                metricses = {}
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
                     # train_data_loader                                            = create_dataloaders(
@@ -457,20 +452,23 @@ if __name__ == "__main__":
                                             )
                         print(f'End Dagger data collection for epoch {epoch}')
 
-                    if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
-                        print(f"saving check point for epoch {epoch}", epoch)
-                        torch.save(policy , f"models_archive/BC_agent_{epoch}.pth")
+                    # if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
+                    #     print(f"saving check point for epoch {epoch}", epoch)
+                    #     torch.save(policy , f"models_archive/BC_agent_{epoch}.pth")
                     if metrics_plot_path:
                         print(f'Beginning validation for epoch {epoch}')
-                        accuracy, precision, recall, f1 = calculate_validation_metrics(
+                        metrics                      = calculate_validation_metrics(
                                                                                         policy, 
                                                                                         zip_filename=zip_filename,
-                                                                                        plot_path=f"heatmap_{epoch}.png" 
+                                                                                        device=torch.devie('cpu'),
+                                                                                        batch_size=batch_size,
+                                                                                        n_cpu=n_cpu,
+                                                                                        val_batch_count=500,
+                                                                                        chunk_size=500,
+                                                                                        type='val',
+                                                                                        plot_path=None
                                                                                     )
-                        _validation_metrics["accuracy"].append(accuracy)
-                        _validation_metrics["precision"].append(precision)
-                        _validation_metrics["recall"].append(recall)
-                        _validation_metrics["f1"].append(f1)
+                        {key: metricses.setdefault(key, []).append(value) for key, value in metrics.items()}
                         print(f'End validation for epoch {epoch}')
                     policy.to(device)
                     policy.train()
@@ -478,11 +476,11 @@ if __name__ == "__main__":
 
 
 
-                if metrics_plot_path:
+                if metrics_plot_path and metricses:
                     # Plotting metrics
                     plt.figure(figsize=(10, 6))
                     epochs = range(num_epochs)
-                    for metric_name, metric_values in _validation_metrics.items():
+                    for metric_name, metric_values in metricses.items():
                         plt.plot(epochs, metric_values, label=metric_name)
                         plt.xlabel("Epochs")
                         plt.ylabel("Metrics Value")
@@ -521,31 +519,26 @@ if __name__ == "__main__":
                 print('Saved final model')
 
             print('Beginnig final validation step')
-            # accuracy, precision, recall, f1 = calculate_validation_metrics(
+            # metrics                    = calculate_validation_metrics(
             #                                                                 final_policy, 
             #                                                                 zip_filename=zip_filename,
             #                                                                 device=device,
             #                                                                 batch_size=batch_size,
             #                                                                 n_cpu=n_cpu,
-            #                                                                 visited_data_files=[],
             #                                                                 val_batch_count=500,
             #                                                                 chunk_size=500,
-            #                                                                 # label_weights=label_weights,
             #                                                                 type='val',
             #                                                                 plot_path=None
             #                                                               )
-            accuracy, precision, recall, f1 = calculate_validation_metrics(
+            metrics                        = calculate_validation_metrics(
                                                                             final_policy, 
                                                                             zip_filename=zip_filename,
                                                                             device=device,
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
-                                                                            visited_data_files=[],
                                                                             val_batch_count=500,
                                                                             chunk_size=500,
-                                                                            # label_weights=label_weights,
                                                                             type='train',
-                                                                            validation=True,
                                                                             plot_path=None
                                                                           )
             print('Ending final validation step and plotting the heatmap ')
@@ -723,33 +716,29 @@ if __name__ == "__main__":
                                                                 device=device,
                                                                 project=project
                                                               )
-            policy.to(torch.device('cpu'))
+            val_device = torch.device('cpu')
+            policy.to(val_device)
             policy.eval()
-            accuracy, precision, recall, f1 = calculate_validation_metrics(
+            metrics                      = calculate_validation_metrics(
                                                                             policy, 
                                                                             zip_filename=zip_filename,
-                                                                            device=device,
+                                                                            device=val_device,
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
-                                                                            visited_data_files=[],
-                                                                            val_batch_count=5000,
+                                                                            val_batch_count=500,
                                                                             chunk_size=500,
-                                                                            # label_weights=label_weights,
                                                                             type='val',
                                                                             plot_path=None
                                                                           )
-            accuracy, precision, recall, f1 = calculate_validation_metrics(
+            metrics                      = calculate_validation_metrics(
                                                                             policy, 
                                                                             zip_filename=zip_filename,
-                                                                            device=device,
+                                                                            device=val_device,
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
-                                                                            visited_data_files=[],
-                                                                            val_batch_count=5000,
+                                                                            val_batch_count=500,
                                                                             chunk_size=500,
-                                                                            # label_weights=label_weights,
                                                                             type='train',
-                                                                            validation=True,
                                                                             plot_path=None
                                                                           )
     except KeyboardInterrupt:
