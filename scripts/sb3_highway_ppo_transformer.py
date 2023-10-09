@@ -420,7 +420,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 16000 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 200 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -505,7 +505,8 @@ if __name__ == "__main__":
                                                                     minibatch_size=minibatch_size
                                                                 )
             final_policy = bc_trainer.policy
-            # final_policy.to(torch.device('cpu'))
+            val_device = torch.device('cpu')
+            final_policy.to(val_device)
             final_policy.eval()
             if False:
                 print('Saving final model')
@@ -519,21 +520,21 @@ if __name__ == "__main__":
                 print('Saved final model')
 
             print('Beginnig final validation step')
-            # metrics                    = calculate_validation_metrics(
-            #                                                                 final_policy, 
-            #                                                                 zip_filename=zip_filename,
-            #                                                                 device=device,
-            #                                                                 batch_size=batch_size,
-            #                                                                 n_cpu=n_cpu,
-            #                                                                 val_batch_count=500,
-            #                                                                 chunk_size=500,
-            #                                                                 type='val',
-            #                                                                 plot_path=None
-            #                                                               )
+            metrics                         = calculate_validation_metrics(
+                                                                            final_policy, 
+                                                                            zip_filename=zip_filename,
+                                                                            device=val_device,
+                                                                            batch_size=batch_size,
+                                                                            n_cpu=n_cpu,
+                                                                            val_batch_count=500,
+                                                                            chunk_size=500,
+                                                                            type='val',
+                                                                            plot_path=None
+                                                                          )
             metrics                        = calculate_validation_metrics(
                                                                             final_policy, 
                                                                             zip_filename=zip_filename,
-                                                                            device=device,
+                                                                            device=val_device,
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             val_batch_count=500,
@@ -542,6 +543,7 @@ if __name__ == "__main__":
                                                                             plot_path=None
                                                                           )
             print('Ending final validation step and plotting the heatmap ')
+            final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY:
             env_kwargs.update({'reward_oracle':None})
             # env_kwargs.update({'render_mode': 'human'})
