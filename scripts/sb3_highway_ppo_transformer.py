@@ -722,7 +722,11 @@ if __name__ == "__main__":
             metrics                      = calculate_validation_metrics(
                                                                             policy, 
                                                                             zip_filename=zip_filename,
+<<<<<<< HEAD
                                                                             device=val_device,
+=======
+                                                                            device=torch.device('cpu'),
+>>>>>>> 961434af88cd9b0fd1b821264e9fdb52feede7c0
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             val_batch_count=500,
@@ -733,7 +737,11 @@ if __name__ == "__main__":
             metrics                      = calculate_validation_metrics(
                                                                             policy, 
                                                                             zip_filename=zip_filename,
+<<<<<<< HEAD
                                                                             device=val_device,
+=======
+                                                                            device=torch.device('cpu'),
+>>>>>>> 961434af88cd9b0fd1b821264e9fdb52feede7c0
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             val_batch_count=500,
