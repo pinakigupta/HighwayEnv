@@ -425,7 +425,7 @@ if __name__ == "__main__":
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 6000 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 16000 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -507,19 +507,33 @@ if __name__ == "__main__":
                                                                     minibatch_size=minibatch_size
                                                                 )
             final_policy = bc_trainer.policy
-            final_policy.to(torch.device('cpu'))
+            # final_policy.to(torch.device('cpu'))
             final_policy.eval()
-            print('Saving final model')
-            save_checkpoint(
-                                project = project, 
-                                run_name=run_name,
-                                epoch = None, 
-                                model = final_policy,
-                                metrics_plot_path = metrics_plot_path
-                            )
-            print('Saved final model')
+            if False:
+                print('Saving final model')
+                save_checkpoint(
+                                    project = project, 
+                                    run_name=run_name,
+                                    epoch = None, 
+                                    model = final_policy,
+                                    metrics_plot_path = metrics_plot_path
+                                )
+                print('Saved final model')
 
             print('Beginnig final validation step')
+            # accuracy, precision, recall, f1 = calculate_validation_metrics(
+            #                                                                 final_policy, 
+            #                                                                 zip_filename=zip_filename,
+            #                                                                 device=device,
+            #                                                                 batch_size=batch_size,
+            #                                                                 n_cpu=n_cpu,
+            #                                                                 visited_data_files=[],
+            #                                                                 val_batch_count=500,
+            #                                                                 chunk_size=500,
+            #                                                                 # label_weights=label_weights,
+            #                                                                 type='val',
+            #                                                                 plot_path=None
+            #                                                               )
             accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                             final_policy, 
                                                                             zip_filename=zip_filename,
@@ -527,20 +541,7 @@ if __name__ == "__main__":
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             visited_data_files=[],
-                                                                            val_batch_count=5000,
-                                                                            chunk_size=500,
-                                                                            # label_weights=label_weights,
-                                                                            type='val',
-                                                                            plot_path=None
-                                                                          )
-            accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                            final_policy, 
-                                                                            zip_filename=zip_filename,
-                                                                            device=device,
-                                                                            batch_size=batch_size,
-                                                                            n_cpu=n_cpu,
-                                                                            visited_data_files=[],
-                                                                            val_batch_count=5000,
+                                                                            val_batch_count=500,
                                                                             chunk_size=500,
                                                                             # label_weights=label_weights,
                                                                             type='train',
@@ -722,7 +723,7 @@ if __name__ == "__main__":
                                                                 device=device,
                                                                 project=project
                                                               )
-            policy.to(device)
+            policy.to(torch.device('cpu'))
             policy.eval()
             accuracy, precision, recall, f1 = calculate_validation_metrics(
                                                                             policy, 
@@ -731,26 +732,26 @@ if __name__ == "__main__":
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
                                                                             visited_data_files=[],
-                                                                            val_batch_count=500,
+                                                                            val_batch_count=5000,
                                                                             chunk_size=500,
                                                                             # label_weights=label_weights,
                                                                             type='val',
                                                                             plot_path=None
                                                                           )
-            # accuracy, precision, recall, f1 = calculate_validation_metrics(
-            #                                                                 policy, 
-            #                                                                 zip_filename=zip_filename,
-            #                                                                 device=device,
-            #                                                                 batch_size=batch_size,
-            #                                                                 n_cpu=n_cpu,
-            #                                                                 visited_data_files=[],
-            #                                                                 val_batch_count=5000,
-            #                                                                 chunk_size=500,
-            #                                                                 # label_weights=label_weights,
-            #                                                                 type='train',
-            #                                                                 validation=True,
-            #                                                                 plot_path=None
-            #                                                               )
+            accuracy, precision, recall, f1 = calculate_validation_metrics(
+                                                                            policy, 
+                                                                            zip_filename=zip_filename,
+                                                                            device=device,
+                                                                            batch_size=batch_size,
+                                                                            n_cpu=n_cpu,
+                                                                            visited_data_files=[],
+                                                                            val_batch_count=5000,
+                                                                            chunk_size=500,
+                                                                            # label_weights=label_weights,
+                                                                            type='train',
+                                                                            validation=True,
+                                                                            plot_path=None
+                                                                          )
     except KeyboardInterrupt:
         if TRACE:
             tracemalloc.stop()  # Stop memory tracing when done

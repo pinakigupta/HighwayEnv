@@ -453,6 +453,29 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                                  ) 
     return train_data_loader
 
+def process_batch(result_queue, policy, batch_data_queue, labels, worker_index,lock, batch_count, **kwargs):
+    while True:
+        batch = batch_data_queue.get()
+        predicted_labels = [policy.predict(obs.numpy())[0] for obs in batch['obs']]
+        true_labels = batch['acts'].numpy()
+        if 'label_weights' in kwargs:
+            true_labels         = true_labels @ kwargs['label_weights']
+            predicted_labels    = predicted_labels @ kwargs['label_weights']
+        with torch.no_grad():
+            _, log_prob, entropy = policy.evaluate_actions(batch['obs'], batch['acts'])
+        if lock.acquire(timeout=1):
+            result_queue.put( {
+                'accuracy': accuracy_score(true_labels, predicted_labels),
+                'precision': precision_score(true_labels, predicted_labels, average=None, labels=labels),
+                'recall': recall_score(true_labels, predicted_labels, average=None, labels=labels),
+                'f1': f1_score(true_labels, predicted_labels, average=None, labels=labels),
+                'cross_entropy': -log_prob.mean().detach().cpu().numpy(),
+                'entropy': entropy.mean().detach().cpu().numpy(),
+                'conf_matrix': confusion_matrix(true_labels, predicted_labels, labels=labels)
+                })
+            batch_count +=1
+            lock.release()
+
 
 def calculate_validation_metrics(policy,zip_filename, **kwargs):
     true_labels = []
@@ -476,24 +499,62 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
     f1s = []
     labels = list(range(len(ACTIONS_LAT.keys())*len(ACTIONS_LAT.keys())))
     policy.eval()
+    batch_count = 0
+    lock = multiprocessing.Lock()
+
+    # Create a list to store process objects
+    processes = []
+    result_queue = multiprocessing.Queue()
+    batch_data_queue = multiprocessing.Queue()
+    num_workers =   max(kwargs['n_cpu'],1)
+
+    for i in range(num_workers):
+        
+        worker_process = multiprocessing.Process(
+                                                    target=process_batch, 
+                                                    args=(
+                                                            result_queue, 
+                                                            policy, 
+                                                            batch_data_queue, 
+                                                            labels, 
+                                                            i,
+                                                            lock,
+                                                            batch_count
+                                                        ),
+                                                    kwargs = kwargs, 
+                                                )
+        processes.append(worker_process)
+        worker_process.start()
+
+    progress_bar = tqdm(total=kwargs['val_batch_count'], desc= f'{kwargs["type"]} progress')
+
     for batch in val_data_loader:
-        predicted_labels = [policy.predict(obs.cpu().numpy())[0] for obs in batch['obs']]
-        true_labels         = batch['acts'].cpu().numpy()
-        if 'label_weights' in kwargs:
-            true_labels         = true_labels @ kwargs['label_weights']
-            predicted_labels    = predicted_labels @ kwargs['label_weights']
-        with torch.no_grad():
-            _, log_prob, entropy = policy.evaluate_actions(batch['obs'], batch['acts'])
-        accuracies.append(accuracy_score (true_labels, predicted_labels))
-        precisions.append(precision_score(true_labels, predicted_labels, average=None, labels=labels))
-        recalls.append(recall_score(true_labels, predicted_labels, average=None, labels=labels))
-        f1s.append(f1_score(true_labels, predicted_labels, average=None, labels=labels))
-        cross_entropies.append(-log_prob.mean().detach().cpu().numpy())
-        entropies.append(entropy.mean().detach().cpu().numpy())
+        if len(accuracies) >= kwargs['val_batch_count']:
+            break
+        batch_data_queue.put({key: value.to(torch.device('cpu')) for key, value in batch.items()})
+        result = None
+        result = result_queue.get()
+        accuracies.append(result['accuracy'])
+        precisions.append(result['precision'])
+        recalls.append(result['recall'])
+        f1s.append(result['f1'])
+        cross_entropies.append(result['cross_entropy'])
+        entropies.append(result['entropy'])
         if conf_matrix is not None:
-            conf_matrix += confusion_matrix(true_labels, predicted_labels, labels=labels )
+            conf_matrix += result['conf_matrix']
         else:
-            conf_matrix  = confusion_matrix(true_labels, predicted_labels, labels=labels)
+            conf_matrix = result['conf_matrix']
+        progress_bar.update(1)
+        time.sleep(0.1)
+    progress_bar.close()
+
+
+
+    # Wait for all processes to finish
+    for process in processes:
+        print(f'terminating process {process.pid}')
+        process.terminate()
+
                 
 
     # Calculate evaluation metrics
@@ -529,6 +590,14 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
             zipf.write(heatmap_png, arcname=training_kwargs['plot_path'])
     # plt.show()  
     # print("saved confusion matrix")
+
+    while any(p.is_alive() for p in processes):
+        alive_workers = [worker for worker in processes if worker.is_alive()]
+        for worker_process in alive_workers:
+            os.kill(worker_process.pid, signal.SIGKILL)
+        time.sleep(0.25)  # Sleep for a second (you can adjust the sleep duration)
+        print([worker.pid for worker in processes if worker.is_alive()])
+
     return accuracy, precision, recall, f1
 
 
@@ -606,6 +675,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.is_validation = validation or self.kwargs['type'] == 'val'
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
+        print('self.hdf5_file_names ', self.hdf5_train_file_names)
         if 'chunk_size' in kwargs:
             self.chunk_size = kwargs['chunk_size']
         else:
@@ -618,7 +688,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_kin_obs = self.manager.list()
         self._reset_tuples()
         self.batch_no = 0
-        self.pool = multiprocessing.Pool()
+        # self.pool = multiprocessing.Pool()
         self.total_samples = self.manager.dict()
         self.total_chunks = self.manager.dict()
         self.lock = self.manager.Lock()
@@ -630,6 +700,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                                     'acts', 
                                     'dones'
                                     ]
+        self.epoch = 0
 
 
     def _reset_tuples(self):
@@ -731,6 +802,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 
                 if self.is_validation and num_yielded_batches >= self.kwargs['val_batch_count']:
                     return  # Exit the generator loop
+            self.epoch += 1
+            print(f"Data loader Epoch count {self.epoch}")
             if self.is_validation: # Only one iteration through all the files is file
                 break
 
@@ -816,7 +889,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
             self.destroy_workers(reader_processes)
 
-            print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
+            # print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
 
             # Randomize the aggregated chunks across all files by shuffling
             all_indices = list(range(len(self.all_acts) ))
