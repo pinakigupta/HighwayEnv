@@ -399,7 +399,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(" File handle for the zip file opened ")
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]           
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name]           
         for train_data_file in hdf5_train_file_names:
             if train_data_file not in visited_data_files:
                 visited_data_files.add(train_data_file)
@@ -570,9 +570,6 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
     conf_matrix = np.array([])
 
     def calculate_metrics():
-        if output_queue.empty():
-            time.sleep(0.01)
-            return
         nonlocal accuracies, precisions, recalls, f1s, cross_entropies, entropies, conf_matrix
         result = output_queue.get()
         accuracies.append(result['accuracy'])
@@ -598,6 +595,9 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
         calculate_metrics()
 
     while len(accuracies) < kwargs['val_batch_count']:
+        if output_queue.empty():
+            time.sleep(0.1)
+            return
         calculate_metrics()
 
 

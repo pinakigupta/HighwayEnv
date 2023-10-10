@@ -201,6 +201,7 @@ if __name__ == "__main__":
                                                                                                     zip_filename,
                                                                                                     extract_path, 
                                                                                                     device=device,
+                                                                                                    type = 'train',
                                                                                                     batch_size=batch_size,
                                                                                                     n_cpu = n_cpu
                                                                                                 )
@@ -402,8 +403,8 @@ if __name__ == "__main__":
                     print(f'Loadng training data loader for epoch {epoch}')
                     train_data_loader                                            = create_dataloaders(
                                                                                                           zip_filename,
-                                     
                                                                                                           train_datasets, 
+                                                                                                          type = 'train',
                                                                                                           device=device,
                                                                                                           batch_size=minibatch_size,
                                                                                                           n_cpu = n_cpu,
@@ -420,7 +421,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 55600 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 155600 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -673,12 +674,14 @@ if __name__ == "__main__":
             print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
             train_data_loader                                             = create_dataloaders(
-                                                                                                    zip_filename,
-                                                                                                    extract_path, 
-                                                                                                    device=device,
-                                                                                                    batch_size=batch_size,
-                                                                                                    n_cpu = n_cpu
-                                                                                                )
+                                                                                                          zip_filename,
+                                                                                                          train_datasets=[], 
+                                                                                                          type = 'train',
+                                                                                                          device=device,
+                                                                                                          batch_size=minibatch_size,
+                                                                                                          n_cpu = n_cpu,
+                                                                                                          visited_data_files=set([])
+                                                                                                      )
             # Create a DataFrame from the data loader
             data_list = np.empty((0, 70))
             actions = []
@@ -735,30 +738,32 @@ if __name__ == "__main__":
             val_device = torch.device('cpu')
             policy.to(val_device)
             policy.eval()
-            # val_data_loader = CustomDataLoader(
-            #                                     zip_filename, 
-            #                                     device=val_device,
-            #                                     batch_size=batch_size,
-            #                                     n_cpu=n_cpu,
-            #                                     val_batch_count=500,
-            #                                     chunk_size=500,
-            #                                     type='val',
-            #                                     plot_path=None,
-            #                                     visited_data_files = set([])
-            #                                   ) 
-            # metrics                      = calculate_validation_metrics(
-            #                                                                 val_data_loader,
-            #                                                                 policy, 
-            #                                                                 zip_filename=zip_filename,
-            #                                                                 device=val_device,
-            #                                                                 batch_size=batch_size,
-            #                                                                 n_cpu=n_cpu,
-            #                                                                 val_batch_count=500,
-            #                                                                 chunk_size=500,
-            #                                                                 type='val',
-                                                                            #   validation = True,
-            #                                                                 plot_path=None
-            #                                                               )
+            type = 'val'
+            val_data_loader                                             =  CustomDataLoader(
+                                                                                            zip_filename, 
+                                                                                            device=val_device,
+                                                                                            batch_size=batch_size,
+                                                                                            n_cpu=n_cpu,
+                                                                                            val_batch_count=5000,
+                                                                                            chunk_size=500,
+                                                                                            type= type,
+                                                                                            plot_path=None,
+                                                                                            visited_data_files = set([])
+                                                                                        ) 
+            metrics                      = calculate_validation_metrics(
+                                                                            val_data_loader,
+                                                                            policy, 
+                                                                            zip_filename=zip_filename,
+                                                                            device=val_device,
+                                                                            batch_size=batch_size,
+                                                                            n_cpu=n_cpu,
+                                                                            val_batch_count=5000,
+                                                                            chunk_size=500,
+                                                                            type= type,
+                                                                            validation = True,
+                                                                            plot_path=None
+                                                                          )
+            type = 'train'
             train_data_loader = CustomDataLoader(
                                                 zip_filename, 
                                                 device=val_device,
@@ -766,7 +771,7 @@ if __name__ == "__main__":
                                                 n_cpu=n_cpu,
                                                 val_batch_count=500,
                                                 chunk_size=500,
-                                                type='train',
+                                                type= type,
                                                 plot_path=None,
                                                 visited_data_files = set([])
                                               ) 
@@ -779,7 +784,7 @@ if __name__ == "__main__":
                                                                             n_cpu=n_cpu,
                                                                             val_batch_count=500,
                                                                             chunk_size=500,
-                                                                            type='train',
+                                                                            type= type,
                                                                             validation = True,
                                                                             plot_path=None
                                                                           )
