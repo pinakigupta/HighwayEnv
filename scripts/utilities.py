@@ -181,7 +181,7 @@ class CustomDataset(Dataset):
             # print(f' {e} , for , { id(self)}. key {key} , value {value} ')
             # raise e
 
-        sample['obs'][:][:][-1] = 0
+        sample['obs'][:, :, -1] = 0
 
         return sample
         
