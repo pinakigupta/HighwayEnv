@@ -460,31 +460,46 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                                  ) 
     return train_data_loader
 
-def process_batch(result_queue, policy, batch_data_queue, labels, worker_index,lock, batch_count, **kwargs):
+def process_batch(result_queue, batch_data_queue, labels, worker_index,lock, batch_count, **kwargs):
+    if lock.acquire(timeout=10):
+        policy = torch.load('validation_policy.pth', map_location='cpu')
+        lock.release()
+    else:
+        print(f"Couldn't fetch the validation policy for worker {worker_index}")
+        return
+    
+    print(f"ID of val policy is {id(policy)}")
     while True:
-        try:
-            batch = batch_data_queue.get(timeout=0.1)
-        except Exception as e:
-            # print(f'Timeout error {e} in {worker_index} batch_data_queue')
+        if not batch_data_queue.empty():
+            batch = batch_data_queue.get()
+        else:
             time.sleep(0.1)
             continue
-        predicted_labels = [policy.predict(obs.numpy())[0] for obs in batch['obs']]
+        print(f"batch collected from worker {worker_index}")
         true_labels = batch['acts'].numpy()
-        if 'label_weights' in kwargs:
-            true_labels         = true_labels @ kwargs['label_weights']
-            predicted_labels    = predicted_labels @ kwargs['label_weights']
         with torch.no_grad():
+            predicted_labels = [policy.predict(obs.numpy())[0] for obs in batch['obs']]
             _, log_prob, entropy = policy.evaluate_actions(batch['obs'], batch['acts'])
+            if 'label_weights' in kwargs:
+                true_labels         = true_labels @ kwargs['label_weights']
+                predicted_labels    = predicted_labels @ kwargs['label_weights']
+        accuracy = accuracy_score(true_labels, predicted_labels)
+        precision = precision_score(true_labels, predicted_labels, average=None, labels=labels)
+        recall = recall_score(true_labels, predicted_labels, average=None, labels=labels)
+        f1 = f1_score(true_labels, predicted_labels, average=None, labels=labels)
+        cross_entropy = -log_prob.mean().detach().cpu().numpy()
+        entropy = entropy.mean().detach().cpu().numpy()
+        conf_matrix = confusion_matrix(true_labels, predicted_labels, labels=labels)
         try:
             result_queue.put( {
-                'accuracy': accuracy_score(true_labels, predicted_labels),
-                'precision': precision_score(true_labels, predicted_labels, average=None, labels=labels),
-                'recall': recall_score(true_labels, predicted_labels, average=None, labels=labels),
-                'f1': f1_score(true_labels, predicted_labels, average=None, labels=labels),
-                'cross_entropy': -log_prob.mean().detach().cpu().numpy(),
-                'entropy': entropy.mean().detach().cpu().numpy(),
-                'conf_matrix': confusion_matrix(true_labels, predicted_labels, labels=labels)
-                }, timeout=0.1)
+                'accuracy': accuracy,
+                'precision': precision,
+                'recall': recall,
+                'f1': f1,
+                'cross_entropy': cross_entropy,
+                'entropy': entropy,
+                'conf_matrix':conf_matrix 
+                })
         except Exception as e:
             print(f"Time out error {e} in {worker_index} result_queue")
             # lock.release()
@@ -515,12 +530,14 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
     labels = list(range(len(ACTIONS_LAT.keys())*len(ACTIONS_LAT.keys())))
     policy.eval()
     batch_count = 0
-    lock = multiprocessing.Lock()
 
+    manager = multiprocessing.Manager()
+    lock = manager.Lock()
+    torch.save(policy,'validation_policy.pth')
     # Create a list to store process objects
     processes = []
-    result_queue = multiprocessing.Queue()
-    batch_data_queue = multiprocessing.Queue()
+    result_queue = manager.Queue()
+    batch_data_queue = manager.Queue()
     num_workers =   max(kwargs['n_cpu'],1)
 
     for i in range(num_workers):
@@ -529,7 +546,6 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
                                                     target=process_batch, 
                                                     args=(
                                                             result_queue, 
-                                                            policy, 
                                                             batch_data_queue, 
                                                             labels, 
                                                             i,
@@ -546,7 +562,8 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
     for batch in val_data_loader:
         if len(accuracies) >= kwargs['val_batch_count']:
             break
-        batch_data_queue.put({key: value.to(torch.device('cpu')) for key, value in batch.items()})
+        sample = {key: value.to(torch.device('cpu')) for key, value in batch.items()}
+        batch_data_queue.put(sample)
         result = None
         result = result_queue.get()
         accuracies.append(result['accuracy'])
@@ -559,8 +576,8 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
             conf_matrix += result['conf_matrix']
         else:
             conf_matrix = result['conf_matrix']
+        time.sleep(0.1)
         progress_bar.update(1)
-        # time.sleep(0.1)
     progress_bar.close()
 
 

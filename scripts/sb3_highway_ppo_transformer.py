@@ -521,14 +521,17 @@ if __name__ == "__main__":
 
             print('Beginnig final validation step')
             train_datasets =[]
-            data_loader                                            = create_dataloaders(
-                                                                                                    zip_filename,
-                                                                                                    train_datasets, 
-                                                                                                    device=device,
-                                                                                                    batch_size=minibatch_size,
-                                                                                                    n_cpu = n_cpu,
-                                                                                                    visited_data_files=set([])
-                                                                                                )
+            data_loader              = CustomDataLoader(
+                                                            zip_filename, 
+                                                            device=val_device,
+                                                            batch_size=batch_size,
+                                                            n_cpu=n_cpu,
+                                                            val_batch_count=500,
+                                                            chunk_size=500,
+                                                            type='val',
+                                                            plot_path=None,
+                                                            visited_data_files = set([])
+                                                        ) 
             metrics                         = calculate_validation_metrics(
                                                                             data_loader,
                                                                             final_policy, 
