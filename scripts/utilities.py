@@ -181,6 +181,8 @@ class CustomDataset(Dataset):
             # print(f' {e} , for , { id(self)}. key {key} , value {value} ')
             # raise e
 
+        sample['obs'][:][:][-1] = 0
+
         return sample
         
 def display_vehicles_attention(agent_surface, sim_surface, env, fe, device,  min_attention=0.01):
