@@ -567,15 +567,13 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
         worker_process.start()
 
     progress_bar = tqdm(total=kwargs['val_batch_count'], desc= f'{kwargs["type"]} progress')
+    conf_matrix = np.array([])
 
-    for batch in val_data_loader:
-        sample = {key: value.to(torch.device('cpu')) for key, value in batch.items()}
-        input_queue.put(sample)
-
-    while len(accuracies) < kwargs['val_batch_count']:
+    def calculate_metrics():
         if output_queue.empty():
             time.sleep(0.01)
-            continue
+            return
+        nonlocal accuracies, precisions, recalls, f1s, cross_entropies, entropies, conf_matrix
         result = output_queue.get()
         accuracies.append(result['accuracy'])
         precisions.append(result['precision'])
@@ -583,11 +581,25 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
         f1s.append(result['f1'])
         cross_entropies.append(result['cross_entropy'])
         entropies.append(result['entropy'])
-        if conf_matrix is not None:
-            conf_matrix += result['conf_matrix']
-        else:
+        if conf_matrix.size == 0 :
             conf_matrix = result['conf_matrix']
+        else:
+            conf_matrix += result['conf_matrix']
         progress_bar.update(1)
+            
+    for batch in val_data_loader:
+        sample = {key: value.to(torch.device('cpu')) for key, value in batch.items()}
+        try:
+            input_queue.put(sample)
+            if input_queue.qsize() > 1.25*kwargs['val_batch_count']:
+                break
+        except Exception as e:
+            print(e)
+        calculate_metrics()
+
+    while len(accuracies) < kwargs['val_batch_count']:
+        calculate_metrics()
+
 
     progress_bar.close()
 
@@ -904,7 +916,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 
     # MAX_CHUNKS = 5
     def iter_once_all_files(self):
-        self.step_num =0         
+        self.step_num = 0 
         while self.total_samples:
             # print(f"Launching all reader processes for step {self.step_num}", flush=True)
             self.all_acts = []

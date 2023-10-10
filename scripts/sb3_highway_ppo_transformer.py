@@ -735,29 +735,30 @@ if __name__ == "__main__":
             val_device = torch.device('cpu')
             policy.to(val_device)
             policy.eval()
-            val_data_loader = CustomDataLoader(
-                                                zip_filename, 
-                                                device=val_device,
-                                                batch_size=batch_size,
-                                                n_cpu=n_cpu,
-                                                val_batch_count=500,
-                                                chunk_size=500,
-                                                type='val',
-                                                plot_path=None,
-                                                visited_data_files = set([])
-                                              ) 
-            metrics                      = calculate_validation_metrics(
-                                                                            val_data_loader,
-                                                                            policy, 
-                                                                            zip_filename=zip_filename,
-                                                                            device=val_device,
-                                                                            batch_size=batch_size,
-                                                                            n_cpu=n_cpu,
-                                                                            val_batch_count=500,
-                                                                            chunk_size=500,
-                                                                            type='val',
-                                                                            plot_path=None
-                                                                          )
+            # val_data_loader = CustomDataLoader(
+            #                                     zip_filename, 
+            #                                     device=val_device,
+            #                                     batch_size=batch_size,
+            #                                     n_cpu=n_cpu,
+            #                                     val_batch_count=500,
+            #                                     chunk_size=500,
+            #                                     type='val',
+            #                                     plot_path=None,
+            #                                     visited_data_files = set([])
+            #                                   ) 
+            # metrics                      = calculate_validation_metrics(
+            #                                                                 val_data_loader,
+            #                                                                 policy, 
+            #                                                                 zip_filename=zip_filename,
+            #                                                                 device=val_device,
+            #                                                                 batch_size=batch_size,
+            #                                                                 n_cpu=n_cpu,
+            #                                                                 val_batch_count=500,
+            #                                                                 chunk_size=500,
+            #                                                                 type='val',
+                                                                            #   validation = True,
+            #                                                                 plot_path=None
+            #                                                               )
             train_data_loader = CustomDataLoader(
                                                 zip_filename, 
                                                 device=val_device,
@@ -779,6 +780,7 @@ if __name__ == "__main__":
                                                                             val_batch_count=500,
                                                                             chunk_size=500,
                                                                             type='train',
+                                                                            validation = True,
                                                                             plot_path=None
                                                                           )
     except KeyboardInterrupt:
