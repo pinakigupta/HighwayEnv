@@ -181,7 +181,7 @@ class CustomDataset(Dataset):
             # print(f' {e} , for , { id(self)}. key {key} , value {value} ')
             # raise e
 
-        sample['obs'][:, :, -1] = 0
+        sample['obs'][:, -1] = 0
 
         return sample
         
@@ -907,7 +907,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                         chunk[key] = [json.loads(data_str) for data_str in hf[key][chunk_indices]]
                     except:
                         # If JSON deserialization fails, assume it's a primitive type
-                        chunk[key] = hf[key][chunk_indices]                
+                        chunk[key] = hf[key][chunk_indices]
+                                        
 
             reader_queue.put(chunk)
             # print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
@@ -967,6 +968,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             #Yield chunks as they come
             for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,self.step_num):
                 yield batch
+
 
 
             self.step_num +=1
@@ -1042,6 +1044,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 if self.all_dones:
                     sample['dones'] = self.all_dones[index]
                 if sample:
+                    sample['obs'][:, -1 ] = 0
                     samples_queue.put(sample)
             except (IndexError, EOFError, BrokenPipeError) as e:
                 # print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')

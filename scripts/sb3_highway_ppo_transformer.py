@@ -663,7 +663,7 @@ if __name__ == "__main__":
                     print(f"Execution frequency is {frequency}")
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
-            # true_labels = true_labels @ label_weights
+            true_labels = true_labels @ label_weights
             # predicted_labels = predicted_labels @ label_weights
             accuracy = accuracy_score(true_labels, predicted_labels)
             precision = precision_score(true_labels, predicted_labels, average=None)
