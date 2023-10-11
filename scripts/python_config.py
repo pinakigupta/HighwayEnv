@@ -20,13 +20,13 @@ env_kwargs = {
             },
         'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
         'simulation_frequency': 10,
+        "lanes_count": 'random',
         "min_lanes_count": 2,
         "max_lanes_count": 7,
-        "lanes_count": 'random',
         "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
         "vehicles_count": 'random',
-        "max_vehicles_count": 10,
-        'politeness': 0,
+        "max_vehicles_count": 200,
+        'politeness': 'random',
         'headway_timegap': 1.0,
         "action": {
                 "type": "DiscreteMetaAction",
@@ -116,7 +116,7 @@ project_names= \
     ]
 
 train = TrainEnum.ANALYSIS
-zip_filename = 'temp.zip'
+zip_filename = 'temp_1.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

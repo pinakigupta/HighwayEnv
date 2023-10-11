@@ -674,28 +674,30 @@ if __name__ == "__main__":
             print("Recall:", recall, np.mean(recall))
             print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
-            train_data_loader                                             = CustomDataLoader(
-                                                                                                zip_filename, 
-                                                                                                device=device,
-                                                                                                batch_size=batch_size,
-                                                                                                n_cpu=n_cpu,
-                                                                                                val_batch_count=1e9,
-                                                                                                chunk_size=500,
-                                                                                                type= 'train',
-                                                                                                plot_path=None,
-                                                                                                visited_data_files = set([]),
-                                                                                                validation=True
-                                                                                            ) 
+            val_batch_count = 500000
+            train_data_loader                                             = create_dataloaders(
+                                                                                                          zip_filename,
+                                                                                                          train_datasets=[], 
+                                                                                                          type = 'train',
+                                                                                                          device=device,
+                                                                                                          batch_size=minibatch_size,
+                                                                                                          n_cpu = n_cpu,
+                                                                                                          visited_data_files=set([])
+                                                                                                      )
             # Create a DataFrame from the data loader
             data_list = np.empty((0, 100))
             actions = []
-            for batch in train_data_loader:
-                whole_batch_states = batch['obs'].reshape(-1, 100) 
-                actions.extend(batch['acts'].numpy().astype(int))
-                data_list = np.vstack((data_list, whole_batch_states.numpy()))
+            with torch.no_grad():
+                for batch_number, batch in enumerate(train_data_loader):
+                    if batch_number >= val_batch_count:
+                        break
+                    whole_batch_states = batch['obs'].reshape(-1, 100) 
+                    actions.extend(batch['acts'].cpu().numpy().astype(int))
+                    data_list = np.vstack((data_list, whole_batch_states.cpu().numpy()))
             data_df = pd.DataFrame(data_list)
             actions = np.array(actions)
             action_counts = np.bincount(actions.astype(int))
+            print('action_counts ', action_counts)
 
             # Create a bar chart for action distribution
             plt.figure(figsize=(10, 6))
