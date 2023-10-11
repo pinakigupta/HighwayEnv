@@ -674,20 +674,23 @@ if __name__ == "__main__":
             print("Recall:", recall, np.mean(recall))
             print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
-            train_data_loader                                             = create_dataloaders(
-                                                                                                          zip_filename,
-                                                                                                          train_datasets=[], 
-                                                                                                          type = 'train',
-                                                                                                          device=device,
-                                                                                                          batch_size=minibatch_size,
-                                                                                                          n_cpu = n_cpu,
-                                                                                                          visited_data_files=set([])
-                                                                                                      )
+            train_data_loader                                             = CustomDataLoader(
+                                                                                                zip_filename, 
+                                                                                                device=device,
+                                                                                                batch_size=batch_size,
+                                                                                                n_cpu=n_cpu,
+                                                                                                val_batch_count=1e9,
+                                                                                                chunk_size=500,
+                                                                                                type= 'train',
+                                                                                                plot_path=None,
+                                                                                                visited_data_files = set([]),
+                                                                                                validation=True
+                                                                                            ) 
             # Create a DataFrame from the data loader
-            data_list = np.empty((0, 70))
+            data_list = np.empty((0, 100))
             actions = []
             for batch in train_data_loader:
-                whole_batch_states = batch['obs'].reshape(-1, 70) 
+                whole_batch_states = batch['obs'].reshape(-1, 100) 
                 actions.extend(batch['acts'].numpy().astype(int))
                 data_list = np.vstack((data_list, whole_batch_states.numpy()))
             data_df = pd.DataFrame(data_list)
