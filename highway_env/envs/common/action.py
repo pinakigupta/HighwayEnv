@@ -6,7 +6,6 @@ import numpy as np
 from bidict import bidict 
 from highway_env import utils
 from highway_env.utils import Vector
-from highway_env.vehicle.behavior import IDMVehicle
 from highway_env.vehicle.dynamics import BicycleVehicle
 from highway_env.vehicle.kinematics import Vehicle
 from highway_env.vehicle.behavior import MDPVehicle
@@ -185,20 +184,24 @@ class DiscreteMetaAction(ActionType):
         1: 'IDLE',
         2: 'LANE_RIGHT',
         3: 'FASTER',
-        4: 'SLOWER'
+        4: 'SLOWER',
+        5: 'FASTER2',
+        6: 'SLOWER2',
     })
     """A mapping of action indexes to labels."""
 
     ACTIONS_LONGI = bidict({
         0: 'SLOWER',
         1: 'IDLE',
-        2: 'FASTER'
+        2: 'FASTER',
+        # 3: 'FASTER2',
+        # 4: 'SLOWER2',
     })
     """A mapping of longitudinal action indexes to labels."""
 
     ACTIONS_LAT = bidict({
         0: 'LANE_LEFT',
-        1: 'IDLE',
+        1: 'STRAIGHT',
         2: 'LANE_RIGHT'
     })
     """A mapping of lateral action indexes to labels."""
@@ -221,23 +224,29 @@ class DiscreteMetaAction(ActionType):
         self.longitudinal = longitudinal
         self.lateral = lateral
         self.target_speeds = np.array(target_speeds) if target_speeds is not None else MDPVehicle.DEFAULT_TARGET_SPEEDS
-        self.actions = self.ACTIONS_ALL if longitudinal and lateral \
+        self.actions = {'long':self.ACTIONS_LONGI, 'lat':self.ACTIONS_LAT} if longitudinal and lateral \
             else self.ACTIONS_LONGI if longitudinal \
             else self.ACTIONS_LAT if lateral \
             else None
         if self.actions is None:
             raise ValueError("At least longitudinal or lateral actions must be included")
-        self.actions_indexes = {v: k for k, v in self.actions.items()}
+        self.actions_indexes = {k: v.inverse for k, v in self.actions.items()}
 
     def space(self) -> spaces.Space:
-        return spaces.Discrete(len(self.actions))
+        return spaces.Dict({k: spaces.Discrete(len(v)) for k, v in self.actions.items()})
 
     @property
     def vehicle_class(self) -> Callable:
         return functools.partial(MDPVehicle, target_speeds=self.target_speeds)
 
     def act(self, action: Union[int, np.ndarray]) -> None:
-        self.controlled_vehicle.act(self.actions[int(action)])
+        self.controlled_vehicle.act(
+                                    # {
+                                    #     'long': self.actions['long'][int(action[0])],
+                                    #     'lat':  self.actions['lat'][int(action[1])]
+                                    #  }
+                                    action
+                                   )
 
     def get_available_actions(self) -> List[int]:
         """
@@ -248,21 +257,27 @@ class DiscreteMetaAction(ActionType):
 
         :return: the list of available actions
         """
-        actions = [self.actions_indexes['IDLE']]
+        actions = {}
+        actions['long'] = [self.actions_indexes['long']['IDLE']]
+        actions['lat']  = [self.actions_indexes['lat']['STRAIGHT']]
         network = self.controlled_vehicle.road.network
         for l_index in network.side_lanes(self.controlled_vehicle.lane_index):
             if l_index[2] < self.controlled_vehicle.lane_index[2] \
                     and network.get_lane(l_index).is_reachable_from(self.controlled_vehicle.position) \
                     and self.lateral:
-                actions.append(self.actions_indexes['LANE_LEFT'])
+                actions['lat'].append(self.actions_indexes['lat']['LANE_LEFT'])
             if l_index[2] > self.controlled_vehicle.lane_index[2] \
                     and network.get_lane(l_index).is_reachable_from(self.controlled_vehicle.position) \
                     and self.lateral:
-                actions.append(self.actions_indexes['LANE_RIGHT'])
+                actions['lat'].append(self.actions_indexes['lat']['LANE_RIGHT'])
         if self.controlled_vehicle.speed_index < self.controlled_vehicle.target_speeds.size - 1 and self.longitudinal:
-            actions.append(self.actions_indexes['FASTER'])
+            actions['long'].append(self.actions_indexes['FASTER'])
+        if self.controlled_vehicle.speed_index < self.controlled_vehicle.target_speeds.size - 2 and self.longitudinal:
+            actions['long'].append(self.actions_indexes['FASTER2'])
         if self.controlled_vehicle.speed_index > 0 and self.longitudinal:
-            actions.append(self.actions_indexes['SLOWER'])
+            actions['long'].append(self.actions_indexes['SLOWER'])
+        if self.controlled_vehicle.speed_index > 1 and self.longitudinal:
+            actions['long'].append(self.actions_indexes['SLOWER2'])
         return actions
 
 

@@ -15,8 +15,6 @@ import wandb
 import torchvision.transforms.functional as TF
 from datetime import datetime
 import time
-from torch import FloatTensor
-import shutil
 from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
@@ -105,20 +103,21 @@ if __name__ == "__main__":
     num_deploy_rollouts = 5
 
     try:
+        project= project_names[train.value]                           
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
-            project= f"BC_1"                           
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             policy = None
             if policy:
-                oracle_agent                            = retrieve_agent(
-                                                                            artifact_version='trained_model_directory:latest',
-                                                                            agent_model = 'agent_final.pt',
-                                                                            device=device,
-                                                                            project=project
-                                                                        )
-                policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs).unwrapped, device, **policy_kwargs)
-                policy.load_state_dict(oracle_agent.state_dict())
+                # oracle_agent                            = retrieve_agent(
+                #                                                             artifact_version='trained_model_directory:latest',
+                #                                                             agent_model = 'agent_final.pt',
+                #                                                             device=device,
+                #                                                             project=project
+                #                                                         )
+                # policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs), device, **policy_kwargs)
+                policy = RandomPolicy(env=make_configure_env(**env_kwargs), device=device, **policy_kwargs)
+                # policy.load_state_dict(oracle_agent.state_dict())
                 policy.eval()
                 print('EXPERT_DATA_COLLECTION using PREVIOUS POLICY for exploration')
             else:
@@ -137,7 +136,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
             append_key_to_dict_of_dict(env_kwargs,'config','EGO_LENGTH',8)
             append_key_to_dict_of_dict(env_kwargs,'config','EGO_WIDTH',4)
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',40)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',80)
             env = make_vec_env(
                                 make_configure_env, 
                                 n_envs=n_cpu, 
@@ -163,7 +162,6 @@ if __name__ == "__main__":
             
 
             checkptcallback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
-            project= f"RL"
             run_name = f"sweep_{month}{day}_{timenow()}"
             # Create the custom callback
             metrics_callback = CustomMetricsCallback()
@@ -203,6 +201,7 @@ if __name__ == "__main__":
                                                                                                     zip_filename,
                                                                                                     extract_path, 
                                                                                                     device=device,
+                                                                                                    type = 'train',
                                                                                                     batch_size=batch_size,
                                                                                                     n_cpu = n_cpu
                                                                                                 )
@@ -269,7 +268,6 @@ if __name__ == "__main__":
             record_videos(env=env, name_prefix = 'GAIL', video_folder='videos/GAIL')
             artifact_version= f'trained_model_directory:latest',
             agent_model = f'final_gail_agent.pth',
-            project= f"random_env_gail_1"
             optimal_gail_agent                       = retrieve_agent(
                                                                         artifact_version = artifact_version,
                                                                         agent_model = agent_model,
@@ -299,7 +297,6 @@ if __name__ == "__main__":
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    env.render()
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
         elif train == TrainEnum.RLDEPLOY:
@@ -315,10 +312,10 @@ if __name__ == "__main__":
             #                                                     artifact_version='trained_model_directory:latest',
             #                                                     agent_model = 'RL_agent_final.pth',
                                                                 #   device = device,
-            #                                                     project="RL"
+            #                                                     project=project
             #                                                     )
             
-            wandb.init(project="RL", name="inference")
+            wandb.init(project=project, name="inference")
             # Access the run containing the logged artifact
 
             # Download the artifact
@@ -353,7 +350,6 @@ if __name__ == "__main__":
                     env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
                     cumulative_reward += gamma * reward
-                    env.render()
                     end_time = time.time()
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
@@ -362,16 +358,15 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             # env = make_configure_env(**env_kwargs)
             # env=env.unwrapped
-            env = make_vec_env(
-                                make_configure_env, 
-                                n_envs=n_cpu, 
-                                vec_env_cls=SubprocVecEnv, 
-                                env_kwargs=env_kwargs
-                            )
+            # env = make_vec_env(
+            #                     make_configure_env, 
+            #                     n_envs=n_cpu, 
+            #                     vec_env_cls=SubprocVecEnv, 
+            #                     env_kwargs=env_kwargs
+            #                 )
+            env = make_configure_env(**env_kwargs)
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-            action_dim = env.action_space.n
             rng=np.random.default_rng()
-            project = "BC_1"
             policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             print("Default policy initialized ")
             run_name = f"sweep_{month}{day}_{timenow()}"
@@ -388,6 +383,8 @@ if __name__ == "__main__":
                                         batch_size=kwargs['batch_size'],
                                         minibatch_size=kwargs['minibatch_size'],
                                         device = device,
+                                        l2_weight = 0.0001,
+                                        # ent_weight= 0.01,
                                         policy=policy
                                     )        
         
@@ -396,23 +393,27 @@ if __name__ == "__main__":
                 num_epochs = training_kwargs['num_epochs'] # These are dagger epochs
                 checkpoint_interval = num_epochs//2
                 append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
-                _validation_metrics =       {
-                                                "accuracy"  : [], 
-                                                "precision" : [], 
-                                                "recall"    : [],
-                                                "f1"        : []
-                                            }
                 trainer = create_trainer(env, policy, batch_size=batch_size, minibatch_size=minibatch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
-                train_datasets = []
+                train_datasets = []                    
+                train_data_loader = CustomDataLoader(
+                                                            zip_filename, 
+                                                            device, 
+                                                            visited_data_files, 
+                                                            batch_size = minibatch_size, 
+                                                            n_cpu=n_cpu, 
+                                                            chunk_size=15000,
+                                                            type='train'
+                                                        )
                 visited_data_files = set([])
+                metricses = {}
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
                     # train_data_loader                                            = create_dataloaders(
                     #                                                                                       zip_filename,
-                    #                  
                     #                                                                                       train_datasets, 
+                    #                                                                                       type = 'train',
                     #                                                                                       device=device,
                     #                                                                                       batch_size=minibatch_size,
                     #                                                                                       n_cpu = n_cpu,
@@ -424,18 +425,19 @@ if __name__ == "__main__":
                                                             visited_data_files, 
                                                             batch_size = minibatch_size, 
                                                             n_cpu=n_cpu, 
+                                                            chunk_size=15000,
                                                             type='train'
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 12500 if last_epoch else 2500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 155600 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
                     trainer.train(
-                                    n_batches=2500,
+                                    n_batches=num_mini_batches,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
@@ -460,20 +462,23 @@ if __name__ == "__main__":
                                             )
                         print(f'End Dagger data collection for epoch {epoch}')
 
-                    if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
-                        print(f"saving check point for epoch {epoch}", epoch)
-                        torch.save(policy , f"models_archive/BC_agent_{epoch}.pth")
+                    # if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
+                    #     print(f"saving check point for epoch {epoch}", epoch)
+                    #     torch.save(policy , f"models_archive/BC_agent_{epoch}.pth")
                     if metrics_plot_path:
                         print(f'Beginning validation for epoch {epoch}')
-                        accuracy, precision, recall, f1 = calculate_validation_metrics(
+                        metrics                      = calculate_validation_metrics(
                                                                                         policy, 
                                                                                         zip_filename=zip_filename,
-                                                                                        plot_path=f"heatmap_{epoch}.png" 
+                                                                                        device=torch.devie('cpu'),
+                                                                                        batch_size=batch_size,
+                                                                                        n_cpu=n_cpu,
+                                                                                        val_batch_count=500,
+                                                                                        chunk_size=500,
+                                                                                        type='val',
+                                                                                        plot_path=None
                                                                                     )
-                        _validation_metrics["accuracy"].append(accuracy)
-                        _validation_metrics["precision"].append(precision)
-                        _validation_metrics["recall"].append(recall)
-                        _validation_metrics["f1"].append(f1)
+                        {key: metricses.setdefault(key, []).append(value) for key, value in metrics.items()}
                         print(f'End validation for epoch {epoch}')
                     policy.to(device)
                     policy.train()
@@ -481,11 +486,11 @@ if __name__ == "__main__":
 
 
 
-                if metrics_plot_path:
+                if metrics_plot_path and metricses:
                     # Plotting metrics
                     plt.figure(figsize=(10, 6))
                     epochs = range(num_epochs)
-                    for metric_name, metric_values in _validation_metrics.items():
+                    for metric_name, metric_values in metricses.items():
                         plt.plot(epochs, metric_values, label=metric_name)
                         plt.xlabel("Epochs")
                         plt.ylabel("Metrics Value")
@@ -510,33 +515,63 @@ if __name__ == "__main__":
                                                                     minibatch_size=minibatch_size
                                                                 )
             final_policy = bc_trainer.policy
-            final_policy.to(torch.device('cpu'))
+            val_device = torch.device('cpu')
+            final_policy.to(val_device)
             final_policy.eval()
-            print('Saving final model')
-            save_checkpoint(
-                                project = project, 
-                                run_name=run_name,
-                                epoch = None, 
-                                model = final_policy,
-                                metrics_plot_path = metrics_plot_path
-                            )
-            print('Saved final model')
+            if True:
+                print('Saving final model')
+                save_checkpoint(
+                                    project = project, 
+                                    run_name=run_name,
+                                    epoch = None, 
+                                    model = final_policy,
+                                    metrics_plot_path = metrics_plot_path
+                                )
+                print('Saved final model')
 
             print('Beginnig final validation step')
-            accuracy, precision, recall, f1 = calculate_validation_metrics(
-                                                                            final_policy, 
-                                                                            zip_filename=zip_filename, 
-                                                                            device=device,
-                                                                            batch_size=batch_size,
-                                                                            n_cpu=n_cpu,
-                                                                            visited_data_files=[]
-                                                                            # plot_path=f"heatmap_{epoch}.png" 
-                                                                            )
+            # train_datasets =[]
+            # data_loader              = CustomDataLoader(
+            #                                                 zip_filename, 
+            #                                                 device=val_device,
+            #                                                 batch_size=batch_size,
+            #                                                 n_cpu=n_cpu,
+            #                                                 val_batch_count=500,
+            #                                                 chunk_size=500,
+            #                                                 type='val',
+            #                                                 plot_path=None,
+            #                                                 visited_data_files = set([])
+            #                                             ) 
+            # metrics                         = calculate_validation_metrics(
+            #                                                                 data_loader,
+            #                                                                 final_policy, 
+            #                                                                 zip_filename=zip_filename,
+            #                                                                 device=val_device,
+            #                                                                 batch_size=batch_size,
+            #                                                                 n_cpu=n_cpu,
+            #                                                                 val_batch_count=500,
+            #                                                                 chunk_size=500,
+            #                                                                 type='val',
+            #                                                                 plot_path=None
+            #                                                               )
+            # metrics                        = calculate_validation_metrics(
+            #                                                                 data_loader,
+            #                                                                 final_policy, 
+            #                                                                 zip_filename=zip_filename,
+            #                                                                 device=val_device,
+            #                                                                 batch_size=batch_size,
+            #                                                                 n_cpu=n_cpu,
+            #                                                                 val_batch_count=500,
+            #                                                                 chunk_size=500,
+            #                                                                 type='train',
+            #                                                                 plot_path=None
+            #                                                               )
             print('Ending final validation step and plotting the heatmap ')
+            final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY:
             env_kwargs.update({'reward_oracle':None})
             # env_kwargs.update({'render_mode': 'human'})
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',175)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
@@ -548,13 +583,13 @@ if __name__ == "__main__":
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',
             #                                                         device=device,
-            #                                                         project="BC_1"
+            #                                                         project=project
             #                                                     )
             BC_agent                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:v147',
+                                                        artifact_version='trained_model_directory:latest',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
-                                                        project="BC_1"
+                                                        project=project
                                                         )
             gamma = 1.0
             env.render()
@@ -564,14 +599,14 @@ if __name__ == "__main__":
             policy.to(device)
             policy.eval()
             if isinstance(env.observation_type, KinematicObservation):
-                # env.viewer.set_agent_display(
-                #                                 functools.partial(
-                #                                                     display_vehicles_attention, 
-                #                                                     env=env, 
-                #                                                     fe=policy.features_extractor,
-                #                                                     device=device
-                #                                                 )
-                #                              )
+                env.viewer.set_agent_display(
+                                                functools.partial(
+                                                                    display_vehicles_attention, 
+                                                                    env=env, 
+                                                                    fe=policy.features_extractor,
+                                                                    device=device
+                                                                )
+                                             )
                 image_space_obs = False
             else:
                 image_space_obs = True
@@ -580,17 +615,26 @@ if __name__ == "__main__":
             if image_space_obs:   
                 fig = plt.figure(figsize=(8, 16))
                 import cv2
+            predicted_labels = []
+            true_labels = []
             for _ in range(num_deploy_rollouts):
                 obs, info = env.reset()
-                env.step(4)
+                env.step({'long':4, 'lat':1})
                 done = truncated = False
                 cumulative_reward = 0
                 while not (done or truncated):
-                    # expert_action , _= env.vehicle.discrete_action()
-                    # action = ACTIONS_ALL.inverse[expert_action]
+                    start_time = time.time()
+                    expert_action , _= env.vehicle.discrete_action()
+                    expert_action = [env.action_type.actions_indexes[key][expert_action[key]] for key in ['long', 'lat']] 
+                    true_labels.append(expert_action)
                     action, _ = policy.predict(obs)
-                    env.vehicle.actions = []
+                    # action_logits = torch.nn.functional.softmax(policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.tensor(obs).to(device)))[0]))
+                    # action = np.array(torch.argmax(action_logits, dim=-1).item())
+                    predicted_labels.append(action)
+                    # env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
+                    obs[:, -1] = 0
+                    end_time = time.time()
                     cumulative_reward += gamma * reward
                     if image_space_obs:
                         height, width = env.observation_space.shape[1], env.observation_space.shape[2]
@@ -623,27 +667,46 @@ if __name__ == "__main__":
 
                             plt.show(block=False)
                             plt.pause(0.01)
-                    env.render()
+                    # env.render()
+                    frequency = 1/(end_time-start_time)
+                    print(f"Execution frequency is {frequency}")
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
+            true_labels = true_labels @ label_weights
+            # predicted_labels = predicted_labels @ label_weights
+            accuracy = accuracy_score(true_labels, predicted_labels)
+            precision = precision_score(true_labels, predicted_labels, average=None)
+            recall    = recall_score(true_labels, predicted_labels, average=None)
+            f1        = f1_score(true_labels, predicted_labels, average=None)
+            print("Accuracy:", accuracy, np.mean(accuracy))
+            print("Precision:", precision, np.mean(precision))
+            print("Recall:", recall, np.mean(recall))
+            print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
+            val_batch_count = 500000
             train_data_loader                                             = create_dataloaders(
-                                                                                                    zip_filename,
-                                                                                                    extract_path, 
-                                                                                                    device=device,
-                                                                                                    batch_size=batch_size,
-                                                                                                    n_cpu = n_cpu
-                                                                                                )
+                                                                                                          zip_filename,
+                                                                                                          train_datasets=[], 
+                                                                                                          type = 'train',
+                                                                                                          device=device,
+                                                                                                          batch_size=minibatch_size,
+                                                                                                          n_cpu = n_cpu,
+                                                                                                          visited_data_files=set([])
+                                                                                                      )
             # Create a DataFrame from the data loader
-            data_list = np.empty((0, 70))
+            data_list = np.empty((0, 100))
             actions = []
-            for batch in train_data_loader:
-                whole_batch_states = batch['obs'].reshape(-1, 70) 
-                actions.extend(batch['acts'].numpy().astype(int))
-                data_list = np.vstack((data_list, whole_batch_states.numpy()))
+            with torch.no_grad():
+                for batch_number, batch in enumerate(train_data_loader):
+                    if batch_number >= val_batch_count:
+                        break
+                    whole_batch_states = batch['obs'].reshape(-1, 100) 
+                    actions.extend(batch['acts'].cpu().numpy().astype(int))
+                    data_list = np.vstack((data_list, whole_batch_states.cpu().numpy()))
             data_df = pd.DataFrame(data_list)
             actions = np.array(actions)
             action_counts = np.bincount(actions.astype(int))
+            print('action_counts ', action_counts)
 
             # Create a bar chart for action distribution
             plt.figure(figsize=(10, 6))
@@ -680,6 +743,66 @@ if __name__ == "__main__":
 
             plt.tight_layout()
             plt.show()
+        elif train == TrainEnum.VALIDATION:
+            policy                            = retrieve_agent(
+                                                                artifact_version='trained_model_directory:latest',
+                                                                agent_model = 'agent_final.pth',
+                                                                device=device,
+                                                                project=project
+                                                              )
+            val_device = torch.device('cpu')
+            policy.to(val_device)
+            policy.eval()
+            type = 'val'
+            val_data_loader                                             =  CustomDataLoader(
+                                                                                            zip_filename, 
+                                                                                            device=val_device,
+                                                                                            batch_size=batch_size,
+                                                                                            n_cpu=n_cpu,
+                                                                                            val_batch_count=5000,
+                                                                                            chunk_size=500,
+                                                                                            type= type,
+                                                                                            plot_path=None,
+                                                                                            visited_data_files = set([])
+                                                                                        ) 
+            metrics                      = calculate_validation_metrics(
+                                                                            val_data_loader,
+                                                                            policy, 
+                                                                            zip_filename=zip_filename,
+                                                                            device=val_device,
+                                                                            batch_size=batch_size,
+                                                                            n_cpu=n_cpu,
+                                                                            val_batch_count=5000,
+                                                                            chunk_size=500,
+                                                                            type= type,
+                                                                            validation = True,
+                                                                            plot_path=None
+                                                                          )
+            type = 'train'
+            train_data_loader = CustomDataLoader(
+                                                zip_filename, 
+                                                device=val_device,
+                                                batch_size=batch_size,
+                                                n_cpu=n_cpu,
+                                                val_batch_count=500,
+                                                chunk_size=500,
+                                                type= type,
+                                                plot_path=None,
+                                                visited_data_files = set([])
+                                              ) 
+            metrics                      = calculate_validation_metrics(
+                                                                            train_data_loader,
+                                                                            policy, 
+                                                                            zip_filename=zip_filename,
+                                                                            device=val_device,
+                                                                            batch_size=batch_size,
+                                                                            n_cpu=n_cpu,
+                                                                            val_batch_count=500,
+                                                                            chunk_size=500,
+                                                                            type= type,
+                                                                            validation = True,
+                                                                            plot_path=None
+                                                                          )
     except KeyboardInterrupt:
         if TRACE:
             tracemalloc.stop()  # Stop memory tracing when done

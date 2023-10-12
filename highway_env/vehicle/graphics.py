@@ -44,7 +44,7 @@ class VehicleGraphics(object):
         :param offscreen: whether the rendering should be done offscreen or not
         :param label: whether a text label should be rendered
         """
-        if not surface.is_visible(vehicle.position):
+        if not surface.is_visible(vehicle.observed_position):
             return
 
         v = vehicle
@@ -98,7 +98,7 @@ class VehicleGraphics(object):
 
         # Centered rotation
         h = v.heading if abs(v.heading) > 2 * np.pi / 180 else 0
-        position = [*surface.pos2pix(v.position[0], v.position[1])]
+        position = [*surface.pos2pix(v.observed_position[0], v.observed_position[1])]
         if not offscreen:
             # convert_alpha throws errors in offscreen mode
             # see https://stackoverflow.com/a/19057853

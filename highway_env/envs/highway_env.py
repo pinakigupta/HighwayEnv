@@ -64,7 +64,7 @@ class HighwayEnv(AbstractEnv):
         self._create_road()
         self._create_vehicles()
         self.ego_x0 = self.vehicle.position[0]
-        self.step(4)
+        self.step({'long':4, 'lat':1})
 
     def _create_road(self) -> None:
         """Create a road composed of straight adjacent lanes."""
@@ -92,13 +92,26 @@ class HighwayEnv(AbstractEnv):
                 lane_id=self.config["initial_lane_id"],
                 spacing=self.config["ego_spacing"],
                 x0=100,
+                action_type = self.action_type,
                 **{
                     **self.config,
                     'LENGTH':self.config['EGO_LENGTH'],
                     'WIDTH':self.config['EGO_WIDTH']
                   }
             )
-            vehicle = self.action_type.vehicle_class(self.road, vehicle.position, vehicle.heading, vehicle.speed, **self.config)
+            vehicle = self.action_type.vehicle_class(
+                                                        road = self.road, 
+                                                        position = vehicle.position, 
+                                                        heading = vehicle.heading, 
+                                                        speed = vehicle.speed, 
+                                                        action_type = vehicle.action_type,
+                                                        **{
+                                                            **self.config,
+                                                            'LENGTH':self.config['EGO_LENGTH'],
+                                                            'WIDTH':self.config['EGO_WIDTH']
+                                                          }                                                    
+                                                      
+                                                    )
             self.controlled_vehicles.append(vehicle)
             self.road.vehicles.append(vehicle)
 
@@ -106,6 +119,7 @@ class HighwayEnv(AbstractEnv):
                 vehicle = other_vehicles_type.create_random(
                                                             self.road, 
                                                             spacing= 1 / self.config["vehicles_density"],
+                                                            action_type = self.action_type,
                                                             **self.config
                                                            )
                 vehicle.randomize_behavior()
@@ -152,7 +166,7 @@ class HighwayEnv(AbstractEnv):
             "right_lane_reward": 0 , #lane / max(len(neighbours) - 1, 1),
             "high_speed_reward": 0 , #np.clip(scaled_speed, 0, 1),
             # "on_road_reward": float(self.vehicle.on_road),
-            "lane_change_reward": action in [0, 2] ,
+            "lane_change_reward": action['lat'] in [0, 2] ,
             "travel_reward": travel_reward,
             #np.clip(float(self._is_truncated()), 0, 1) ,
         }
@@ -165,7 +179,7 @@ class HighwayEnv(AbstractEnv):
         if front_vehicle and (not self.config['deploy']):
             s = self.vehicle.lane_distance_to(front_vehicle)
             timegap = s/max(self.vehicle.speed,1.0)
-            if s < self.vehicle.LENGTH/2 or timegap < self.config['headway_timegap']:
+            if s < 0 : # or timegap < self.config['headway_timegap']:
                 terminated = True
                 self.vehicle.crashed = True
         return terminated
@@ -204,6 +218,9 @@ class HighwayEnv(AbstractEnv):
         reward = self.ep_rward
         self.ep_rward = 0
         return reward
+    
+    def discrete_action(self, action):
+        return action
 
 
 class HighwayEnvFast(HighwayEnv):

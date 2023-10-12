@@ -1,4 +1,6 @@
 from enum import Enum
+import numpy as np
+import functools
 
 env_kwargs = {
     'id': 'highway-v0',
@@ -6,22 +8,26 @@ env_kwargs = {
     'expert': 'MDPVehicle',
     'config': {
         'deploy': False,
-        "EGO_LENGTH": 'random',
-        "EGO_WIDTH": 'random',
-        "LENGTH": 'random',
-        'WIDTH': 'random',
-        "min_length": 3,
-        "max_length": 10,
-        "min_width": 1.5,
-        "max_width": 3.5,
+         **{
+                "EGO_LENGTH": 'random',
+                "EGO_WIDTH": 'random',
+                "LENGTH": 'random',
+                'WIDTH': 'random',
+                "min_length": 4,
+                "max_length": 10,
+                "min_width": 2,
+                "max_width": 3.5,
+            },
+        'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
+        'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
         'simulation_frequency': 10,
+        "lanes_count": 'random',
         "min_lanes_count": 2,
         "max_lanes_count": 7,
-        "lanes_count": 'random',
         "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
         "vehicles_count": 'random',
-        "max_vehicles_count": 10,
-        'politeness': 0,
+        "max_vehicles_count": 150,
+        'politeness': 'random',
         'headway_timegap': 1.0,
         "action": {
                 "type": "DiscreteMetaAction",
@@ -81,7 +87,7 @@ sweep_config = {
             "values": [ 64 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [1]  # Values for the "duration" field to be swept
+            "values": [15]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -95,6 +101,20 @@ class TrainEnum(Enum):
     BC = 5
     BCDEPLOY = 6
     ANALYSIS = 7
+    VALIDATION = 8
+
+project_names= \
+    [
+        f"RL",                       # RLTRAIN = 0
+        f"RL",                       # RLDEPLOY = 1
+        f"random_env_gail_1",        # IRLTRAIN = 2
+        f"random_env_gail_1",        # IRLDEPLOY = 3
+        f"BC" ,                      # EXPERT_DATA_COLLECTION =4
+        f"BC" ,                      # BC = 5
+        f"BC" ,                      # BCDEPLOY = 6
+        f'None',                     # ANALYSIS = 7
+        f'BC'                        # VALIDATION = 8
+    ]
 
 train = TrainEnum.EXPERT_DATA_COLLECTION
 zip_filename = 'expert_data_dagger.zip'
@@ -106,7 +126,8 @@ attention_network_kwargs = dict(
     embedding_layer_kwargs={
                                 "in_size": len(env_kwargs['config']['KinematicObservation']['features']), 
                                 "layer_sizes": [64, 64], 
-                                "reshape": False
+                                "reshape": False,
+                                "activation": 'RELU'
                             },
     attention_layer_kwargs={
                                 "feature_size": 64, 
@@ -115,4 +136,5 @@ attention_network_kwargs = dict(
                            },
     # num_layers = 3,
 )
+label_weights = np.array([3, 1])
 

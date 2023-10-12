@@ -21,14 +21,15 @@ from highway_env.vehicle.behavior import MDPVehicle
 from highway_env.envs.common.observation import  observation_factory
 from highway_env.envs.common.action import DiscreteMetaAction
 from forward_simulation import append_key_to_dict_of_dict
+from forward_simulation import make_configure_env
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
-def make_configure_env(**kwargs):
-    env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"], config=kwargs["config"])
-    # env.configure(kwargs["config"])
-    env.reset()
-    return env
+# def make_configure_env(**kwargs):
+#     env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"], config=kwargs["config"])
+#     # env.configure(kwargs["config"])
+#     env.reset()
+#     return env
 
 
 def worker(
@@ -42,7 +43,7 @@ def worker(
                 lock,
                 **env_kwargs 
                 ):
-    env = make_configure_env(**env_kwargs).unwrapped #env_value.value  # Retrieve the shared env object
+    env = make_configure_env(**env_kwargs) #env_value.value  # Retrieve the shared env object
     steps_collected = 0
     # oracle = env.controlled_vehicles[0]
     if env_kwargs['oracle']:
@@ -70,7 +71,7 @@ def worker(
         all_done = {}
         all_kinematic_obs = {}
         
-        act = 4
+        act = {'long': 'SLOWER', 'lat': 'STRAIGHT'}
 
         if exit_event.is_set():
             # print('Exit condition is triggered. Breaking ', worker_id)
@@ -95,7 +96,7 @@ def worker(
                         act = oracle.act(ob.flatten())
                 else:
                     act, _ = env.vehicle.discrete_action() # Use IDM + MOBIL driving policy
-                    act = DiscreteMetaAction.ACTIONS_ALL.inverse[act]
+                    act = {k:env.action_type.actions_indexes[k][v] for k,v in act.items()}
             env_reset = False
             # act = \
             next_ob, rwd, done, _, _ = env.step(act)
@@ -105,7 +106,8 @@ def worker(
                 obs = v.observer
                 discrete_action = v.discrete_action()[0]
                 # print('env.action_type.actions_indexes ', env.action_type.actions_indexes, ' discrete_action ', discrete_action)
-                acts = env.action_type.actions_indexes[discrete_action]
+                acts =  {k:env.action_type.actions_indexes[k][v] for k,v in discrete_action.items()}
+                acts = env.discrete_action(acts)
                 if v not in all_obs:
                     all_obs[v] = []
                     all_acts[v] = []
@@ -252,9 +254,13 @@ def collect_expert_data(
                 count += 1
                 # print(' arr1 and arr2 ', arr1)
                     # raise ValueError("arr1 is empty, dataset creation aborted")
+                try:
+                    arr3 = json.dumps(arr3)
+                except:
+                    pass
                 episode_group.create_dataset(f'exp_obs{i}',     data=arr1,  dtype='float32')
                 episode_group.create_dataset(f'exp_kin_obs{i}', data=arr2,  dtype='float32')
-                episode_group.create_dataset(f'exp_acts{i}',    data=arr3,  dtype='float32')
+                episode_group.create_dataset(f'exp_acts{i}',    data=arr3,  dtype='S100')
                 episode_group.create_dataset(f'exp_done{i}',    data=arr4,  dtype=bool)
             steps_count += count
             if count > 0:

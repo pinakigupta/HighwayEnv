@@ -13,7 +13,7 @@ def record_videos(env, name_prefix, video_folder="videos"):
     wrapped = RecordVideo(env, video_folder=video_folder, name_prefix = name_prefix, episode_trigger=lambda e: True)
 
     # Capture intermediate frames
-    env.unwrapped.set_record_video_wrapper(wrapped) 
+    env.set_record_video_wrapper(wrapped) 
 
     return wrapped
 

@@ -5,12 +5,9 @@ import os, shutil
 os.environ["HDF5_USE_THREADING"] = "true"
 import h5py
 import copy
-# import h5pyd as h5py
 import sys
-from stable_baselines3.common.policies import ActorCriticPolicy
-from models.nets import PolicyNetwork
+from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
 from torch.utils.data import Dataset, DataLoader
-from torch.nn.utils.rnn import pad_sequence
 import torch
 from generate_expert_data import extract_post_processed_expert_data  
 import pygame  
@@ -19,6 +16,7 @@ import seaborn as sns
 from highway_env.utils import lmap
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import wandb
+import json
 from tqdm import tqdm
 from attention_network import EgoAttentionNetwork
 import gymnasium as gym
@@ -33,14 +31,21 @@ import torchvision.models as models
 from contextlib import ExitStack
 from torchvision.models.video import R3D_18_Weights
 from torchvision import transforms
+import random
+import math
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
+ACTIONS_LAT = DiscreteMetaAction.ACTIONS_LAT
+ACTIONS_LONGI = DiscreteMetaAction.ACTIONS_LONGI
+import gym
+import numpy as np
+from gym import spaces
 
-# def process_file(train_data_file, result_queue, device, lock):
-#     processed_data = CustomDataset(train_data_file, device)
-#     with lock:
-#         result_queue.put([processed_data])
+
+
+
+
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
@@ -96,9 +101,29 @@ def write_module_hierarchy_to_file(model, file):
 
     write_module_recursive(model, file, processed_submodules=set())
 
+class RandomPolicy(BasePolicy):
+    def __init__(self, env, device, *args, **kwargs):
+        super(RandomPolicy, self).__init__(
+                                            *args, 
+                                            observation_space=env.observation_space,
+                                            action_space=env.action_space,
+                                            **kwargs
+                                          )
+        # self.action_space = env.action_space
+        # self.device = device
+        self.n = self.action_space.n
+
+    def _predict(self, obs, deterministic=False):
+        # Generate random actions from a uniform distribution
+        action = np.array(np.random.randint(0, self.n))
+        return action, None
+    
+    def predict(self, obs):
+        return self._predict(obs)
+    
+
 def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
-        action_dim = env.action_space.n
         def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
             progress = step_num / decay_steps
             learning_rate = initial_learning_rate * (1 - progress) + end_learning_rate * progress
@@ -141,13 +166,22 @@ class CustomDataset(Dataset):
         try:
             for key in self.keys_attributes:
                 if key in self.data:
-                    value = torch.tensor(self.data[key][idx], dtype=torch.float32)
+                    try:
+                        # Attempt to deserialize the data as JSON
+                        value = json.loads(self.data[key][idx]) 
+                    except:
+                        # If JSON deserialization fails, assume it's a primitive type
+                        value = self.data[key][idx]
+                    value = torch.tensor(value, dtype=torch.float32)
+                    # value = torch.tensor(self.data[key][idx], dtype=torch.float32)
                     sample[key] = value
 
         except Exception as e:
             pass
             # print(f' {e} , for , { id(self)}. key {key} , value {value} ')
             # raise e
+
+        sample['obs'][:, -1] = 0
 
         return sample
         
@@ -365,16 +399,16 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(" File handle for the zip file opened ")
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]           
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name]           
         for train_data_file in hdf5_train_file_names:
             if train_data_file not in visited_data_files:
                 visited_data_files.add(train_data_file)
                 with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
-                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'acts'])
+                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])
                     print(f"Loaded custom data set for {train_data_file}")
-                    new_key = 'obs'
-                    old_key = 'kin_obs'
+                    new_key = 'acts'
+                    old_key = 'act'
                     modified_dataset = []
                     for i in range(len(samples)):
                         my_dict = samples[i]
@@ -428,85 +462,182 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                                  ) 
     return train_data_loader
 
+def process_batch(output_queue, input_queue, labels, worker_index,lock, batch_count, **kwargs):
+    # local_policy_path = f'/tmp/validation_policy{worker_index}.pth'
+    # shutil.copy('validation_policy.pth', local_policy_path)
+    if lock.acquire(timeout=10):
+        local_policy = torch.load('validation_policy.pth', map_location='cpu')
+        lock.release()
+    else:
+        print(f"Couldn't fetch the validation policy for worker {worker_index}")
+        return
+    
+    print(f"ID of val policy is {id(local_policy)}")
+    output_samples =[]
+    while True:
+        if not input_queue.empty():
+            batch = input_queue.get()
+        else:
+            time.sleep(0.1)
+            continue
+        # print(f"batch collected from worker {worker_index}")
+        true_labels = batch['acts'].numpy()
+        with torch.no_grad():
+            # print(f"Lock acquired by {worker_index}")
+            predicted_labels = [local_policy.predict(obs.numpy())[0] for obs in batch['obs']]
+            _, log_prob, entropy = local_policy.evaluate_actions(batch['obs'], batch['acts'])
+            if 'label_weights' in kwargs:
+                true_labels         = true_labels @ kwargs['label_weights']
+                predicted_labels    = predicted_labels @ kwargs['label_weights']
+        accuracy = accuracy_score(true_labels, predicted_labels)
+        precision = precision_score(true_labels, predicted_labels, average=None, labels=labels)
+        recall = recall_score(true_labels, predicted_labels, average=None, labels=labels)
+        f1 = f1_score(true_labels, predicted_labels, average=None, labels=labels)
+        cross_entropy = -log_prob.mean().detach().cpu().numpy()
+        entropy = entropy.mean().detach().cpu().numpy()
+        conf_matrix = confusion_matrix(true_labels, predicted_labels, labels=labels)
+        output_sample = {
+                            'accuracy': accuracy,
+                            'precision': precision,
+                            'recall': recall,
+                            'f1': f1,
+                            'cross_entropy': cross_entropy,
+                            'entropy': entropy,
+                            'conf_matrix':conf_matrix 
+                        }
+        output_queue.put(output_sample)
+        # if lock.acquire(timeout=0.1):
+        #     output_queue.put(output_samples)
+        #     lock.release()
+        # else:
+        #     output_samples.append(output_sample)
 
-def calculate_validation_metrics(policy,zip_filename, **kwargs):
+
+
+def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs):
     true_labels = []
     predicted_labels = []
     # Iterate through the validation data and make predictions
     # CustomDataLoader(zip_filename, device, visited_data_files, batch_size, n_cpu, type='train')
-    file_names = [file_name for file_name in zipfile.ZipFile(zip_filename, 'r').namelist() if file_name.endswith('.h5') and "val" in file_name]
-    val_data_loader = CustomDataLoader(
-                                        zip_filename, 
-                                        device=kwargs['device'], 
-                                        visited_data_files=kwargs['visited_data_files'], 
-                                        batch_size=kwargs['batch_size'], 
-                                        n_cpu=kwargs['n_cpu'], 
-                                        type='val'
-                                      )
+    print(f"Calcuating validaton metrices for {kwargs['type']}-------------> ")
+    # val_data_loader = CustomDataLoader(
+    #                                     zip_filename, 
+    #                                     **{**kwargs,
+    #                                         'type':kwargs['type'],
+    #                                         'validation': True,
+    #                                         'visited_data_files': []
+    #                                       }
+    #                                   ) 
     
     conf_matrix = None
-    labels=list(ACTIONS_ALL.keys())
-    for batch in val_data_loader:
-        predicted_labels = [policy.predict(obs.cpu().numpy())[0] for obs in batch['obs']]
-        true_labels = batch['acts'].cpu().numpy()
-        batch_accuracy = accuracy_score(true_labels, predicted_labels)
-        batch_precision = precision_score(true_labels, predicted_labels, average=None)
-        batch_recall    = recall_score(true_labels, predicted_labels, average=None)
-        batch_f1        = f1_score(true_labels, predicted_labels, average=None)
-        if conf_matrix is not None:
-            conf_matrix += confusion_matrix(true_labels, predicted_labels, labels=labels )
+    accuracies = []
+    precisions = []
+    recalls = []
+    cross_entropies = []
+    entropies = []
+    f1s = []
+    labels = list(range(len(ACTIONS_LAT.keys())*len(ACTIONS_LAT.keys())))
+    policy.eval()
+    batch_count = 0
+
+    manager = multiprocessing.Manager()
+    lock = manager.Lock()
+    torch.save(policy,'validation_policy.pth')
+    # Create a list to store process objects
+    processes = []
+    output_queue = manager.Queue()
+    input_queue = manager.Queue()
+    num_workers =   max(kwargs['n_cpu'],1)
+
+    for i in range(num_workers):
+        
+        worker_process = multiprocessing.Process(
+                                                    target=process_batch, 
+                                                    args=(
+                                                            output_queue, 
+                                                            input_queue, 
+                                                            labels, 
+                                                            i,
+                                                            lock,
+                                                            batch_count
+                                                        ),
+                                                    kwargs = kwargs, 
+                                                )
+        processes.append(worker_process)
+        worker_process.start()
+
+    progress_bar = tqdm(total=kwargs['val_batch_count'], desc= f'{kwargs["type"]} progress')
+    conf_matrix = np.array([])
+
+    def calculate_metrics():
+        nonlocal accuracies, precisions, recalls, f1s, cross_entropies, entropies, conf_matrix
+        result = output_queue.get()
+        accuracies.append(result['accuracy'])
+        precisions.append(result['precision'])
+        recalls.append(result['recall'])
+        f1s.append(result['f1'])
+        cross_entropies.append(result['cross_entropy'])
+        entropies.append(result['entropy'])
+        if conf_matrix.size == 0 :
+            conf_matrix = result['conf_matrix']
         else:
-            conf_matrix  = confusion_matrix(true_labels, predicted_labels, labels=labels)
+            conf_matrix += result['conf_matrix']
+        progress_bar.update(1)
+            
+    for batch in val_data_loader:
+        sample = {key: value.to(torch.device('cpu')) for key, value in batch.items()}
+        try:
+            input_queue.put(sample)
+            if input_queue.qsize() > 1.25*kwargs['val_batch_count']:
+                break
+        except Exception as e:
+            print(e)
+        calculate_metrics()
+
+    while len(accuracies) < kwargs['val_batch_count']:
+        if output_queue.empty():
+            time.sleep(0.1)
+            return
+        calculate_metrics()
+
+
+    progress_bar.close()
+
+
+
+    # Wait for all processes to finish
+    for process in processes:
+        print(f'terminating process {process.pid}')
+        process.terminate()
+
                 
 
     # Calculate evaluation metrics
-    accuracy  = np.mean(batch_accuracy) 
-    precision = np.mean(batch_precision)
-    recall    = np.mean(batch_recall)
-    f1        = np.mean(batch_f1)
+    axis = 0
+    accuracy  = np.mean(accuracies,  axis=axis) 
+    precision = np.mean(precisions, axis=axis)
+    recall    = np.mean(recalls, axis=axis)
+    f1        = np.mean(f1s, axis=axis)
+    cross_entropies = np.mean(cross_entropies)
+    entropies = np.mean(entropies)
 
     # Print the metrics
     print("Accuracy:", accuracy, np.mean(accuracy))
+    print("cross_entropy:", np.mean(cross_entropies), "entropy:", np.mean(entropies))
     print("Precision:", precision, np.mean(precision))
     print("Recall:", recall, np.mean(recall))
     print("F1 Score:", f1, np.mean(f1))
 
 
-    # predicted_labels = []
-    # true_labels = []
-    # with torch.no_grad():
-    #     with zipfile.ZipFile(zip_filename, 'r') as zipf:
-    #         hdf5_val_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and "train" in file_name]
-    #         for val_data_file in hdf5_val_file_names:
-    #             with zipf.open(val_data_file) as file_in_zip:
-    #                 hdf5_data = file_in_zip.read()
-    #                 in_memory_file = io.BytesIO(hdf5_data)
-    #                 val_obs, val_acts, val_dones = extract_post_processed_expert_data(in_memory_file)
-    #                 predicted_labels.extend([bc_trainer.policy.predict(obs)[0] for obs in val_obs])
-    #                 true_labels.extend(val_acts)
 
-    # # Calculate evaluation metrics for training
-    # tr_accuracy = accuracy_score(true_labels, predicted_labels)
-    # tr_precision = precision_score(true_labels, predicted_labels, average=None)
-    # tr_recall = recall_score(true_labels, predicted_labels, average=None)
-    # tr_f1 = f1_score(true_labels, predicted_labels, average=None)
-
-
-
-    # print("--------  Training data metrics for reference---------------")
-    # print("Accuracy:", accuracy, np.mean(tr_accuracy))
-    # print("Precision:", precision,  np.mean(tr_precision))
-    # print("Recall:", recall, np.mean(tr_recall))
-    # print("F1 Score:", f1, np.mean(tr_f1))
-
-    if False:
+    if True:
         plt.figure(figsize=(8, 6))
-        class_labels = [ ACTIONS_ALL[idx] for idx in range(len(ACTIONS_ALL))]
+        class_labels = labels
         sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
         plt.xlabel("Predicted Labels")
         plt.ylabel("True Labels")
-        plt.title("Confusion Matrix")
-        heatmap_png = 'heatmap.png'
+        plt.title(f"Confusion Matrix for {kwargs['type']}")
+        heatmap_png = f'heatmap_{kwargs["type"]}.png'
         plt.savefig(heatmap_png)
 
     if False: # For now keep this local as the remote artifact size is growing too much
@@ -514,7 +645,24 @@ def calculate_validation_metrics(policy,zip_filename, **kwargs):
             zipf.write(heatmap_png, arcname=training_kwargs['plot_path'])
     # plt.show()  
     # print("saved confusion matrix")
-    return accuracy, precision, recall, f1
+
+    while any(p.is_alive() for p in processes):
+        alive_workers = [worker for worker in processes if worker.is_alive()]
+        for worker_process in alive_workers:
+            os.kill(worker_process.pid, signal.SIGKILL)
+        time.sleep(0.25)  # Sleep for a second (you can adjust the sleep duration)
+        print([worker.pid for worker in processes if worker.is_alive()])
+
+    metrics = {
+               'accuracy':      accuracy,
+               'precision':     np.mean(precision), 
+               'recall':        np.mean(recall), 
+               'f1':            np.mean(f1),
+               'cross_entropy': np.mean(cross_entropies),
+               'entropy':       np.mean(entropies),
+
+            }
+    return metrics
 
 
 class CustomImageExtractor(BaseFeaturesExtractor):
@@ -578,19 +726,24 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         
         return hidden_features  # Return the extracted features
 
-import random
-import math
+
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
-    def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu, **kwargs):
+    def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu, validation=False, verbose=False, **kwargs):
         self.kwargs = kwargs
         self.zip_filename = zip_filename
         self.device = device
         self.visited_data_files = visited_data_files
         self.batch_size = batch_size
         self.n_cpu =  n_cpu
+        self.verbose = verbose
+        self.is_validation = validation or self.kwargs['type'] == 'val'
         with zipfile.ZipFile(self.zip_filename, 'r') as zipf:
             self.hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
-        self.chunk_size = 7500  # Assume a large number of samples
+        print('self.hdf5_file_names ', self.hdf5_train_file_names)
+        if 'chunk_size' in kwargs:
+            self.chunk_size = kwargs['chunk_size']
+        else:
+            self.chunk_size = 7500
         self.all_worker_indices = self.calculate_worker_indices(self.chunk_size)
         self.manager = multiprocessing.Manager()
         self.all_obs = self.manager.list()
@@ -599,7 +752,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         self.all_kin_obs = self.manager.list()
         self._reset_tuples()
         self.batch_no = 0
-        self.pool = multiprocessing.Pool()
+        # self.pool = multiprocessing.Pool()
         self.total_samples = self.manager.dict()
         self.total_chunks = self.manager.dict()
         self.lock = self.manager.Lock()
@@ -611,6 +764,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                                     'acts', 
                                     'dones'
                                     ]
+        self.epoch = 0
 
 
     def _reset_tuples(self):
@@ -677,7 +831,10 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
         try:
             for key in self.keys_to_consider:
-                batch[key] = torch.tensor([sample[key] for sample in batch_samples], dtype=torch.float32).to(self.device)
+                values = [list(sample[key].values()) if isinstance(sample[key], dict) else sample[key] for sample in batch_samples] 
+                if key == 'acts' and 'label_weights' in self.kwargs:
+                    values = values @ self.kwargs['label_weights']
+                batch[key] = torch.tensor(values, dtype=torch.float32).to(self.device)
         except Exception as e:
             print(batch_samples[0].keys())
             for k, v,in batch_samples.items():
@@ -694,28 +851,25 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         return batch   
      
     def __iter__(self):
+        num_yielded_batches = 0 
         while True: # Keep iterating till num batches is met
-            print(f"++++++++++++++++++ ITER PASS {self.iter} +++++++++++++++++++")
+            if self.verbose:
+                print(f"++++++++++++++++++ ITER PASS {self.iter} +++++++++++++++++++")
             self.iter += 1
             for file_name in self.hdf5_train_file_names:
                 with ZipfContextManager(self.zip_filename, file_name) as hf:
                     self.total_samples[file_name] = len(hf['act'])
                     self.total_chunks[file_name] = list(range(math.ceil(self.total_samples[file_name]/self.chunk_size)))
             for batch in self.iter_once_all_files(): # Keep iterating
-                # print('batch.keys()', batch.keys())
                 yield batch
-            if self.kwargs['type'] is 'val': # Only one iteration through all the files is file
+                num_yielded_batches += 1
+                
+                if self.is_validation and num_yielded_batches >= self.kwargs['val_batch_count']:
+                    return  # Exit the generator loop
+            self.epoch += 1
+            print(f"Data loader Epoch count {self.epoch}")
+            if self.is_validation: # Only one iteration through all the files is file
                 break
-
-    def __iter_once__(self):    
-        for train_data_file in self.hdf5_train_file_names :
-            # if train_data_file  in self.visited_data_files:
-            #     continue
-            # self.visited_data_files.add(train_data_file)
-            for item in self.iter_once_one_file(train_data_file):
-                yield item
-            # print(f"Iter once through file {train_data_file}")
-
 
     def reader_worker(
                         self, 
@@ -741,12 +895,20 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             starting_sample = self.chunk_size*chunk_num
             total_samples_for_chunk = min(total_samples[file_name]-starting_sample, self.chunk_size)
             chunk_indices = all_indices[starting_sample:starting_sample + total_samples_for_chunk]
-            chunk = {key: hf[key][chunk_indices] for key in [
+            chunk = {}
+            for key in [
                                     'obs', 
                                     # 'kin_obs', 
                                     'act', 
                                     'dones'
-                                    ]}
+                                    ]:
+                    try:
+                        # Attempt to deserialize the data as JSON
+                        chunk[key] = [json.loads(data_str) for data_str in hf[key][chunk_indices]]
+                    except:
+                        # If JSON deserialization fails, assume it's a primitive type
+                        chunk[key] = hf[key][chunk_indices]                
+
             reader_queue.put(chunk)
             # print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
 
@@ -754,16 +916,16 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 
     # MAX_CHUNKS = 5
     def iter_once_all_files(self):
-        self.step_num =0         
+        self.step_num = 0 
         while self.total_samples:
-            print(f"Launching all reader processes for step {self.step_num}", flush=True)
+            # print(f"Launching all reader processes for step {self.step_num}", flush=True)
             self.all_acts = []
             self.all_obs = []
             self.all_kin_obs = []
             self.all_dones = []
             reader_queue = self.manager.Queue()
             reader_processes = self.launch_reader_workers(reader_queue)
-            print(f"Launched all reader processes for step {self.step_num}", flush=True)
+            # print(f"Launched all reader processes for step {self.step_num}", flush=True)
 
 
 
@@ -791,7 +953,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
             self.destroy_workers(reader_processes)
 
-            print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
+            # print(f"Joined all reader processes for step {self.step_num}. length', {len(self.all_acts)}")
 
             # Randomize the aggregated chunks across all files by shuffling
             all_indices = list(range(len(self.all_acts) ))
@@ -811,7 +973,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
 
 
     def generate_batches_from_one_chunk(self, total_samples_for_chunk ,step_num):
-        print(f"Launching writer worker processes for step {step_num}", flush=True)
+        if self.verbose:
+            print(f"Launching writer worker processes for step {step_num}", flush=True)
         samples_queue = self.manager.Queue(maxsize=self.batch_size * 2)  # Multiprocessing Queue for accumulating samples
         self.all_worker_indices = self.calculate_worker_indices(total_samples_for_chunk)
         worker_processes = self.launch_writer_workers(samples_queue, total_samples_for_chunk)
@@ -836,7 +999,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
         # self._reset_tuples()
         # Collect and yield batches from each process
         self.destroy_workers(worker_processes)
-        print(f" Terminated all writer process for  step {step_num}", flush=True)
+        if self.verbose:
+            print(f" Terminated all writer process for  step {step_num}", flush=True)
 
 
 
@@ -877,10 +1041,12 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     sample['acts'] = self.all_acts[index]
                 if self.all_dones:
                     sample['dones'] = self.all_dones[index]
-
-                samples_queue.put(sample )
-            except (IndexError, EOFError) as e:
-                print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
+                if sample:
+                    samples_queue.put(sample)
+            except (IndexError, EOFError, BrokenPipeError) as e:
+                # print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
+                pass
+            except Exception as e:
                 pass
             # time.sleep(0.01)
                         

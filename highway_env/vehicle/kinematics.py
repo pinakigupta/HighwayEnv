@@ -40,9 +40,14 @@ class Vehicle(RoadObject):
         self.impact = None
         self.log = []
         self.history = deque(maxlen=self.HISTORY_SIZE)
-        self.kwargs = kwargs
+        self.config = kwargs
+        self.position_noise = 0 
         if 'target_speed' in kwargs:
             self.target_speed = kwargs['target_speed']
+        if 'position_noise' in kwargs:
+            self.position_noise = kwargs['position_noise']
+        self.action_type = kwargs['action_type'] if 'action_type' in kwargs else None
+        self.LENGTH_org = self.LENGTH
 
     @classmethod
     def create_random(cls, 
@@ -54,6 +59,7 @@ class Vehicle(RoadObject):
                       spacing: float = 1,
                       x0:Optional[float] = None,
                       seed:Optional[int] = None,
+                      action_type = None,
                       **kwargs) \
             -> "Vehicle":
         """
@@ -72,6 +78,7 @@ class Vehicle(RoadObject):
         """
         # if seed is not None:
         #     np.random.seed(seed)
+        
         _from = lane_from or road.np_random.choice(list(road.network.graph.keys()))
         _to = lane_to or road.np_random.choice(list(road.network.graph[_from].keys()))
         _id = lane_id if lane_id is not None else road.np_random.choice(len(road.network.graph[_from][_to]))
@@ -91,13 +98,14 @@ class Vehicle(RoadObject):
                 x0 = np.max([lane.local_coordinates(v.position)[0] for v in road.vehicles]) 
                 x0 += offset * road.np_random.uniform(0.9, 1.1) 
         target_speed = road.np_random.uniform(1.0, 1.25*lane.speed_limit)
-                     
+        action_type = action_type             
         v = cls(
                 road, 
                 lane.position(x0, 0), 
                 lane.heading_at(x0), 
                 speed, 
                 target_speed = target_speed,
+                action_type = action_type,
                 **kwargs
                 )
         return v
@@ -136,6 +144,9 @@ class Vehicle(RoadObject):
 
         :param dt: timestep of integration of the model [s]
         """
+
+
+        self.LENGTH = self.LENGTH_org + self.config['length_noise']()
         self.clip_actions()
         delta_f = self.action['steering']
         beta = np.arctan(1 / 2 * np.tan(delta_f))
@@ -146,6 +157,8 @@ class Vehicle(RoadObject):
             self.position += self.impact
             self.crashed = True
             self.impact = None
+        self.observed_position = self.position
+        self.observed_position[0] +=  self.position_noise()
         self.heading += self.speed * np.sin(beta) / (self.LENGTH / 2) * dt
         self.speed += self.action['acceleration'] * dt
         self.on_state_update()
@@ -222,10 +235,11 @@ class Vehicle(RoadObject):
     def to_dict(self, origin_vehicle: "Vehicle" = None, observe_intentions: bool = True, relative_features=[]) -> dict:
         if origin_vehicle is None:
             origin_vehicle = self
+        
         d = {
             'presence': 1,
-            'x': self.position[0],
-            'y': self.position[1],
+            'x': self.observed_position[0],
+            'y': self.observed_position[1],
             'vx': self.velocity[0],
             'vy': self.velocity[1],
             'heading': self.heading,
@@ -236,7 +250,7 @@ class Vehicle(RoadObject):
             'long_off': self.lane_offset[0],
             'lat_off': self.lane_offset[1],
             'ang_off': self.lane_offset[2],
-            'L': self.LENGTH,
+            'L': self.LENGTH ,
             'W': self.WIDTH,
             'lane': self.lane_index[2]
         }

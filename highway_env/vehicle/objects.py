@@ -1,4 +1,5 @@
 from abc import ABC
+import math
 from typing import Sequence, Tuple, TYPE_CHECKING, Optional
 import numpy as np
 
@@ -30,13 +31,21 @@ class RoadObject(ABC):
         self.LENGTH = 5
         self.WIDTH = 2
         if 'LENGTH' in kwargs:
-            self.LENGTH = kwargs['LENGTH'] if kwargs['LENGTH'] is not 'random' else \
-                  road.np_random.uniform(kwargs['min_length'], kwargs['max_length'])  
+            if kwargs['LENGTH'] == 'random':
+                self.LENGTH = road.np_random.uniform(kwargs['min_length'], kwargs['max_length'])
+            else:
+                self.LENGTH = kwargs['LENGTH']
+        
+                    
         if 'WIDTH' in kwargs:
-            self.WIDTH = kwargs['WIDTH'] if kwargs['WIDTH'] is not 'random' else \
-                  road.np_random.uniform(kwargs['min_width'], kwargs['max_width'])  
+            if kwargs['WIDTH'] == 'random':
+                self.WIDTH = road.np_random.uniform(kwargs['min_width'], kwargs['max_width'])
+            else:
+                self.WIDTH = kwargs['WIDTH']
+
         self.road = road
         self.position = np.array(position, dtype=np.float64)
+        self.observed_position = self.position
         self.heading = heading
         self.speed = speed
         self.lane_index = self.road.network.get_closest_lane_index(self.position, self.heading) if self.road else np.nan
@@ -51,6 +60,7 @@ class RoadObject(ABC):
         # If False, this object will not check its own collisions, but it can still collides with other objects that do
         # check their collisions.
         self.check_collisions = True
+        # print('self.LENGTH ', self.LENGTH, kwargs['LENGTH'])
         self.diagonal = np.sqrt(self.LENGTH**2 + self.WIDTH**2)
         self.crashed = False
         self.hit = False
@@ -154,19 +164,25 @@ class RoadObject(ABC):
         points = (rotation @ points).T + np.tile(self.position, (4, 1))
         return np.vstack([points, points[0:1]])
 
-    def lane_distance_to(self, other: 'RoadObject', lane: 'AbstractLane' = None) -> float:
+    def lane_distance_to(self, other: 'RoadObject', lane: 'AbstractLane' = None, observed:bool = False) -> float:
         """
         Compute the signed distance to another object along a lane.
 
         :param other: the other object
         :param lane: a lane
+        :param observed : if True use observed position which may add a noise over true position
         :return: the distance to the other other [m]
         """
         if not other:
             return np.nan
         if not lane:
             lane = self.lane
-        return lane.local_coordinates(other.position)[0] - lane.local_coordinates(self.position)[0]
+        bumper_buffer = (other.LENGTH + self.LENGTH)/2
+        if observed:
+            center_distance = lane.local_coordinates(other.observed_position)[0] - lane.local_coordinates(self.observed_position)[0]
+        else:
+            center_distance = lane.local_coordinates(other.position)[0] - lane.local_coordinates(self.position)[0]
+        return center_distance-bumper_buffer*math.copysign(1,center_distance)
 
     @property
     def on_road(self) -> bool:

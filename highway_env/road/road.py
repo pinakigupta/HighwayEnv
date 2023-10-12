@@ -335,12 +335,12 @@ class Road(object):
         # for v in vehicles:
         #     if v is None:
         #         vehicles.remove(v)
-        vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), abs(vehicle.lane_distance_to(v))))
+        vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), abs(vehicle.lane_distance_to(v)))) # Two key, First sort by lane, then by distance 
         if count:
             vehicles = vehicles[:count]
-        vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), vehicle.lane_distance_to(v))) # Again present them as -ve to +ve
-        # sort them according to y first. position[1] is y, sort them according to distance from ego then, for the same y
-        # vehicles = sorted(vehicles, key=lambda v: vehicle.lane_distance_to(v)) # 
+        vehicles =  sorted(vehicles, key=lambda v: (abs(v.lane_index[2]-vehicle.lane_index[2]), v.lane_index[2]-vehicle.lane_index[2],  vehicle.lane_distance_to(v))) 
+                # Again present them as -ve to +ve
+                # sort them according to y first. position[1] is y, sort them according to distance from ego then, for the same y
         return vehicles
 
     def act(self) -> None:

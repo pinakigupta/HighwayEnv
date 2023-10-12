@@ -4,8 +4,8 @@ import gymnasium as gym
 from highway_env.utils import print_overwrite
 import concurrent.futures
 import statistics
+import numpy as np
 from utils import record_videos
-
 # ==================================
 #     Environment configuration
 # ==================================
@@ -13,6 +13,92 @@ from utils import record_videos
 total_count_lock = multiprocessing.Lock()
 total_count = multiprocessing.Value("i", 0)
 
+class DictToMultiDiscreteWrapper(gym.Wrapper):
+    def __init__(self, env, key_order=None, **kwargs):
+        super(DictToMultiDiscreteWrapper, self).__init__(env, **kwargs)
+        
+        if isinstance(self.env.action_space, gym.spaces.Dict):
+            # Assuming that the 'action_space' of the original environment is a Dict
+            self.key_order = key_order or list(self.env.action_space.spaces.keys())
+            self.ndim = [self.env.action_space[key].n for key in self.key_order]
+            self.action_space = gym.spaces.MultiDiscrete(self.ndim)
+            # self.multi_discrete_action = self.action_space.sample()
+            # self.action_space = self.convert_to_multi_discrete(self.env.action_space)
+        else:
+            self.key_order = None  # No key order needed for non-dict action spaces
+            self.action_space = self.env.action_space
+
+    def step(self, action):
+        # If the environment uses Dict action space, convert the MultiDiscrete action to a Dict action
+        if isinstance(self.env.action_space, gym.spaces.Dict):
+            dict_action = self.convert_to_dict(action)
+        else:
+            dict_action = action
+        return self.env.step(dict_action)
+    
+    def discrete_action(self, discrete_action):
+        return self.convert_to_multi_discrete(self.env.discrete_action(discrete_action))
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+    def convert_to_multi_discrete(self, dict_action):
+        # Convert a Dict action space to a MultiDiscrete action space
+        action_list = [dict_action[key] for key in self.key_order]
+        # self.action_space.sample()[:] = action_list
+        return action_list
+
+    def convert_to_dict(self, multi_discrete_action):
+        # Convert a MultiDiscrete action to a Dict action
+        if isinstance(multi_discrete_action, dict):
+            return multi_discrete_action
+        dict_action = {}
+        for i, key in enumerate(self.key_order):
+            discrete_action = multi_discrete_action[i] # This is numeric at this point
+            dict_action[key] =  self.env.action_type.actions[key][discrete_action]
+        return dict_action
+
+class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
+    def __init__(self, env, **kwargs):
+        super(MultiDiscreteToSingleDiscreteWrapper, self).__init__(env, **kwargs)
+        self.nvec = self.env.action_space.nvec
+        self.action_weights = np.copy(self.nvec) # Action weights for mapping multi to single
+        self.action_weights[-1] = 1
+        self.inv_action_weights = 1/self.action_weights
+        if isinstance(self.env.action_space, gym.spaces.MultiDiscrete):            
+            self.action_space = gym.spaces.Discrete(np.prod(self.nvec))
+        else:
+            self.action_space = self.env.action_space
+
+    def step(self, action):
+        # Convert a MultiDiscrete action to a single action using action_weights
+        if isinstance(self.env.action_space, gym.spaces.MultiDiscrete):
+            multi_action = self.convert_to_multi_discrete(action)
+        else:
+            # Pass the action through as is
+            multi_action = action
+        return self.env.step(multi_action)
+    
+    def discrete_action(self, discrete_action):
+        return self.convert_to_single_discrete(self.env.discrete_action(discrete_action))
+    
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+    
+    def convert_to_multi_discrete(self, action:gym.spaces)->gym.spaces:
+        if  isinstance(action, gym.spaces.Discrete) or isinstance(action, np.ndarray):
+            # Hardcoding this for two variables for now
+            rem = action%self.action_weights[0]
+            mod = (action-rem)/self.action_weights[0]
+            return np.array([mod, rem])
+        
+        return action # Already multi 
+
+        
+    
+    def convert_to_single_discrete(self, multi_action:gym.spaces)->gym.spaces:
+        return multi_action @ self.action_weights
+        
 def make_configure_env(**kwargs):
     env = gym.make(
                     # kwargs["id"], 
@@ -22,6 +108,9 @@ def make_configure_env(**kwargs):
                   )
     # env.configure(kwargs["config"])
     env.reset()
+    custom_key_order = ['long','lat']
+    env = DictToMultiDiscreteWrapper(env,key_order=custom_key_order)
+    env = MultiDiscreteToSingleDiscreteWrapper(env)
     return env
 
 
