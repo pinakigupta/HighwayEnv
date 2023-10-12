@@ -107,7 +107,7 @@ if __name__ == "__main__":
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = True
+            policy = None
             if policy:
                 # oracle_agent                            = retrieve_agent(
                 #                                                             artifact_version='trained_model_directory:latest',
@@ -421,7 +421,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 155600 if last_epoch else 1500 # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 155600 if last_epoch else 7500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -719,6 +719,7 @@ if __name__ == "__main__":
             normalized_counts = (sample_counts - sample_counts.min()) / (sample_counts.max() - sample_counts.min())
             # Reshape the sample counts to create a heatmap
             # sample_count_matrix = sample_counts.reshape(-1, 1)
+            print('normalized_counts', normalized_counts)
 
             # Create a color map based on the sample counts
             cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=1.0, reverse=False, as_cmap=True)

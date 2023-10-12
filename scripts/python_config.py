@@ -25,7 +25,7 @@ env_kwargs = {
         "max_lanes_count": 7,
         "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
         "vehicles_count": 'random',
-        "max_vehicles_count": 200,
+        "max_vehicles_count": 150,
         'politeness': 'random',
         'headway_timegap': 1.0,
         "action": {
@@ -86,7 +86,7 @@ sweep_config = {
             "values": [ 64 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [1]  # Values for the "duration" field to be swept
+            "values": [15]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -115,7 +115,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.ANALYSIS
+train = TrainEnum.BC
 zip_filename = 'temp_1.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
