@@ -401,15 +401,15 @@ if __name__ == "__main__":
                 metricses = {}
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    # train_data_loader                                            = create_dataloaders(
-                    #                                                                                       zip_filename,
-                    #                                                                                       train_datasets, 
-                    #                                                                                       type = 'train',
-                    #                                                                                       device=device,
-                    #                                                                                       batch_size=minibatch_size,
-                    #                                                                                       n_cpu = n_cpu,
-                    #                                                                                       visited_data_files=visited_data_files
-                    #                                                                                   )
+                    train_data_loader                                            = create_dataloaders(
+                                                                                                          zip_filename,
+                                                                                                          train_datasets, 
+                                                                                                          type = 'train',
+                                                                                                          device=device,
+                                                                                                          batch_size=minibatch_size,
+                                                                                                          n_cpu = n_cpu,
+                                                                                                          visited_data_files=visited_data_files
+                                                                                                      )
                     train_data_loader = CustomDataLoader(
                                                             zip_filename, 
                                                             device, 

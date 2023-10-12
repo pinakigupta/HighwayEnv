@@ -19,7 +19,7 @@ env_kwargs = {
                 "max_width": 3.5,
             },
         'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
-        'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
+        # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
         'simulation_frequency': 10,
         "lanes_count": 'random',
         "min_lanes_count": 2,
