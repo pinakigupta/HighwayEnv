@@ -410,15 +410,15 @@ if __name__ == "__main__":
                                                                                                           n_cpu = n_cpu,
                                                                                                           visited_data_files=visited_data_files
                                                                                                       )
-                    train_data_loader = CustomDataLoader(
-                                                            zip_filename, 
-                                                            device, 
-                                                            visited_data_files, 
-                                                            batch_size = minibatch_size, 
-                                                            n_cpu=n_cpu, 
-                                                            chunk_size=15000,
-                                                            type='train'
-                                                        )
+                    # train_data_loader = CustomDataLoader(
+                    #                                         zip_filename, 
+                    #                                         device, 
+                    #                                         visited_data_files, 
+                    #                                         batch_size = minibatch_size, 
+                    #                                         n_cpu=n_cpu, 
+                    #                                         chunk_size=15000,
+                    #                                         type='train'
+                    #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 155600 if last_epoch else 7500*(1+epoch) # Mini epoch here correspond to typical epoch
