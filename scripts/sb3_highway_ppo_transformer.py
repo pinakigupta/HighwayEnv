@@ -396,15 +396,7 @@ if __name__ == "__main__":
                 trainer = create_trainer(env, policy, batch_size=batch_size, minibatch_size=minibatch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
-                train_datasets = []                    train_data_loader = CustomDataLoader(
-                                                            zip_filename, 
-                                                            device, 
-                                                            visited_data_files, 
-                                                            batch_size = minibatch_size, 
-                                                            n_cpu=n_cpu, 
-                                                            chunk_size=15000,
-                                                            type='train'
-                                                        )
+                train_datasets = []                    
                 visited_data_files = set([])
                 metricses = {}
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
