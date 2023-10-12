@@ -566,7 +566,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
+            append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             env = make_configure_env(**env_kwargs)
             env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
