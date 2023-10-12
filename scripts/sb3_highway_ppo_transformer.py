@@ -107,7 +107,7 @@ if __name__ == "__main__":
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = None
+            policy = True
             if policy:
                 # oracle_agent                            = retrieve_agent(
                 #                                                             artifact_version='trained_model_directory:latest',
@@ -127,7 +127,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 10,
+                                    delta_iterations = 3,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -396,7 +396,8 @@ if __name__ == "__main__":
                 trainer = create_trainer(env, policy, batch_size=batch_size, minibatch_size=minibatch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
-                train_datasets = []                    train_data_loader = CustomDataLoader(
+                train_datasets = []                    
+                dtrain_data_loader = CustomDataLoader(
                                                             zip_filename, 
                                                             device, 
                                                             visited_data_files, 
