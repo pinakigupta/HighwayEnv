@@ -59,10 +59,10 @@ class IDMVehicle(ControlledVehicle):
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         self.DISTANCE_WANTED = 5.0 + self.LENGTH  # [m]
         """Desired jam distance to the front vehicle."""
-        if ('politeness' in self.kwargs) and (self.kwargs['politeness'] is 'random'):
+        if ('politeness' in self.config) and (self.config['politeness'] is 'random'):
             self.POLITENESS = self.road.np_random.uniform(0.2, 0.8) #0.8  # in [0, 1]
         else:
-             self.POLITENESS = self.kwargs['politeness']
+             self.POLITENESS = self.config['politeness']
         self.enable_lane_change = enable_lane_change
         self.timer = timer or (np.sum(self.position)*np.pi) % self.LANE_CHANGE_DELAY
         self.target_speed_timer = 0.0
@@ -555,6 +555,7 @@ class MDPVehicle(IDMVehicle):
 
         :param action: a high-level action
         """
+        self.LENGTH = self.LENGTH_org
         if action is not None:
             self.mdp_action = action
         # print("self.discrete_action ", self.discrete_action, id(self), " action ", action)
