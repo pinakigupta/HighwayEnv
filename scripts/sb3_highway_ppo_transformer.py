@@ -107,7 +107,7 @@ if __name__ == "__main__":
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = True
+            policy = None
             if policy:
                 # oracle_agent                            = retrieve_agent(
                 #                                                             artifact_version='trained_model_directory:latest',
@@ -396,29 +396,37 @@ if __name__ == "__main__":
                 trainer = create_trainer(env, policy, batch_size=batch_size, minibatch_size=minibatch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
-                train_datasets = []
+                train_datasets = []                    train_data_loader = CustomDataLoader(
+                                                            zip_filename, 
+                                                            device, 
+                                                            visited_data_files, 
+                                                            batch_size = minibatch_size, 
+                                                            n_cpu=n_cpu, 
+                                                            chunk_size=15000,
+                                                            type='train'
+                                                        )
                 visited_data_files = set([])
                 metricses = {}
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    train_data_loader                                            = create_dataloaders(
-                                                                                                          zip_filename,
-                                                                                                          train_datasets, 
-                                                                                                          type = 'train',
-                                                                                                          device=device,
-                                                                                                          batch_size=minibatch_size,
-                                                                                                          n_cpu = n_cpu,
-                                                                                                          visited_data_files=visited_data_files
-                                                                                                      )
-                    # train_data_loader = CustomDataLoader(
-                    #                                         zip_filename, 
-                    #                                         device, 
-                    #                                         visited_data_files, 
-                    #                                         batch_size = minibatch_size, 
-                    #                                         n_cpu=n_cpu, 
-                    #                                         chunk_size=15000,
-                    #                                         type='train'
-                    #                                     )
+                    # train_data_loader                                            = create_dataloaders(
+                    #                                                                                       zip_filename,
+                    #                                                                                       train_datasets, 
+                    #                                                                                       type = 'train',
+                    #                                                                                       device=device,
+                    #                                                                                       batch_size=minibatch_size,
+                    #                                                                                       n_cpu = n_cpu,
+                    #                                                                                       visited_data_files=visited_data_files
+                    #                                                                                   )
+                    train_data_loader = CustomDataLoader(
+                                                            zip_filename, 
+                                                            device, 
+                                                            visited_data_files, 
+                                                            batch_size = minibatch_size, 
+                                                            n_cpu=n_cpu, 
+                                                            chunk_size=15000,
+                                                            type='train'
+                                                        )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
                     num_mini_batches = 155600 if last_epoch else 1500 # Mini epoch here correspond to typical epoch

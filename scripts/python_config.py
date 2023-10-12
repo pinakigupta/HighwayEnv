@@ -25,7 +25,7 @@ env_kwargs = {
         "max_lanes_count": 7,
         "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
         "vehicles_count": 'random',
-        "max_vehicles_count": 200,
+        "max_vehicles_count": 150,
         'politeness': 'random',
         'headway_timegap': 1.0,
         "action": {
@@ -115,10 +115,10 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.ANALYSIS
-zip_filename = 'temp_1.zip'
-# env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
-env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
+train = TrainEnum.EXPERT_DATA_COLLECTION
+zip_filename = 'expert_trial_data_large.zip'
+env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
+# env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
 attention_network_kwargs = dict(
     # in_size=5*15,
