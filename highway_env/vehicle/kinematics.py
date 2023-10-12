@@ -146,7 +146,9 @@ class Vehicle(RoadObject):
         """
 
 
-        self.LENGTH = self.LENGTH_org + self.config['length_noise']()
+        self.LENGTH = self.LENGTH_org 
+        if 'length_noise' in self.config:
+             self.LENGTH += self.config['length_noise']()
         self.clip_actions()
         delta_f = self.action['steering']
         beta = np.arctan(1 / 2 * np.tan(delta_f))

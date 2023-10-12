@@ -10,6 +10,7 @@ from highway_env.utils import near_split
 from highway_env.vehicle.controller import ControlledVehicle
 from highway_env.vehicle.kinematics import Vehicle
 
+import functools
 Observation = np.ndarray
 speed_reward_spd = [5, 10, 15, 20, 25, 30]
 speed_reward_rwd = [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0]
@@ -120,6 +121,7 @@ class HighwayEnv(AbstractEnv):
                                                             self.road, 
                                                             spacing= 1 / self.config["vehicles_density"],
                                                             action_type = self.action_type,
+                                                            length_noise = functools.partial(np.random.normal, loc=0, scale=0.25),
                                                             **self.config
                                                            )
                 vehicle.randomize_behavior()
