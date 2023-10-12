@@ -19,7 +19,7 @@ env_kwargs = {
                 "max_width": 3.5,
             },
         'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
-        'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
+        # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
         'simulation_frequency': 10,
         "lanes_count": 'random',
         "min_lanes_count": 2,
@@ -116,10 +116,10 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
-zip_filename = 'expert_data_dagger.zip'
-# env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
-env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
+train = TrainEnum.BC
+zip_filename = 'expert_trial_data_large.zip'
+env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
+# env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
 attention_network_kwargs = dict(
     # in_size=5*15,

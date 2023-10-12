@@ -286,8 +286,8 @@ class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
         else:
             self.augment_image = False
 
-        if not isinstance(observation_space, gym.spaces.Box):
-            raise ValueError("Observation space must be continuous (e.g., image-based)")
+        # if not isinstance(observation_space, gym.spaces.Box):
+        #     raise ValueError("Observation space must be continuous (e.g., image-based)")
         
         self.resnet = models.video.r3d_18(pretrained=True)  # You can choose a different ResNet variant
         # Remove the classification (fully connected) layer

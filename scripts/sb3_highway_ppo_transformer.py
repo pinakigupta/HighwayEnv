@@ -397,15 +397,6 @@ if __name__ == "__main__":
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
                 train_datasets = []                    
-                train_data_loader = CustomDataLoader(
-                                                            zip_filename, 
-                                                            device, 
-                                                            visited_data_files, 
-                                                            batch_size = minibatch_size, 
-                                                            n_cpu=n_cpu, 
-                                                            chunk_size=15000,
-                                                            type='train'
-                                                        )
                 visited_data_files = set([])
                 metricses = {}
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
@@ -425,7 +416,7 @@ if __name__ == "__main__":
                                                             visited_data_files, 
                                                             batch_size = minibatch_size, 
                                                             n_cpu=n_cpu, 
-                                                            chunk_size=15000,
+                                                            chunk_size=1000,
                                                             type='train'
                                                         )
                     print(f'Loaded training data loader for epoch {epoch}')
