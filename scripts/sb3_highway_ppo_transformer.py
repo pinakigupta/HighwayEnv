@@ -342,7 +342,7 @@ if __name__ == "__main__":
                                             functools.partial(
                                                                 display_vehicles_attention, 
                                                                 env=env, 
-                                                                fe=model.features_extractor,
+                                                                extractor=model.features_extractor.extractor,
                                                                 device=device
                                                             )
                                         )
@@ -430,7 +430,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 155600 if last_epoch else 7500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 15600 if last_epoch else 7500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -603,7 +603,7 @@ if __name__ == "__main__":
                                                 functools.partial(
                                                                     display_vehicles_attention, 
                                                                     env=env, 
-                                                                    fe=policy.features_extractor,
+                                                                    extractor=policy.features_extractor.obs_extractor.extractor,
                                                                     device=device
                                                                 )
                                              )

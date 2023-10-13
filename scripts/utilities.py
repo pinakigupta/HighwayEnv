@@ -209,8 +209,8 @@ class CustomDataset(Dataset):
         return sample 
         
         
-def display_vehicles_attention(agent_surface, sim_surface, env, fe, device,  min_attention=0.01):
-        v_attention = compute_vehicles_attention(env, fe, device)
+def display_vehicles_attention(agent_surface, sim_surface, env, extractor, device,  min_attention=0.01):
+        v_attention = compute_vehicles_attention(env, extractor, device)
         # print("v_attention ", v_attention)
         # Extract the subsurface of the larger rectangle
         attention_surface = pygame.Surface(sim_surface.get_size(), pygame.SRCALPHA)
@@ -241,13 +241,13 @@ def display_vehicles_attention(agent_surface, sim_surface, env, fe, device,  min
             # subsurface = attention_surface.subsurface(pygame.Rect(0, 0, 4800, 200))
             sim_surface.blit(attention_surface, (0, 0))
 
-def compute_vehicles_attention(env,fe, device):
+def compute_vehicles_attention(env,extractor, device):
     observer = env.unwrapped.observation_type
     obs = observer.observe()
     obs_t = torch.tensor(obs[None, ...], dtype=torch.float).to(device)
-    attention = fe.extractor.get_attention_matrix(obs_t)
+    attention = extractor.get_attention_matrix(obs_t)
     attention = attention.squeeze(0).squeeze(1).detach().cpu().numpy()
-    ego, others, mask = fe.extractor.split_input(obs_t)
+    ego, others, mask = extractor.split_input(obs_t)
     mask = mask.squeeze()
     v_attention = {}
     obs_type = env.observation_type
