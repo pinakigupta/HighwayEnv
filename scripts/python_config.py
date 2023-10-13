@@ -116,8 +116,8 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
-zip_filename = 'temp_1.zip'
+train = TrainEnum.BC
+zip_filename = 'temp.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

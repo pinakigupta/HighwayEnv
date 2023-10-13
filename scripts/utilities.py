@@ -4,7 +4,6 @@ from torch import multiprocessing
 import os, shutil
 os.environ["HDF5_USE_THREADING"] = "true"
 import h5py
-import copy
 import sys
 from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
 from torch.utils.data import Dataset, DataLoader
@@ -19,7 +18,7 @@ import wandb
 import json
 from tqdm import tqdm
 from attention_network import EgoAttentionNetwork
-import gymnasium as gym
+# import gymnasium as gym
 import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
 import zipfile
@@ -33,6 +32,7 @@ from torchvision.models.video import R3D_18_Weights
 from torchvision import transforms
 import random
 import math
+from gymnasium.spaces import Space as Space
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
@@ -134,7 +134,6 @@ class ActionFeatureExtractor(nn.Module):
         return self.embeddings(action)
     
 def DefaultActorCriticPolicy(env, device, **policy_kwargs):
-        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
             progress = step_num / decay_steps
             learning_rate = initial_learning_rate * (1 - progress) + end_learning_rate * progress
@@ -148,9 +147,11 @@ def DefaultActorCriticPolicy(env, device, **policy_kwargs):
                                                                 end_learning_rate=0.0001
                                                                )
         policy = ActorCriticPolicy(
-                                    observation_space=spaces.Dict({"obs": env.observation_space, "action": env.action_space}),
+                                    # observation_space= spaces.Dict({"obs": env.observation_space, "action": env.action_space}),
+                                    observation_space = env.observation_space,
                                     action_space=env.action_space,
                                     lr_schedule=lr_schedule,
+                                    share_features_extractor=True,
                                     **policy_kwargs
                                   )
 
@@ -174,25 +175,29 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx):
         sample = {}
+        prev_sample = {}
         try:
             for key in self.keys_attributes:
                 if key in self.data:
                     try:
                         # Attempt to deserialize the data as JSON
-                        value = json.loads(self.data[key][idx]) 
+                        value = json.loads(self.data[key][idx])
+                        prev_value =  json.loads(self.data[key][idx-1]) if idx>1 else value
                     except:
                         # If JSON deserialization fails, assume it's a primitive type
                         value = self.data[key][idx]
-                    value = torch.tensor(value, dtype=torch.float32)
-                    # value = torch.tensor(self.data[key][idx], dtype=torch.float32)
-                    sample[key] = value
+                        prev_value = self.data[key][idx-1] if idx>1 else value
+                    sample[key] = torch.tensor(value, dtype=torch.float32).to(self.device)
+                    prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32).to(self.device)
 
         except Exception as e:
+            print(f' {e} , for , { id(self)}. key {key} , value {value} ')
             pass
-            # print(f' {e} , for , { id(self)}. key {key} , value {value} ')
             # raise e
 
-        sample['obs'][:, -1] = 0
+        sample['obs'][:, -1].fill_(0)
+
+        sample['obs'] = {'obs':sample['obs'], 'action':prev_sample['act']}
 
         return sample
         
@@ -274,6 +279,20 @@ class CustomExtractor(BaseFeaturesExtractor):
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         return self.extractor(observations)
+
+class CombinedFeatureExtractor(BaseFeaturesExtractor):
+    def __init__(self,  observation_space: gym.spaces.Dict, **kwargs):
+        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"]+32)
+        self.obs_extractor = CustomExtractor(observation_space['obs'], **kwargs)
+        self.action_extractor = ActionFeatureExtractor(observation_space['action'])
+        self.kwargs = kwargs
+
+    def forward(self, observations):
+        obs_features = self.obs_extractor(observations["obs"])
+        action_features = self.action_extractor(observations["action"], **self.kwargs)
+        combined_features = torch.cat([obs_features, action_features], dim=-1)
+        return combined_features
+    
 
 # Create a 3D ResNet model for feature extraction
 class CustomVideoFeatureExtractor(BaseFeaturesExtractor):

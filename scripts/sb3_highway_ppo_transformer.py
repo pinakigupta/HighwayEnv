@@ -10,6 +10,9 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
 from sb3_contrib import  RecurrentPPO
 import os
+gym_alias = os.getenv("GYM_ALIAS", "gymnasium")
+import importlib
+gym = importlib.import_module(gym_alias)
 import json
 import wandb
 import torchvision.transforms.functional as TF
@@ -68,9 +71,10 @@ if __name__ == "__main__":
     if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
         policy_kwargs = dict(
                 # policy=MLPPolicy,
-                features_extractor_class=CustomExtractor,
+                features_extractor_class=CombinedFeatureExtractor,
                 features_extractor_kwargs=attention_network_kwargs,
             )
+
         append_key_to_dict_of_dict(env_kwargs,'config','screen_width',960*3)
         append_key_to_dict_of_dict(env_kwargs,'config','screen_height',180*2)
     else:
@@ -367,10 +371,8 @@ if __name__ == "__main__":
             #                     env_kwargs=env_kwargs
             #                 )
             env = make_configure_env(**env_kwargs)
-            state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
+            # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
-            action_feature_extractor = ActionFeatureExtractor(env.action_space)
-            policy_kwargs.update({"action_feature_extractor": action_feature_extractor})
             policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             print("Default policy initialized ")
             run_name = f"sweep_{month}{day}_{timenow()}"

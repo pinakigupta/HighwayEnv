@@ -57,6 +57,25 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
             discrete_action = multi_discrete_action[i] # This is numeric at this point
             dict_action[key] =  self.env.action_type.actions[key][discrete_action]
         return dict_action
+class ObsToDictObsWrapper(gym.Wrapper):
+    def __init__(self, env,  **kwargs):
+        super(ObsToDictObsWrapper, self).__init__(env, **kwargs)
+        self.observation_space = gym.spaces.Dict({"obs": self.env.observation_space, "action": self.env.action_space})
+        self.action_space = self.env.action_space
+
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
+        # Modify the observation to match the custom observation space
+        custom_obs = {"obs": obs, "action": np.zeros(self.custom_action_space.shape)}
+        return custom_obs
+
+    def step(self, action):
+        # Modify the action to match the custom action space
+        obs, reward, done, info = self.env.step(action)
+        # Modify the observation to match the custom observation space
+        custom_obs = {"obs": obs, "action": action}
+        return custom_obs, reward, done, info
+    
 
 class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
     def __init__(self, env, **kwargs):
@@ -111,6 +130,7 @@ def make_configure_env(**kwargs):
     custom_key_order = ['long','lat']
     env = DictToMultiDiscreteWrapper(env,key_order=custom_key_order)
     env = MultiDiscreteToSingleDiscreteWrapper(env)
+    env = ObsToDictObsWrapper(env)
     return env
 
 
