@@ -121,7 +121,18 @@ class RandomPolicy(BasePolicy):
     def predict(self, obs):
         return self._predict(obs)
     
-
+# Custom feature extractor for the action space
+class ActionFeatureExtractor(nn.Module):
+    def __init__(self, action_space):
+        super(ActionFeatureExtractor, self).__init__()
+        if isinstance(action_space, spaces.Discrete):
+            self.embeddings = nn.Embedding(action_space.n, 32)
+        elif isinstance(action_space, spaces.Box):
+            self.embeddings = nn.Identity(action_space.shape[0])
+    
+    def forward(self, action):
+        return self.embeddings(action)
+    
 def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
@@ -137,7 +148,7 @@ def DefaultActorCriticPolicy(env, device, **policy_kwargs):
                                                                 end_learning_rate=0.0001
                                                                )
         policy = ActorCriticPolicy(
-                                    observation_space=env.observation_space,
+                                    observation_space=spaces.Dict({"obs": env.observation_space, "action": env.action_space}),
                                     action_space=env.action_space,
                                     lr_schedule=lr_schedule,
                                     **policy_kwargs

@@ -108,6 +108,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             policy = None
+            env = make_configure_env(**env_kwargs)
             if policy:
                 # oracle_agent                            = retrieve_agent(
                 #                                                             artifact_version='trained_model_directory:latest',
@@ -116,12 +117,13 @@ if __name__ == "__main__":
                 #                                                             project=project
                 #                                                         )
                 # policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs), device, **policy_kwargs)
-                policy = RandomPolicy(env=make_configure_env(**env_kwargs), device=device, **policy_kwargs)
+                policy = RandomPolicy(env=env, device=device, **policy_kwargs)
                 # policy.load_state_dict(oracle_agent.state_dict())
                 policy.eval()
                 print('EXPERT_DATA_COLLECTION using PREVIOUS POLICY for exploration')
             else:
                 print('EXPERT_DATA_COLLECTION using IDM+MOBIL for exploration')
+            
             
             expert_data_collector(  
                                     policy,
@@ -367,6 +369,8 @@ if __name__ == "__main__":
             env = make_configure_env(**env_kwargs)
             state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
+            action_feature_extractor = ActionFeatureExtractor(env.action_space)
+            policy_kwargs.update({"action_feature_extractor": action_feature_extractor})
             policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             print("Default policy initialized ")
             run_name = f"sweep_{month}{day}_{timenow()}"
