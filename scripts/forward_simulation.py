@@ -75,7 +75,36 @@ class ObsToDictObsWrapper(gym.Wrapper):
         # Modify the observation to match the custom observation space
         custom_obs = {"obs": obs, "action": action}
         return custom_obs, reward, done, info
-    
+
+
+class SquashObservationsWrapper(gym.Wrapper):
+    def __init__(self, env, **kwargs):
+        super(SquashObservationsWrapper, self).__init__(env, **kwargs)
+        self.action_space = self.env.action_space
+        # Calculate obs_dim based on the shape of the observation space
+        self.obs_dim = int(np.prod(env.observation_space.shape))
+
+        if isinstance(env.action_space, gym.spaces.Discrete):
+            self.action_dim = env.action_space.n  # For Discrete action space, action_dim is the number of discrete actions
+        else:
+            self.action_dim = env.action_space.shape[0]  # For other action spaces, action_dim is the shape
+
+
+        # Define the combined observation space
+        low = np.concatenate([env.observation_space.low.flatten(), [0]])
+        high = np.concatenate([env.observation_space.high.flatten(), [self.action_dim - 1]])  # Assuming discrete actions are in the range [0, action_dim-1]
+        self.observation_space = gym.spaces.Box(low=low, high=high, dtype=np.float32)
+
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
+        custom_obs = np.concatenate([obs, [0]])
+        return custom_obs
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        custom_obs = np.concatenate([obs, [action]]) 
+        return custom_obs, reward, done, info
+
 
 class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
     def __init__(self, env, **kwargs):
@@ -130,7 +159,7 @@ def make_configure_env(**kwargs):
     custom_key_order = ['long','lat']
     env = DictToMultiDiscreteWrapper(env,key_order=custom_key_order)
     env = MultiDiscreteToSingleDiscreteWrapper(env)
-    env = ObsToDictObsWrapper(env)
+    env = SquashObservationsWrapper(env)
     return env
 
 

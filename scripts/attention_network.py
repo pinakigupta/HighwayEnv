@@ -26,7 +26,7 @@ class BaseModule(torch.nn.Module):
         - normalization parameters
     """
 
-    def __init__(self, activation_type="RELU", reset_type="XAVIER"):
+    def __init__(self, activation_type="RELU", reset_type="XAVIER", **kwargs):
         super().__init__()
         self.activation = activation_factory(activation_type)
         self.reset_type = reset_type

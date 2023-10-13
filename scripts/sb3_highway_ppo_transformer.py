@@ -75,6 +75,9 @@ if __name__ == "__main__":
                 features_extractor_kwargs=attention_network_kwargs,
             )
 
+        if policy_kwargs['features_extractor_class'] == CombinedFeatureExtractor:
+            append_key_to_dict_of_dict(policy_kwargs,'features_extractor_kwargs','obs_space',make_configure_env(**env_kwargs).env.observation_space)
+            append_key_to_dict_of_dict(policy_kwargs,'features_extractor_kwargs','act_space',make_configure_env(**env_kwargs).env.action_space)
         append_key_to_dict_of_dict(env_kwargs,'config','screen_width',960*3)
         append_key_to_dict_of_dict(env_kwargs,'config','screen_height',180*2)
     else:

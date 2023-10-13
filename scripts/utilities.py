@@ -18,7 +18,7 @@ import wandb
 import json
 from tqdm import tqdm
 from attention_network import EgoAttentionNetwork
-# import gymnasium as gym
+import gymnasium as gyms
 import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
 import zipfile
@@ -125,13 +125,20 @@ class RandomPolicy(BasePolicy):
 class ActionFeatureExtractor(nn.Module):
     def __init__(self, action_space):
         super(ActionFeatureExtractor, self).__init__()
-        if isinstance(action_space, spaces.Discrete):
+        if isinstance(action_space, spaces.Discrete) or isinstance(action_space, gyms.spaces.discrete.Discrete):
             self.embeddings = nn.Embedding(action_space.n, 32)
         elif isinstance(action_space, spaces.Box):
             self.embeddings = nn.Identity(action_space.shape[0])
+        self.action_space = action_space
     
     def forward(self, action):
-        return self.embeddings(action)
+        if isinstance(self.action_space, spaces.Discrete) or isinstance(self.action_space, gyms.spaces.discrete.Discrete):
+            # Add an extra dimension for the batch
+            action = action.unsqueeze(1)
+            return self.embeddings(action.long()).squeeze(dim=1)
+        elif isinstance(self.action_space, spaces.Box):
+            # For Box action space, use an identity layer directly
+            return self.embeddings(action)
     
 def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
@@ -187,8 +194,8 @@ class CustomDataset(Dataset):
                         # If JSON deserialization fails, assume it's a primitive type
                         value = self.data[key][idx]
                         prev_value = self.data[key][idx-1] if idx>1 else value
-                    sample[key] = torch.tensor(value, dtype=torch.float32).to(self.device)
-                    prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32).to(self.device)
+                    sample[key] = torch.tensor(value, dtype=torch.float32)
+                    prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32)
 
         except Exception as e:
             print(f' {e} , for , { id(self)}. key {key} , value {value} ')
@@ -196,10 +203,11 @@ class CustomDataset(Dataset):
             # raise e
 
         sample['obs'][:, -1].fill_(0)
+        sample['obs'] = torch.cat([ sample['obs'].view(-1), prev_sample['act'].view(1)], dim=0)
+        # sample['obs'] = {'obs':sample['obs'], 'action':prev_sample['act']}
 
-        sample['obs'] = {'obs':sample['obs'], 'action':prev_sample['act']}
-
-        return sample
+        return sample 
+        
         
 def display_vehicles_attention(agent_surface, sim_surface, env, fe, device,  min_attention=0.01):
         v_attention = compute_vehicles_attention(env, fe, device)
@@ -283,13 +291,22 @@ class CustomExtractor(BaseFeaturesExtractor):
 class CombinedFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self,  observation_space: gym.spaces.Dict, **kwargs):
         super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"]+32)
-        self.obs_extractor = CustomExtractor(observation_space['obs'], **kwargs)
-        self.action_extractor = ActionFeatureExtractor(observation_space['action'])
+        self.obs_extractor = CustomExtractor(kwargs['obs_space'], **kwargs)
+        self.action_extractor = ActionFeatureExtractor(kwargs['act_space'])
         self.kwargs = kwargs
 
     def forward(self, observations):
-        obs_features = self.obs_extractor(observations["obs"])
-        action_features = self.action_extractor(observations["action"], **self.kwargs)
+        # De-construct obs and act from observations using the original shapes
+        obs_shape = self.kwargs["obs_space"].shape
+        action_shape = self.kwargs["act_space"].shape
+
+        # Separate obs and act while keeping the batch dimension
+        obs = observations[:, :np.prod(obs_shape)].reshape(observations.shape[0], *obs_shape)
+        act = observations[:, np.prod(obs_shape):].reshape(observations.shape[0], *action_shape)
+
+        obs_features = self.obs_extractor(obs)
+        action_features = self.action_extractor(act)
+
         combined_features = torch.cat([obs_features, action_features], dim=-1)
         return combined_features
     
