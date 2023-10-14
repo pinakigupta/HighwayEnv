@@ -76,7 +76,7 @@ if __name__ == "__main__":
             action_extractor_kwargs = dict(
             action_extractor_kwargs = {
                                 "feature_size": 8, 
-                                "dropout_factor": 0.0, 
+                                "dropout_factor": 0.25, 
                                 "obs_space": make_configure_env(**env_kwargs).env.observation_space,
                                 "act_space": make_configure_env(**env_kwargs).env.action_space
                            })
