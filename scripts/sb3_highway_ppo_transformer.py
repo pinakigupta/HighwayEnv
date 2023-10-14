@@ -69,15 +69,24 @@ if __name__ == "__main__":
     DAGGER = True
     
     if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
+        features_extractor_class=CombinedFeatureExtractor
+        features_extractor_kwargs=attention_network_kwargs
+
+        if features_extractor_class is  CombinedFeatureExtractor:
+            action_extractor_kwargs = dict(
+            action_extractor_kwargs = {
+                                "feature_size": 8, 
+                                "dropout_factor": 0.0, 
+                                "obs_space": make_configure_env(**env_kwargs).env.observation_space,
+                                "act_space": make_configure_env(**env_kwargs).env.action_space
+                           })
+            features_extractor_kwargs = {**features_extractor_kwargs, **action_extractor_kwargs}
         policy_kwargs = dict(
                 # policy=MLPPolicy,
-                features_extractor_class=CombinedFeatureExtractor,
-                features_extractor_kwargs=attention_network_kwargs,
+                features_extractor_class=features_extractor_class,
+                features_extractor_kwargs=features_extractor_kwargs,
             )
-
-        if policy_kwargs['features_extractor_class'] == CombinedFeatureExtractor:
-            append_key_to_dict_of_dict(policy_kwargs,'features_extractor_kwargs','obs_space',make_configure_env(**env_kwargs).env.observation_space)
-            append_key_to_dict_of_dict(policy_kwargs,'features_extractor_kwargs','act_space',make_configure_env(**env_kwargs).env.action_space)
+        
         append_key_to_dict_of_dict(env_kwargs,'config','screen_width',960*3)
         append_key_to_dict_of_dict(env_kwargs,'config','screen_height',180*2)
     else:
@@ -430,7 +439,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 15600 if last_epoch else 7500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 55600 if last_epoch else 7500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)

@@ -123,19 +123,20 @@ class RandomPolicy(BasePolicy):
     
 # Custom feature extractor for the action space
 class ActionFeatureExtractor(nn.Module):
-    def __init__(self, action_space):
+    def __init__(self, action_space, dropout_factor=0.75, feature_size = 8):
         super(ActionFeatureExtractor, self).__init__()
         if isinstance(action_space, spaces.Discrete) or isinstance(action_space, gyms.spaces.discrete.Discrete):
-            self.embeddings = nn.Embedding(action_space.n, 32)
+            self.embeddings = nn.Embedding(action_space.n, feature_size)
         elif isinstance(action_space, spaces.Box):
             self.embeddings = nn.Identity(action_space.shape[0])
         self.action_space = action_space
+        self.dropout = nn.Dropout(p=dropout_factor)
     
     def forward(self, action):
         if isinstance(self.action_space, spaces.Discrete) or isinstance(self.action_space, gyms.spaces.discrete.Discrete):
             # Add an extra dimension for the batch
             action = action.unsqueeze(1)
-            return self.embeddings(action.long()).squeeze(dim=1)
+            return self.dropout(self.embeddings(action.long()).squeeze(dim=1))
         elif isinstance(self.action_space, spaces.Box):
             # For Box action space, use an identity layer directly
             return self.embeddings(action)
@@ -291,15 +292,15 @@ class CustomExtractor(BaseFeaturesExtractor):
 
 class CombinedFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self,  observation_space: gym.spaces.Dict, **kwargs):
-        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"]+32)
-        self.obs_extractor = CustomExtractor(kwargs['obs_space'], **kwargs)
-        self.action_extractor = ActionFeatureExtractor(kwargs['act_space'])
+        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"]+kwargs["action_extractor_kwargs"]["feature_size"])
+        self.obs_extractor = CustomExtractor(kwargs["action_extractor_kwargs"]['obs_space'], **kwargs)
+        self.action_extractor = ActionFeatureExtractor(kwargs["action_extractor_kwargs"]['act_space'])
         self.kwargs = kwargs
 
     def forward(self, observations):
         # De-construct obs and act from observations using the original shapes
-        obs_shape = self.kwargs["obs_space"].shape
-        action_shape = self.kwargs["act_space"].shape
+        obs_shape = self.kwargs["action_extractor_kwargs"]["obs_space"].shape
+        action_shape = self.kwargs["action_extractor_kwargs"]["act_space"].shape
 
         # Separate obs and act while keeping the batch dimension
         obs = observations[:, :np.prod(obs_shape)].reshape(observations.shape[0], *obs_shape)

@@ -117,7 +117,7 @@ project_names= \
     ]
 
 train = TrainEnum.BCDEPLOY
-zip_filename = 'temp.zip'
+zip_filename = 'temp_1.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
@@ -136,5 +136,6 @@ attention_network_kwargs = dict(
                            },
     # num_layers = 3,
 )
+
 label_weights = np.array([3, 1])
 
