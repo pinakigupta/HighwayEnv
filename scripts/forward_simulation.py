@@ -22,8 +22,6 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
             self.key_order = key_order or list(self.env.action_space.spaces.keys())
             self.ndim = [self.env.action_space[key].n for key in self.key_order]
             self.action_space = gym.spaces.MultiDiscrete(self.ndim)
-            # self.multi_discrete_action = self.action_space.sample()
-            # self.action_space = self.convert_to_multi_discrete(self.env.action_space)
         else:
             self.key_order = None  # No key order needed for non-dict action spaces
             self.action_space = self.env.action_space
@@ -44,7 +42,7 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
 
     def convert_to_multi_discrete(self, dict_action):
         # Convert a Dict action space to a MultiDiscrete action space
-        action_list = [dict_action[key] for key in self.key_order]
+        action_list = [self.env.action_type.actions_indexes[key][dict_action[key]] for key in self.key_order] 
         # self.action_space.sample()[:] = action_list
         return action_list
 
@@ -134,7 +132,7 @@ class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
         return self.env.reset(**kwargs)
     
     def convert_to_multi_discrete(self, action:gym.spaces)->gym.spaces:
-        if  isinstance(action, gym.spaces.Discrete) or isinstance(action, np.ndarray):
+        if  isinstance(action, gym.spaces.Discrete) or isinstance(action, np.ndarray) or isinstance(action, np.int64) or isinstance(action, np.int32):
             # Hardcoding this for two variables for now
             rem = action%self.action_weights[0]
             mod = (action-rem)/self.action_weights[0]

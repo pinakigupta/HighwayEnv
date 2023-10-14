@@ -628,13 +628,11 @@ if __name__ == "__main__":
             true_labels = []
             for _ in range(num_deploy_rollouts):
                 obs, info = env.reset()
-                env.step({'long':4, 'lat':1})
                 done = truncated = False
                 cumulative_reward = 0
                 while not (done or truncated):
                     start_time = time.time()
-                    expert_action , _= env.vehicle.discrete_action()
-                    expert_action = [env.action_type.actions_indexes[key][expert_action[key]] for key in ['long', 'lat']] 
+                    expert_action = env.discrete_action(env.vehicle.discrete_action()[0])
                     true_labels.append(expert_action)
                     action, _ = policy.predict(obs)
                     # action_logits = torch.nn.functional.softmax(policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.tensor(obs).to(device)))[0]))
@@ -642,7 +640,7 @@ if __name__ == "__main__":
                     predicted_labels.append(action)
                     # env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
-                    obs[-2] = 0
+                    obs[-2] = 0 # hardcoding lane ids out 
                     end_time = time.time()
                     cumulative_reward += gamma * reward
                     if image_space_obs:
@@ -681,7 +679,7 @@ if __name__ == "__main__":
                     print(f"Execution frequency is {frequency}")
                 print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
                 print("--------------------------------------------------------------------------------------")
-            true_labels = true_labels @ label_weights
+            # true_labels = true_labels @ label_weights
             # predicted_labels = predicted_labels @ label_weights
             accuracy = accuracy_score(true_labels, predicted_labels)
             precision = precision_score(true_labels, predicted_labels, average=None)
