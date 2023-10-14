@@ -117,7 +117,7 @@ project_names= \
     ]
 
 train = TrainEnum.BCDEPLOY
-zip_filename = 'temp_1.zip'
+zip_filename = 'temp.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

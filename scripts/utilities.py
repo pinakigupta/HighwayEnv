@@ -242,7 +242,7 @@ def display_vehicles_attention(agent_surface, sim_surface, env, extractor, devic
             sim_surface.blit(attention_surface, (0, 0))
 
 def compute_vehicles_attention(env,extractor, device):
-    observer = env.unwrapped.observation_type
+    observer = env.env.observation_type
     obs = observer.observe()
     obs_t = torch.tensor(obs[None, ...], dtype=torch.float).to(device)
     attention = extractor.get_attention_matrix(obs_t)
@@ -253,6 +253,11 @@ def compute_vehicles_attention(env,extractor, device):
     obs_type = env.observation_type
     if hasattr(obs_type, "agents_observation_types"):  # Handle multi-model observation
         obs_type = obs_type.agents_observation_types[0]
+    close_vehicles =       env.road.close_vehicles_to(env.vehicle,
+                                                        env.PERCEPTION_DISTANCE,
+                                                        count=observer.vehicles_count - 1,
+                                                        see_behind=observer.see_behind,
+                                                        sort=observer.order == "sorted")        
     for v_index in range(obs.shape[0]):
         if mask[v_index]:
             continue
@@ -265,13 +270,9 @@ def compute_vehicles_attention(env,extractor, device):
         env = env.unwrapped
         if not obs_type.absolute and v_index > 0:
             v_position += env.vehicle.position # This is ego
-        close_vehicles =       env.road.close_vehicles_to(env.vehicle,
-                                                          env.PERCEPTION_DISTANCE,
-                                                         count=observer.vehicles_count - 1,
-                                                         see_behind=observer.see_behind,
-                                                         sort=observer.order == "sorted")        
-        vehicle = min(close_vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
-        v_attention[vehicle] = attention[:, v_index]
+        if close_vehicles:
+            vehicle = min(close_vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
+            v_attention[vehicle] = attention[:, v_index]
     return v_attention
 
 class CustomExtractor(BaseFeaturesExtractor):

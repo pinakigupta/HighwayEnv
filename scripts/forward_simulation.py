@@ -96,14 +96,14 @@ class SquashObservationsWrapper(gym.Wrapper):
         self.observation_space = gym.spaces.Box(low=low, high=high, dtype=np.float32)
 
     def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        custom_obs = np.concatenate([obs, [0]])
-        return custom_obs
+        obs, info = self.env.reset(**kwargs)
+        custom_obs = np.concatenate([obs.flatten(), [0]])
+        return custom_obs, info
 
     def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        custom_obs = np.concatenate([obs, [action]]) 
-        return custom_obs, reward, done, info
+        obs, reward, done, truncated , info = self.env.step(action)
+        custom_obs = np.concatenate([obs.flatten(), [action]]) 
+        return custom_obs, reward, done, truncated, info
 
 
 class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
