@@ -136,6 +136,8 @@ class IDMVehicle(ControlledVehicle):
             self._discrete_action['lat'] = "LANE_RIGHT"
         elif(delta_id < 0):
             self._discrete_action['lat'] = "LANE_LEFT"
+        else:
+            self._discrete_action['lat'] = "STRAIGHT"
 
         if not self.action_type:
             print("self.action_type.ACTIONS_LONGI ", self.action_type.ACTIONS_LONGI)
@@ -250,16 +252,19 @@ class IDMVehicle(ControlledVehicle):
             return target_lane_index
 
         # else, at a given frequency,
+        
         if not utils.do_every(self.LANE_CHANGE_DELAY, self.timer):
             return self.lane_index
         self.timer = 0
 
         # decide to make a lane change
         self.side_lanes = self.road.network.side_lanes(self.lane_index)
+        if isinstance(self, MDPVehicle):
+            print('self.side_lanes ', self.side_lanes)
         for lane_index in self.side_lanes:
             # Is the candidate lane close enough?
-            if not self.road.network.get_lane(lane_index).is_reachable_from(self.observed_position):
-                continue
+            # if not self.road.network.get_lane(lane_index).is_reachable_from(self.observed_position):
+            #     continue
             # Only change lane when the vehicle is moving
             if np.abs(self.speed) < 1:
                 continue
@@ -539,8 +544,7 @@ class MDPVehicle(IDMVehicle):
         self.speed_index = self.speed_to_index(self.target_speed)
         self.target_speed = self.index_to_speed(self.speed_index)
         self.action_type = action_type
-        # self.LENGTH = kwargs['EGO_LENGTH']
-        # self.WIDTH =  kwargs['EGO_WIDTH']
+
 
     def discrete_action(self):
         return super(MDPVehicle,self).discrete_action()
@@ -558,7 +562,6 @@ class MDPVehicle(IDMVehicle):
         self.LENGTH = self.LENGTH_org
         if action is not None:
             self.mdp_action = action
-        # print("self.discrete_action ", self.discrete_action, id(self), " action ", action)
         if action['long'] == "FASTER":
             self.speed_index = self.speed_to_index(self.speed) + 1
         elif action['long'] == "SLOWER":
@@ -570,6 +573,20 @@ class MDPVehicle(IDMVehicle):
 
         self.speed_index = int(np.clip(self.speed_index, 0, self.target_speeds.size - 1))
         self.target_speed = self.index_to_speed(self.speed_index)
+
+        target_lane_index = None
+        if action['lat'] == "LANE_RIGHT":
+            self.target_lane_index = self.lane_index
+            _from, _to, _id = self.lane_index
+            target_lane_index = _from, _to, np.clip(_id + 1, 0, len(self.road.network.graph[_from][_to]) - 1)
+        elif action['lat'] == "LANE_LEFT":
+            self.target_lane_index = self.lane_index
+            _from, _to, _id = self.lane_index
+            target_lane_index = _from, _to, np.clip(_id - 1, 0, len(self.road.network.graph[_from][_to]) - 1)
+
+        if target_lane_index and self.mobil(target_lane_index):
+            self.target_lane_index = target_lane_index
+
         super(IDMVehicle, self).act(action)
 
 
