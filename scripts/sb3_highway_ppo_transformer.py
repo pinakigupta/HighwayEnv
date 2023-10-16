@@ -639,7 +639,7 @@ if __name__ == "__main__":
                     # action = np.array(torch.argmax(action_logits, dim=-1).item())
                     predicted_labels.append(action)
                     # env.vehicle.actions = []
-                    obs, reward, done, truncated, info = env.step(action)
+                    obs, reward, done, truncated, info = env.step(expert_action)
                     obs[-2] = 0 # hardcoding lane ids out 
                     end_time = time.time()
                     cumulative_reward += gamma * reward
