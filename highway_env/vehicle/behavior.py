@@ -68,6 +68,7 @@ class IDMVehicle(ControlledVehicle):
         self.target_speed_timer = 0.0
         self.observer = None
         self.side_lanes = []
+        self.lc_in_progress = False
 
     def randomize_behavior(self):
         self.DELTA = self.road.np_random.uniform(low=self.DELTA_RANGE[0], high=self.DELTA_RANGE[1])
@@ -122,7 +123,7 @@ class IDMVehicle(ControlledVehicle):
         self.follow_road()
         if self.enable_lane_change:
             target_lane_index = self.change_lane_policy()
-        action['steering'] = self.steering_control(self.target_lane_index)
+        action['steering'] = self.steering_control(target_lane_index)
         action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
 
         # Longitudinal: IDM
@@ -252,17 +253,22 @@ class IDMVehicle(ControlledVehicle):
                         if 0 < d < d_star:
                             target_lane_index = self.lane_index
                             break
+            self.lc_in_progress = True
+            self.timer = 0
             return target_lane_index
 
         # else, at a given frequency,
         
+        
         if not utils.do_every(self.LANE_CHANGE_DELAY, self.timer):
             return self.lane_index
-        self.timer = 0
+
+        self.lc_in_progress = False
 
         # decide to make a lane change
         self.side_lanes = self.road.network.side_lanes(self.lane_index)
         if isinstance(self, MDPVehicle):
+            pass
             print('self.side_lanes ', self.side_lanes)
         for lane_index in self.side_lanes:
             # Is the candidate lane close enough?
@@ -582,11 +588,11 @@ class MDPVehicle(IDMVehicle):
         target_speed = self.index_to_speed(speed_index)
 
         if (self.mdp_target_lane_index!=self.lane_index):
+            self.mdp_timer = 0
             pass # Lane change occurring
         elif not utils.do_every(self.LANE_CHANGE_DELAY, self.mdp_timer) :
             self.mdp_target_lane_index = self.lane_index
         else:
-            self.mdp_timer = 0
             if action['lat'] == "LANE_RIGHT":
                 _from, _to, _id = self.lane_index
                 self.mdp_target_lane_index = _from, _to, np.clip(_id + 1, 0, len(self.road.network.graph[_from][_to]) - 1)
