@@ -99,6 +99,9 @@ class IDMVehicle(ControlledVehicle):
         if self.crashed:
             return
         
+        if isinstance(self, MDPVehicle):
+            print("Shoudn't come here")
+        
         _ , action = self.discrete_action()
         # When changing lane, check both current and target lanes
         if self.lane_index != self.target_lane_index:
@@ -544,6 +547,8 @@ class MDPVehicle(IDMVehicle):
         self.speed_index = self.speed_to_index(self.target_speed)
         self.target_speed = self.index_to_speed(self.speed_index)
         self.action_type = action_type
+        self.mdp_timer = 0
+        self.mdp_target_lane_index = self.lane_index
 
 
     def discrete_action(self):
@@ -563,31 +568,40 @@ class MDPVehicle(IDMVehicle):
         if action is not None:
             self.mdp_action = action
         if action['long'] == "FASTER":
-            self.speed_index = self.speed_to_index(self.speed) + 1
+            speed_index = self.speed_to_index(self.speed) + 1
         elif action['long'] == "SLOWER":
-            self.speed_index = self.speed_to_index(self.speed) - 2
+            speed_index = self.speed_to_index(self.speed) - 1
         elif action['long'] == "FASTER2":
-            self.speed_index = self.speed_to_index(self.speed) + 2
+            speed_index = self.speed_to_index(self.speed) + 2
         elif action['long'] == "SLOWER2":
-            self.speed_index = self.speed_to_index(self.speed) - 2
+            speed_index = self.speed_to_index(self.speed) - 2
+        else:
+            speed_index = self.speed_to_index(self.speed)
 
-        self.speed_index = int(np.clip(self.speed_index, 0, self.target_speeds.size - 1))
-        self.target_speed = self.index_to_speed(self.speed_index)
+        speed_index = int(np.clip(speed_index, 0, self.target_speeds.size - 1))
+        target_speed = self.index_to_speed(speed_index)
 
-        target_lane_index = None
-        if action['lat'] == "LANE_RIGHT":
-            self.target_lane_index = self.lane_index
-            _from, _to, _id = self.lane_index
-            target_lane_index = _from, _to, np.clip(_id + 1, 0, len(self.road.network.graph[_from][_to]) - 1)
-        elif action['lat'] == "LANE_LEFT":
-            self.target_lane_index = self.lane_index
-            _from, _to, _id = self.lane_index
-            target_lane_index = _from, _to, np.clip(_id - 1, 0, len(self.road.network.graph[_from][_to]) - 1)
+        if (self.mdp_target_lane_index!=self.lane_index):
+            pass # Lane change occurring
+        elif not utils.do_every(self.LANE_CHANGE_DELAY, self.mdp_timer) :
+            self.mdp_target_lane_index = self.lane_index
+        else:
+            self.mdp_timer = 0
+            if action['lat'] == "LANE_RIGHT":
+                _from, _to, _id = self.lane_index
+                self.mdp_target_lane_index = _from, _to, np.clip(_id + 1, 0, len(self.road.network.graph[_from][_to]) - 1)
+            elif action['lat'] == "LANE_LEFT":
+                _from, _to, _id = self.lane_index
+                self.mdp_target_lane_index = _from, _to, np.clip(_id - 1, 0, len(self.road.network.graph[_from][_to]) - 1)
+            else:
+                action['lat'] == "STRAIGHT"
+                self.mdp_target_lane_index = self.lane_index
+        self.mdp_timer += 1/self.config['policy_frequency']
 
-        if target_lane_index and self.mobil(target_lane_index):
-            self.target_lane_index = target_lane_index
-
-        super(IDMVehicle, self).act(action)
+        action = {"steering": self.steering_control(self.mdp_target_lane_index),
+                  "acceleration": self.speed_control(target_speed) }
+        action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
+        super(ControlledVehicle, self).act(action)
 
 
     def index_to_speed(self, index: int) -> float:

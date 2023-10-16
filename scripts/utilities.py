@@ -222,6 +222,8 @@ def display_vehicles_attention(agent_surface, sim_surface, env, extractor, devic
                                         radius=20,
                                         width=2
                           )
+        if not v_attention:
+            return
         for head in range(list(v_attention.values())[0].shape[0]):
             
             for vehicle, attention in v_attention.items():
