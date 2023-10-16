@@ -132,27 +132,28 @@ class IDMVehicle(ControlledVehicle):
                                                    front_vehicle=front_vehicle,
                                                    rear_vehicle=rear_vehicle)
         delta_id = target_lane_index[2] - self.lane_index[2]
-        front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.lane_index)
-        acceleration = self.acceleration(ego_vehicle=self,
-                                                   front_vehicle=front_vehicle,
-                                                   rear_vehicle=rear_vehicle)
+        # front_vehicle, rear_vehicle = self.road.neighbour_vehicles(self, self.lane_index)
+        # acceleration = self.acceleration(ego_vehicle=self,
+        #                                            front_vehicle=front_vehicle,
+        #                                            rear_vehicle=rear_vehicle)
         if(delta_id > 0):
             self._discrete_action['lat'] = "LANE_RIGHT"
         elif(delta_id < 0):
             self._discrete_action['lat'] = "LANE_LEFT"
         else:
             self._discrete_action['lat'] = "STRAIGHT"
+        self.target_lane_index = target_lane_index
 
         if not self.action_type:
             print("self.action_type.ACTIONS_LONGI ", self.action_type.ACTIONS_LONGI)
             
-        if acceleration > self.DELTA_SPEED/2.5 and "FASTER2"  in self.action_type.ACTIONS_LONGI :
+        if action['acceleration'] > self.DELTA_SPEED/2.5 and "FASTER2"  in self.action_type.ACTIONS_LONGI :
             self._discrete_action['long'] = "FASTER2"
-        elif acceleration > self.DELTA_SPEED/5:
+        elif action['acceleration'] > self.DELTA_SPEED/5:
             self._discrete_action['long'] = "FASTER"
-        elif acceleration < -self.DELTA_SPEED/2.5 and "SLOWER2" in self.action_type.ACTIONS_LONGI:
+        elif action['acceleration'] < -self.DELTA_SPEED/2.5 and "SLOWER2" in self.action_type.ACTIONS_LONGI:
             self._discrete_action['long'] = "SLOWER2"
-        elif acceleration < -self.DELTA_SPEED/5:
+        elif action['acceleration'] < -self.DELTA_SPEED/5:
             self._discrete_action['long'] = "SLOWER"
         else:
             self._discrete_action['long'] = "IDLE"
@@ -238,6 +239,13 @@ class IDMVehicle(ControlledVehicle):
         - closeness of the target lane;
         - MOBIL model.
         """
+        # Find side lanes
+        self.side_lanes = self.road.network.side_lanes(self.lane_index)
+
+        if isinstance(self, MDPVehicle):
+            pass
+            print('self.side_lanes ', self.side_lanes)
+
         # If a lane change is already ongoing
         if self.lane_index != self.target_lane_index:
             target_lane_index = self.target_lane_index
@@ -265,11 +273,8 @@ class IDMVehicle(ControlledVehicle):
 
         self.lc_in_progress = False
 
-        # decide to make a lane change
-        self.side_lanes = self.road.network.side_lanes(self.lane_index)
-        if isinstance(self, MDPVehicle):
-            pass
-            print('self.side_lanes ', self.side_lanes)
+
+
         for lane_index in self.side_lanes:
             # Is the candidate lane close enough?
             # if not self.road.network.get_lane(lane_index).is_reachable_from(self.observed_position):
@@ -551,11 +556,21 @@ class MDPVehicle(IDMVehicle):
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         self.target_speeds = np.array(target_speeds) if target_speeds is not None else self.DEFAULT_TARGET_SPEEDS
         self.speed_index = self.speed_to_index(self.target_speed)
-        self.target_speed = self.index_to_speed(self.speed_index)
+        # self.target_speed = self.index_to_speed(self.speed_index)
         self.action_type = action_type
         self.mdp_timer = 0
         self.mdp_target_lane_index = self.lane_index
 
+    def step(self, dt: float):
+        """
+        Step the simulation.
+
+        Increases a timer used for decision policies, and step the vehicle dynamics.
+
+        :param dt: timestep
+        """
+        self.mdp_timer += dt
+        super().step(dt)
 
     def discrete_action(self):
         return super(MDPVehicle,self).discrete_action()
@@ -602,12 +617,11 @@ class MDPVehicle(IDMVehicle):
             else:
                 action['lat'] == "STRAIGHT"
                 self.mdp_target_lane_index = self.lane_index
-        self.mdp_timer += 1/self.config['policy_frequency']
 
         action = {"steering": self.steering_control(self.mdp_target_lane_index),
                   "acceleration": self.speed_control(target_speed) }
         action['steering'] = np.clip(action['steering'], -self.MAX_STEERING_ANGLE, self.MAX_STEERING_ANGLE)
-        super(ControlledVehicle, self).act(action)
+        Vehicle.act(self, action)  # Skip ControlledVehicle.act(), or the command will be overriden.
 
 
     def index_to_speed(self, index: int) -> float:

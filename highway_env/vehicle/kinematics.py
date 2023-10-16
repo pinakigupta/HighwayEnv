@@ -96,8 +96,10 @@ class Vehicle(RoadObject):
                 x0 -= offset * road.np_random.uniform(0.9, 1.1)
             else:
                 x0 = np.max([lane.local_coordinates(v.position)[0] for v in road.vehicles]) 
-                x0 += offset * road.np_random.uniform(0.9, 1.1) 
+                x0 += offset * road.np_random.uniform(0.9, 1.1)
         target_speed = road.np_random.uniform(1.0, 1.25*lane.speed_limit)
+        if 'target_speed' in kwargs:
+            target_speed = kwargs['target_speed']
         action_type = action_type             
         v = cls(
                 road, 

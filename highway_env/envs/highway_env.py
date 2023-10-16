@@ -104,7 +104,8 @@ class HighwayEnv(AbstractEnv):
                                                         road = self.road, 
                                                         position = vehicle.position, 
                                                         heading = vehicle.heading, 
-                                                        speed = vehicle.speed, 
+                                                        speed = vehicle.speed,
+                                                        target_speed = 30, 
                                                         action_type = vehicle.action_type,
                                                         **{
                                                             **self.config,
