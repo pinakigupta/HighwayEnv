@@ -68,7 +68,6 @@ class IDMVehicle(ControlledVehicle):
         self.target_speed_timer = 0.0
         self.observer = None
         self.side_lanes = []
-        self.lc_in_progress = False
 
     def randomize_behavior(self):
         self.DELTA = self.road.np_random.uniform(low=self.DELTA_RANGE[0], high=self.DELTA_RANGE[1])
@@ -230,6 +229,9 @@ class IDMVehicle(ControlledVehicle):
         d_star = d0 + ego_vehicle.speed * tau + ego_vehicle.speed * dv / (2 * np.sqrt(ab))
         return d_star
 
+    def lc_in_progress(self):
+        return self.lane_index != self.target_lane_index
+
     def change_lane_policy(self) -> None:
         """
         Decide when to change lane.
@@ -242,12 +244,12 @@ class IDMVehicle(ControlledVehicle):
         # Find side lanes
         self.side_lanes = self.road.network.side_lanes(self.lane_index)
 
-        if isinstance(self, MDPVehicle):
-            pass
-            print('self.side_lanes ', self.side_lanes)
+        # if isinstance(self, MDPVehicle):
+        #     pass
+        #     print('self.side_lanes ', self.side_lanes)
 
         # If a lane change is already ongoing
-        if self.lane_index != self.target_lane_index:
+        if self.lc_in_progress():
             target_lane_index = self.target_lane_index
             # If we are on correct route but bad lane: abort it if someone else is already changing into the same lane
             if self.lane_index[:2] == self.target_lane_index[:2]:
@@ -261,7 +263,6 @@ class IDMVehicle(ControlledVehicle):
                         if 0 < d < d_star:
                             target_lane_index = self.lane_index
                             break
-            self.lc_in_progress = True
             self.timer = 0
             return target_lane_index
 
@@ -271,7 +272,6 @@ class IDMVehicle(ControlledVehicle):
         if not utils.do_every(self.LANE_CHANGE_DELAY, self.timer):
             return self.lane_index
 
-        self.lc_in_progress = False
 
 
 
@@ -280,8 +280,8 @@ class IDMVehicle(ControlledVehicle):
             # if not self.road.network.get_lane(lane_index).is_reachable_from(self.observed_position):
             #     continue
             # Only change lane when the vehicle is moving
-            if np.abs(self.speed) < 1:
-                continue
+            # if np.abs(self.speed) < 1:
+            #     continue
             # Does the MOBIL model recommend a lane change?
             if self.mobil(lane_index):
                 # self.target_lane_index = lane_index
@@ -576,6 +576,9 @@ class MDPVehicle(IDMVehicle):
         return super(MDPVehicle,self).discrete_action()
         # return self.mdp_action
 
+    def lc_in_progress(self):
+        return self.mdp_target_lane_index!=self.lane_index
+
     def act(self, action: Union[dict, str] = None) -> None:
         """
         Perform a high-level action.
@@ -602,7 +605,7 @@ class MDPVehicle(IDMVehicle):
         speed_index = int(np.clip(speed_index, 0, self.target_speeds.size - 1))
         target_speed = self.index_to_speed(speed_index)
 
-        if (self.mdp_target_lane_index!=self.lane_index):
+        if self.lc_in_progress():
             self.mdp_timer = 0
             pass # Lane change occurring
         elif not utils.do_every(self.LANE_CHANGE_DELAY, self.mdp_timer) :
