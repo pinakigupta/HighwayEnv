@@ -71,7 +71,8 @@ def worker(
         all_done = {}
         all_kinematic_obs = {}
         
-        act = {'long': 'SLOWER', 'lat': 'STRAIGHT'}
+        # act = {'long': 'SLOWER', 'lat': 'STRAIGHT'}
+        act = env.action_space.sample()
 
         if exit_event.is_set():
             # print('Exit condition is triggered. Breaking ', worker_id)
@@ -125,6 +126,7 @@ def worker(
                     all_done[v][-1] = True
                 break
             ob = next_ob
+            obs[-2] = 0
             # data_queue.put((ob, act))
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
