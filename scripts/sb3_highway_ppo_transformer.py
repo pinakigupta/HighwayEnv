@@ -439,7 +439,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 55600 if last_epoch else 7500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 55600 if last_epoch else 750*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -690,7 +690,7 @@ if __name__ == "__main__":
             print("Recall:", recall, np.mean(recall))
             print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
-            val_batch_count = 500000
+            val_batch_count = 5000
             train_data_loader                                             = create_dataloaders(
                                                                                                           zip_filename,
                                                                                                           train_datasets=[], 
@@ -701,16 +701,25 @@ if __name__ == "__main__":
                                                                                                           visited_data_files=set([])
                                                                                                       )
             # Create a DataFrame from the data loader
-            data_list = np.empty((0, 100))
+            data_list = np.empty((0, 101))
             actions = []
+
+            obs_list = []
+            acts_list = [] 
+
             with torch.no_grad():
                 for batch_number, batch in enumerate(train_data_loader):
                     if batch_number >= val_batch_count:
                         break
-                    whole_batch_states = batch['obs'].reshape(-1, 100) 
-                    actions.extend(batch['acts'].cpu().numpy().astype(int))
-                    data_list = np.vstack((data_list, whole_batch_states.cpu().numpy()))
-            data_df = pd.DataFrame(data_list)
+                    obs = batch['obs']
+                    acts = batch['acts']
+                    obs_list.append(obs)
+                    acts_list.append(acts)
+
+
+            actions = torch.cat(acts_list, dim=0).cpu().numpy().astype(int)
+            data_list = torch.cat(obs_list, dim=0).cpu().numpy()
+            # data_df = pd.DataFrame(data_list)
             actions = np.array(actions)
             action_counts = np.bincount(actions.astype(int))
             print('action_counts ', action_counts)
@@ -727,10 +736,12 @@ if __name__ == "__main__":
             feature_ranges = np.linspace(-1, 1, num=101)  # Adjust the number of bins as needed
 
             # Calculate the count of samples within each range for each feature
-            sample_counts = np.array([[((data_df[col] >= feature_ranges[i]) & (data_df[col] <= feature_ranges[i+1])).sum()
+            sample_counts = np.array([[((data_list[:, col]  >= feature_ranges[i]) & (data_list[:, col]  <= feature_ranges[i+1])).sum()
                                     for i in range(len(feature_ranges)-1)]
-                                    for col in data_df.columns])
+                                    for col in range(data_list.shape[1])])
             sample_counts = sample_counts.T
+            print('Sample counts done')
+                  
             # Normalize the sample counts to a range between 0 and 1
             normalized_counts = (sample_counts - sample_counts.min()) / (sample_counts.max() - sample_counts.min())
             # Reshape the sample counts to create a heatmap
@@ -744,7 +755,7 @@ if __name__ == "__main__":
             # Create a violin plot directly from the data loader
             # Create a figure with two subplots
             fig, axes = plt.subplots(2, 1, figsize=(12, 6))
-            sns.violinplot(data=data_df, inner="quartile", ax=axes[0])
+            sns.violinplot(data=data_list , inner="quartile", ax=axes[0])
             axes[0].set_title("Violin Plot (input)")
             sns.heatmap(data=sample_counts, cmap=cmap, cbar=False, ax=axes[1])
             axes[1].set_title("Heatmap (input)")

@@ -195,8 +195,8 @@ class CustomDataset(Dataset):
                         # If JSON deserialization fails, assume it's a primitive type
                         value = self.data[key][idx]
                         prev_value = self.data[key][idx-1] if idx>1 else value
-                    sample[key] = torch.tensor(value, dtype=torch.float32)
-                    prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32)
+                    sample[key] = torch.tensor(value, dtype=torch.float32).to(self.device)
+                    prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32).to(self.device)
 
         except Exception as e:
             print(f' {e} , for , { id(self)}. key {key} , value {value} ')
