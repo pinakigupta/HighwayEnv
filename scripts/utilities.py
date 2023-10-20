@@ -1096,6 +1096,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     sample['dones'] = self.all_dones[index]
                 if sample:
                     sample['obs'][:, -1 ] = 0
+                    sample['obs'] = np.concatenate([sample['obs'].flatten(), [sample['acts']]]) # For now hard code 
                     samples_queue.put(sample)
             except (IndexError, EOFError, BrokenPipeError) as e:
                 # print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')

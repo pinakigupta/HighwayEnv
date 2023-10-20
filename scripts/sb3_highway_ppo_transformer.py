@@ -116,14 +116,14 @@ if __name__ == "__main__":
     batch_size = sweep_config['parameters']['batch_size']['values'][0]
     num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
     minibatch_size = batch_size
-    num_deploy_rollouts = 5
+    num_deploy_rollouts = 50
 
     try:
         project= project_names[train.value]                           
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = None
+            policy = True
             env = make_configure_env(**env_kwargs)
             if policy:
                 # oracle_agent                            = retrieve_agent(
@@ -145,7 +145,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 10,
+                                    delta_iterations = 5,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -439,7 +439,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 55600 if last_epoch else 7500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 55600 if last_epoch else 1500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -690,7 +690,7 @@ if __name__ == "__main__":
             print("Recall:", recall, np.mean(recall))
             print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
-            val_batch_count = 500000
+            val_batch_count = 50000
             train_data_loader                                             = create_dataloaders(
                                                                                                           zip_filename,
                                                                                                           train_datasets=[], 
@@ -701,13 +701,13 @@ if __name__ == "__main__":
                                                                                                           visited_data_files=set([])
                                                                                                       )
             # Create a DataFrame from the data loader
-            data_list = np.empty((0, 100))
+            data_list = np.empty((0, 101))
             actions = []
             with torch.no_grad():
                 for batch_number, batch in enumerate(train_data_loader):
                     if batch_number >= val_batch_count:
                         break
-                    whole_batch_states = batch['obs'].reshape(-1, 100) 
+                    whole_batch_states = batch['obs']
                     actions.extend(batch['acts'].cpu().numpy().astype(int))
                     data_list = np.vstack((data_list, whole_batch_states.cpu().numpy()))
             data_df = pd.DataFrame(data_list)
@@ -721,6 +721,7 @@ if __name__ == "__main__":
             plt.xlabel("Action")
             plt.ylabel("Frequency")
             plt.title("Action Distribution")
+            plt.savefig("Action_Distribution.png")
             # plt.show()
 
             # Define the ranges for each feature
@@ -751,6 +752,7 @@ if __name__ == "__main__":
 
             plt.tight_layout()
             plt.show()
+            plt.savefig('Analysis.png')
         elif train == TrainEnum.VALIDATION:
             policy                            = retrieve_agent(
                                                                 artifact_version='trained_model_directory:latest',
