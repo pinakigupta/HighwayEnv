@@ -127,8 +127,10 @@ class ActionFeatureExtractor(nn.Module):
         super(ActionFeatureExtractor, self).__init__()
         if isinstance(action_space, spaces.Discrete) or isinstance(action_space, gyms.spaces.discrete.Discrete):
             self.embeddings = nn.Embedding(action_space.n, feature_size)
+            self.normalize = nn.BatchNorm1d(feature_size)
         elif isinstance(action_space, spaces.Box):
             self.embeddings = nn.Identity(action_space.shape[0])
+            self.normalize = nn.BatchNorm1d(action_space.shape[0])
         self.action_space = action_space
         self.dropout = nn.Dropout(p=dropout_factor)
         self.activation = nn.Tanh()
@@ -137,11 +139,15 @@ class ActionFeatureExtractor(nn.Module):
         if isinstance(self.action_space, spaces.Discrete) or isinstance(self.action_space, gyms.spaces.discrete.Discrete):
             # Add an extra dimension for the batch
             action = action.unsqueeze(1)
-            return self.dropout(self.activation(self.embeddings(action.long()).squeeze(dim=1)))
+            embedded = self.embeddings(action.long()).squeeze(dim=1)
+            normalized = self.normalize(embedded)
+            return self.dropout(self.activation(normalized))
         elif isinstance(self.action_space, spaces.Box):
             # For Box action space, use an identity layer directly
-            return self.embeddings(action)
-    
+            embedded = self.embeddings(action)
+            normalized = self.normalize(embedded)
+            return self.dropout(self.activation(normalized))
+                
 def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
             progress = step_num / decay_steps

@@ -75,7 +75,7 @@ if __name__ == "__main__":
         if features_extractor_class is  CombinedFeatureExtractor:
             action_extractor_kwargs = dict(
             action_extractor_kwargs = {
-                                "feature_size": 2, 
+                                "feature_size": 4, 
                                 "dropout_factor": 0.25, 
                                 "obs_space": make_configure_env(**env_kwargs).env.observation_space,
                                 "act_space": make_configure_env(**env_kwargs).env.action_space

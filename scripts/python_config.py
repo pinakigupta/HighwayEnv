@@ -87,7 +87,7 @@ sweep_config = {
             "values": [ 64 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [10]  # Values for the "duration" field to be swept
+            "values": [1]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -116,7 +116,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.ANALYSIS
+train = TrainEnum.BC
 zip_filename = 'temp_3.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 

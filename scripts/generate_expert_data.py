@@ -81,7 +81,7 @@ def worker(
         env_reset = True
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
         while rollout_steps < steps_per_worker:
-
+            start_time = time.time()
             if exit_event.is_set():
                 # print('Exit condition is triggered. Breaking ', worker_id)
                 return
@@ -146,6 +146,9 @@ def worker(
             time.sleep(0.25)
         # episode_rewards.append(np.sum(ep_rwds))
         # time.sleep(0.001)
+        end_time = time.time()
+        frequency = 1/(end_time-start_time)
+        print(f"Execution frequency is {frequency}")
 
 def collect_expert_data(
                         oracle,
