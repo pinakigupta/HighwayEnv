@@ -131,12 +131,13 @@ class ActionFeatureExtractor(nn.Module):
             self.embeddings = nn.Identity(action_space.shape[0])
         self.action_space = action_space
         self.dropout = nn.Dropout(p=dropout_factor)
+        self.activation = nn.Tanh()
     
     def forward(self, action):
         if isinstance(self.action_space, spaces.Discrete) or isinstance(self.action_space, gyms.spaces.discrete.Discrete):
             # Add an extra dimension for the batch
             action = action.unsqueeze(1)
-            return self.dropout(self.embeddings(action.long()).squeeze(dim=1))
+            return self.dropout(self.activation(self.embeddings(action.long()).squeeze(dim=1)))
         elif isinstance(self.action_space, spaces.Box):
             # For Box action space, use an identity layer directly
             return self.embeddings(action)
@@ -195,8 +196,8 @@ class CustomDataset(Dataset):
                         # If JSON deserialization fails, assume it's a primitive type
                         value = self.data[key][idx]
                         prev_value = self.data[key][idx-1] if idx>1 else value
-                    sample[key] = torch.tensor(value, dtype=torch.float32)
-                    prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32)
+                    sample[key] = torch.tensor(value, dtype=torch.float32).to(self.device)
+                    prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32).to(self.device)
 
         except Exception as e:
             print(f' {e} , for , { id(self)}. key {key} , value {value} ')
@@ -296,7 +297,11 @@ class CombinedFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self,  observation_space: gym.spaces.Dict, **kwargs):
         super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"]+kwargs["action_extractor_kwargs"]["feature_size"])
         self.obs_extractor = CustomExtractor(kwargs["action_extractor_kwargs"]['obs_space'], **kwargs)
-        self.action_extractor = ActionFeatureExtractor(kwargs["action_extractor_kwargs"]['act_space'])
+        self.action_extractor = ActionFeatureExtractor(
+                                                        action_space =    kwargs["action_extractor_kwargs"]['act_space'],
+                                                        dropout_factor =  kwargs["action_extractor_kwargs"]['dropout_factor'],
+                                                        feature_size =    kwargs["action_extractor_kwargs"]['feature_size']
+                                                      )
         self.kwargs = kwargs
 
     def forward(self, observations):
