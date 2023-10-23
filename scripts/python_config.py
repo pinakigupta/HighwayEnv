@@ -20,7 +20,7 @@ env_kwargs = {
             },
         'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
         # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
-        'simulation_frequency': 10,
+        'simulation_frequency': 2,
         "lanes_count": 'random',
         "min_lanes_count": 2,
         "max_lanes_count": 7,
@@ -116,7 +116,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.BC
+train = TrainEnum.VALIDATION
 zip_filename = 'temp_3.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 

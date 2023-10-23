@@ -652,6 +652,8 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
             input_queue.put(sample)
             if input_queue.qsize() > 1.25*kwargs['val_batch_count']:
                 break
+            if len(accuracies) > kwargs['val_batch_count']:
+                break
         except Exception as e:
             print(e)
         calculate_metrics()
@@ -931,7 +933,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.epoch += 1
             print(f"Data loader Epoch count {self.epoch}")
             if self.is_validation: # Only one iteration through all the files is file
-                break
+                return
 
     def reader_worker(
                         self, 
