@@ -1133,7 +1133,7 @@ def calculate_sample_counts(col_range, obs_list, feature_ranges):
     col_start, col_end = col_range
     partial_counts = []
     for col in range(col_start, col_end):
-        col_counts = [((obs_list[:, col] >= feature_ranges[i]) & (obs_list[:, col] <= feature_ranges[i + 1])).sum()
+        col_counts = [((obs_list[:, col] > feature_ranges[i]) & (obs_list[:, col] <= feature_ranges[i + 1])).sum()
                     for i in range(len(feature_ranges) - 1)]
         partial_counts.append(col_counts)
     return partial_counts
@@ -1219,7 +1219,7 @@ def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
     print('Sample counts done')
             
     # Normalize the sample counts to a range between 0 and 1
-    normalized_counts = (sample_counts - sample_counts.min()) / (sample_counts.max() - sample_counts.min())
+    normalized_counts = sample_counts / sample_counts[0,:].sum()
     # Reshape the sample counts to create a heatmap
     # sample_count_matrix = sample_counts.reshape(-1, 1)
     

@@ -33,6 +33,7 @@ import importlib
 import pandas as pd
 import tracemalloc
 from highway_env.envs.common.observation import *
+from scipy.stats import entropy
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -123,7 +124,7 @@ if __name__ == "__main__":
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = None
+            policy = True
             env = make_configure_env(**env_kwargs)
             if policy:
                 # oracle_agent                            = retrieve_agent(
@@ -694,7 +695,7 @@ if __name__ == "__main__":
             manager = multiprocessing.Manager()
             obs_list = manager.list()
             acts_list = manager.list()
-            normalized_counts =  analyze_data(
+            p =  analyze_data(
                                                 zip_filename,
                                                 obs_list,
                                                 acts_list,
@@ -708,7 +709,26 @@ if __name__ == "__main__":
                                                 chunk_size=500,
                                                 plot=False,
                                               )
-            # print('normalized_counts', normalized_counts)
+            obs_list = manager.list()
+            acts_list = manager.list()
+            q =  analyze_data(
+                                                'temp_4.zip',
+                                                obs_list,
+                                                acts_list,
+                                                device=device,
+                                                batch_size=batch_size,
+                                                n_cpu=n_cpu,
+                                                type='train',
+                                                val_batch_count=val_batch_count,
+                                                plot_path=None,
+                                                validation=True,
+                                                chunk_size=500,
+                                                plot=False,
+                                              )
+            # Calculate the KL divergence between the two distributions
+            cross_entropy = entropy(p, q)
+            kl_div = np.sum(entropy(p, q) - entropy(p))
+            print('kl_div ', kl_div, ' cross_entropy ', np.sum(cross_entropy), cross_entropy)
         elif train == TrainEnum.VALIDATION:
             policy                            = retrieve_agent(
                                                                 artifact_version='trained_model_directory:latest',
