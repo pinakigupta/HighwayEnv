@@ -32,6 +32,7 @@ from torchvision.models.video import R3D_18_Weights
 from torchvision import transforms
 import random
 import math
+import functools
 from gymnasium.spaces import Space as Space
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -1120,3 +1121,124 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                         
         # samples_queue.put(None)
 
+def process_batch(batch, batch_number, obs_list, acts_list):
+    with torch.no_grad():
+        obs = batch['obs']
+        acts = batch['acts']
+        obs_list.extend(obs.cpu().numpy())
+        acts_list.extend(acts.cpu().numpy().astype(int))
+
+# Define a function to calculate a portion of the sample_counts
+def calculate_sample_counts(col_range, obs_list, feature_ranges):
+    col_start, col_end = col_range
+    partial_counts = []
+    for col in range(col_start, col_end):
+        col_counts = [((obs_list[:, col] >= feature_ranges[i]) & (obs_list[:, col] <= feature_ranges[i + 1])).sum()
+                    for i in range(len(feature_ranges) - 1)]
+        partial_counts.append(col_counts)
+    return partial_counts
+
+
+def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
+    n_cpu=kwargs['n_cpu']
+    val_batch_count=kwargs['val_batch_count']
+    # train_data_loader                                             = create_dataloaders(
+    #                                                                                               zip_filename,
+    #                                                                                               train_datasets=[], 
+    #                                                                                               type = 'train',
+    #                                                                                               device=device,
+    #                                                                                               batch_size=minibatch_size,
+    #                                                                                               n_cpu = n_cpu,
+    #                                                                                               visited_data_files=set([])
+    #                                                                                           )
+    train_data_loader                                             =  CustomDataLoader(
+                                                                        zip_filename, 
+                                                                        device=kwargs['device'],
+                                                                        batch_size=kwargs['batch_size'],
+                                                                        n_cpu=n_cpu,
+                                                                        val_batch_count=val_batch_count,
+                                                                        chunk_size=kwargs['chunk_size'],
+                                                                        type= kwargs['type'],
+                                                                        plot_path=kwargs['plot_path'],
+                                                                        validation=kwargs['validation'],
+                                                                        visited_data_files = set([])
+                                                                    ) 
+    train_data_loader_iterator = iter(train_data_loader)
+    # Create a DataFrame from the data loader
+    data_list = np.empty((0, 101))
+
+    num_processes = n_cpu
+
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        for batch_number in range(val_batch_count):
+            try:
+                batch = next(train_data_loader_iterator)
+                pool.apply_async(process_batch, (batch, batch_number, obs_list, acts_list))
+            except StopIteration:
+                print('StopIteration Error ')
+                break
+        
+        pool.close()
+        pool.join()
+
+    obs_list = np.array(obs_list)
+    acts_list = np.array(acts_list)
+
+    actions = np.array(acts_list)
+    action_counts = np.bincount(actions.astype(int))
+    print('action_counts ', action_counts)
+
+    # Create a bar chart for action distribution
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(len(action_counts)), action_counts, tick_label=range(len(action_counts)))
+    plt.xlabel("Action")
+    plt.ylabel("Frequency")
+    plt.title(f"Action Distribution for {zip_filename}")
+    plt.savefig("Action_Distribution.png")
+    # plt.show()
+
+    # Define the ranges for each feature
+    feature_ranges = np.linspace(-1, 1, num=101)  # Adjust the number of bins as needed
+
+
+    
+
+    col_ranges = [(col, col + 1) for col in range(obs_list.shape[1])]
+
+    # Create a partially-applied function with fixed arguments
+    calculate_sample_counts_partially_wrapped = functools.partial(calculate_sample_counts, obs_list=obs_list, feature_ranges=feature_ranges)
+
+
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        partial_counts_list = pool.map(calculate_sample_counts_partially_wrapped, col_ranges)
+
+    # Concatenate the partial counts to obtain the complete sample_counts
+    sample_counts = np.concatenate(partial_counts_list, axis=0)
+    
+    sample_counts = sample_counts.T
+    print('Sample counts done')
+            
+    # Normalize the sample counts to a range between 0 and 1
+    normalized_counts = (sample_counts - sample_counts.min()) / (sample_counts.max() - sample_counts.min())
+    # Reshape the sample counts to create a heatmap
+    # sample_count_matrix = sample_counts.reshape(-1, 1)
+    
+
+    if 'plot' in kwargs and kwargs['plot']:
+        # Create a color map based on the sample counts
+        cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=1.0, reverse=False, as_cmap=True)
+
+
+        # Create a violin plot directly from the data loader
+        # Create a figure with two subplots
+        fig, axes = plt.subplots(2, 1, figsize=(12, 6))
+        sns.violinplot(data=obs_list , inner="quartile", ax=axes[0])
+        axes[0].set_title(f"Violin Plot (input) for {zip_filename}")
+        sns.heatmap(data=sample_counts, cmap=cmap, cbar=False, ax=axes[1])
+        axes[1].set_title(f"Heatmap (input) for {zip_filename}")
+
+        plt.tight_layout()
+        plt.show()
+        plt.savefig('Analysis.png')
+        print('Plotting done')
+    return normalized_counts

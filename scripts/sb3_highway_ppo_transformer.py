@@ -690,116 +690,25 @@ if __name__ == "__main__":
             print("Recall:", recall, np.mean(recall))
             print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
-            val_batch_count = 50000
-            # train_data_loader                                             = create_dataloaders(
-            #                                                                                               zip_filename,
-            #                                                                                               train_datasets=[], 
-            #                                                                                               type = 'train',
-            #                                                                                               device=device,
-            #                                                                                               batch_size=minibatch_size,
-            #                                                                                               n_cpu = n_cpu,
-            #                                                                                               visited_data_files=set([])
-            #                                                                                           )
-            train_data_loader                                             =  CustomDataLoader(
-                                                                                zip_filename, 
-                                                                                device=device,
-                                                                                batch_size=batch_size,
-                                                                                n_cpu=n_cpu,
-                                                                                val_batch_count=500000,
-                                                                                chunk_size=500,
-                                                                                type= 'train',
-                                                                                plot_path=None,
-                                                                                validation=True,
-                                                                                visited_data_files = set([])
-                                                                            ) 
-            train_data_loader_iterator = iter(train_data_loader)
-            # Create a DataFrame from the data loader
-            data_list = np.empty((0, 101))
-
+            val_batch_count=50000
             manager = multiprocessing.Manager()
             obs_list = manager.list()
             acts_list = manager.list()
-            num_processes = multiprocessing.cpu_count()
-
-            def process_batch(batch, obs_list, acts_list):
-                with torch.no_grad():
-                    obs = batch['obs']
-                    acts = batch['acts']
-                    obs_list.extend(obs.cpu().numpy())
-                    acts_list.extend(acts.cpu().numpy().astype(int))
-
-            with multiprocessing.Pool(processes=num_processes) as pool:
-                for batch_number in range(val_batch_count):
-                    try:
-                        batch = next(train_data_loader_iterator)
-                        pool.apply_async(process_batch, (batch, obs_list, acts_list))
-                    except StopIteration:
-                        break
-
-                pool.close()
-                pool.join()                
-
-            obs_list = np.array(obs_list)
-            acts_list = np.array(acts_list)
-            # with torch.no_grad():
-            #     for batch_number, batch in enumerate(train_data_loader):
-            #         if batch_number >= val_batch_count:
-            #             break
-            #         obs = batch['obs']
-            #         acts = batch['acts']
-            #         obs_list.extend(obs.cpu().numpy())
-            #         acts_list.extend(acts.cpu().numpy().astype(int))
-
-
-            # actions = torch.cat(acts_list, dim=0).cpu().numpy().astype(int)
-            # data_list = torch.cat(obs_list, dim=0).cpu().numpy()
-            # actions = acts_list
-            # data_list = obs_list
-            # data_df = pd.DataFrame(data_list)
-            actions = np.array(acts_list)
-            action_counts = np.bincount(actions.astype(int))
-            print('action_counts ', action_counts)
-
-            # Create a bar chart for action distribution
-            plt.figure(figsize=(10, 6))
-            plt.bar(range(len(action_counts)), action_counts, tick_label=range(len(action_counts)))
-            plt.xlabel("Action")
-            plt.ylabel("Frequency")
-            plt.title("Action Distribution")
-            plt.savefig("Action_Distribution.png")
-            # plt.show()
-
-            # Define the ranges for each feature
-            feature_ranges = np.linspace(-1, 1, num=101)  # Adjust the number of bins as needed
-
-            # Calculate the count of samples within each range for each feature
-            sample_counts = np.array([[((obs_list[:, col]  >= feature_ranges[i]) & (obs_list[:, col]  <= feature_ranges[i+1])).sum()
-                                    for i in range(len(feature_ranges)-1)]
-                                    for col in range(obs_list.shape[1])])
-            sample_counts = sample_counts.T
-            print('Sample counts done')
-                  
-            # Normalize the sample counts to a range between 0 and 1
-            normalized_counts = (sample_counts - sample_counts.min()) / (sample_counts.max() - sample_counts.min())
-            # Reshape the sample counts to create a heatmap
-            # sample_count_matrix = sample_counts.reshape(-1, 1)
-            print('normalized_counts', normalized_counts)
-
-            # Create a color map based on the sample counts
-            cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=1.0, reverse=False, as_cmap=True)
-
-
-            # Create a violin plot directly from the data loader
-            # Create a figure with two subplots
-            fig, axes = plt.subplots(2, 1, figsize=(12, 6))
-            sns.violinplot(data=obs_list , inner="quartile", ax=axes[0])
-            axes[0].set_title("Violin Plot (input)")
-            sns.heatmap(data=sample_counts, cmap=cmap, cbar=False, ax=axes[1])
-            axes[1].set_title("Heatmap (input)")
-
-            plt.tight_layout()
-            plt.show()
-            plt.savefig('Analysis.png')
+            normalized_counts =  analyze_data(
+                                                zip_filename,
+                                                obs_list,
+                                                acts_list,
+                                                device=device,
+                                                batch_size=batch_size,
+                                                n_cpu=n_cpu,
+                                                type='train',
+                                                val_batch_count=val_batch_count,
+                                                plot_path=None,
+                                                validation=True,
+                                                chunk_size=500,
+                                                plot=False,
+                                              )
+            # print('normalized_counts', normalized_counts)
         elif train == TrainEnum.VALIDATION:
             policy                            = retrieve_agent(
                                                                 artifact_version='trained_model_directory:latest',
