@@ -598,10 +598,12 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
+            if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
+                append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
             env = make_configure_env(**env_kwargs)
             env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
             # BC_agent                            = retrieve_agent(
-            #                                                         artifact_version='trained_model_directory:latest',
+            #                                                         artifact_version='oootrained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',
             #                                                         device=device,
             #                                                         project=project
