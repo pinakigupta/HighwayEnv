@@ -391,7 +391,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                                  ) 
     return train_data_loader
 
-def process_batch(output_queue, input_queue, labels, worker_index,lock, batch_count, **kwargs):
+def process_validation_batch(output_queue, input_queue, labels, worker_index,lock, batch_count=None, **kwargs):
     # local_policy_path = f'/tmp/validation_policy{worker_index}.pth'
     # shutil.copy('validation_policy.pth', local_policy_path)
     if lock.acquire(timeout=10):
@@ -479,7 +479,7 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
     for i in range(num_workers):
         
         worker_process = multiprocessing.Process(
-                                                    target=process_batch, 
+                                                    target=process_validation_batch, 
                                                     args=(
                                                             output_queue, 
                                                             input_queue, 
