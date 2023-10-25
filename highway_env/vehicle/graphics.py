@@ -24,7 +24,7 @@ class VehicleGraphics(object):
     DEFAULT_COLOR = YELLOW
     EGO_COLOR = GREEN
     SCALING_FACTOR = 1.3
-    scaling = 5.5
+    scaling = 25.5
 
     @classmethod
     def display(cls, vehicle: Vehicle, surface: "WorldSurface",
