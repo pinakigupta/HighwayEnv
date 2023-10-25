@@ -155,20 +155,30 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','EGO_LENGTH',8)
             append_key_to_dict_of_dict(env_kwargs,'config','EGO_WIDTH',4)
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',80)
-            env = make_vec_env(
-                                make_configure_env, 
-                                n_envs=n_cpu, 
-                                vec_env_cls=SubprocVecEnv, 
-                                env_kwargs=env_kwargs
-                            )
+            # env = make_vec_env(
+            #                     make_configure_env, 
+            #                     n_envs=n_cpu, 
+            #                     vec_env_cls=SubprocVecEnv, 
+            #                     env_kwargs=env_kwargs
+            #                 )
+            
+            env = make_configure_env(**env_kwargs)
 
             total_timesteps=100*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
+            bc_policy =                                        retrieve_agent(
+                                                                    artifact_version='trained_model_directory:latest',
+                                                                    agent_model = 'agent_final.pth',
+                                                                    device=device,
+                                                                    project=project_names[TrainEnum.BC.value]
+                                                                    )
+            policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
             # policy = CustomMLPPolicy(env.observation_space, env.action_space)
             model = PPO(
-                            'MlpPolicy',
+                            # 'MlpPolicy',
+                            policy,
                             env,
                             n_steps=2048 // n_cpu,
                             batch_size=32,
@@ -640,7 +650,7 @@ if __name__ == "__main__":
                     predicted_labels.append(action)
                     # env.vehicle.actions = []
                     obs, reward, done, truncated, info = env.step(action)
-                    obs[-2] = 0 # hardcoding lane ids out 
+                    obs[9::10] = 0 # hardcoding lane ids out 
                     end_time = time.time()
                     cumulative_reward += gamma * reward
                     if image_space_obs:
