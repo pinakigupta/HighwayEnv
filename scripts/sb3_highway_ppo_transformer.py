@@ -20,7 +20,7 @@ from datetime import datetime
 import time
 from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent
-from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
+from forward_simulation import make_configure_env, append_key_to_dict_of_dict
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from utilities import *
 from utils import record_videos
@@ -34,6 +34,7 @@ import pandas as pd
 import tracemalloc
 from highway_env.envs.common.observation import *
 from scipy.stats import entropy
+from feature_extractors import *
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -124,7 +125,7 @@ if __name__ == "__main__":
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = True
+            policy = None
             env = make_configure_env(**env_kwargs)
             if policy:
                 # oracle_agent                            = retrieve_agent(
@@ -712,7 +713,7 @@ if __name__ == "__main__":
             obs_list = manager.list()
             acts_list = manager.list()
             q =  analyze_data(
-                                                'temp_4.zip',
+                                                'temp.zip',
                                                 obs_list,
                                                 acts_list,
                                                 device=device,

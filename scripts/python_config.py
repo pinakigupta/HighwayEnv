@@ -20,7 +20,7 @@ env_kwargs = {
             },
         'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
         # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
-        'simulation_frequency': 2,
+        'simulation_frequency': 10,
         "lanes_count": 'random',
         "min_lanes_count": 2,
         "max_lanes_count": 7,
@@ -117,7 +117,7 @@ project_names= \
     ]
 
 train = TrainEnum.ANALYSIS
-zip_filename = 'temp_5.zip'
+zip_filename = 'temp_6.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

@@ -122,32 +122,6 @@ class RandomPolicy(BasePolicy):
     def predict(self, obs):
         return self._predict(obs)
     
-# Custom feature extractor for the action space
-class ActionFeatureExtractor(nn.Module):
-    def __init__(self, action_space, dropout_factor=0.75, feature_size = 8):
-        super(ActionFeatureExtractor, self).__init__()
-        if isinstance(action_space, spaces.Discrete) or isinstance(action_space, gyms.spaces.discrete.Discrete):
-            self.embeddings = nn.Embedding(action_space.n, feature_size)
-            self.normalize = nn.BatchNorm1d(feature_size)
-        elif isinstance(action_space, spaces.Box):
-            self.embeddings = nn.Identity(action_space.shape[0])
-            self.normalize = nn.BatchNorm1d(action_space.shape[0])
-        self.action_space = action_space
-        self.dropout = nn.Dropout(p=dropout_factor)
-        self.activation = nn.Tanh()
-    
-    def forward(self, action):
-        if isinstance(self.action_space, spaces.Discrete) or isinstance(self.action_space, gyms.spaces.discrete.Discrete):
-            # Add an extra dimension for the batch
-            action = action.unsqueeze(1)
-            embedded = self.embeddings(action.long()).squeeze(dim=1)
-            normalized = self.normalize(embedded)
-            return self.dropout(self.activation(normalized))
-        elif isinstance(self.action_space, spaces.Box):
-            # For Box action space, use an identity layer directly
-            embedded = self.embeddings(action)
-            normalized = self.normalize(embedded)
-            return self.dropout(self.activation(normalized))
                 
 def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
@@ -285,114 +259,6 @@ def compute_vehicles_attention(env,extractor, device):
             vehicle = min(close_vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
             v_attention[vehicle] = attention[:, v_index]
     return v_attention
-
-class CustomExtractor(BaseFeaturesExtractor):
-    """
-    :param observation_space: (gym.Space)
-    :param features_dim: (int) Number of features extracted.
-        This corresponds to the number of unit for the last layer.
-    """
-
-    def __init__(self, observation_space: gym.spaces.Box, **kwargs):
-        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"])
-        self.extractor = EgoAttentionNetwork(**kwargs)
-
-    def forward(self, observations: torch.Tensor) -> torch.Tensor:
-        return self.extractor(observations)
-
-class CombinedFeatureExtractor(BaseFeaturesExtractor):
-    def __init__(self,  observation_space: gym.spaces.Dict, **kwargs):
-        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"]+kwargs["action_extractor_kwargs"]["feature_size"])
-        self.obs_extractor = CustomExtractor(kwargs["action_extractor_kwargs"]['obs_space'], **kwargs)
-        self.action_extractor = ActionFeatureExtractor(
-                                                        action_space =    kwargs["action_extractor_kwargs"]['act_space'],
-                                                        dropout_factor =  kwargs["action_extractor_kwargs"]['dropout_factor'],
-                                                        feature_size =    kwargs["action_extractor_kwargs"]['feature_size']
-                                                      )
-        self.kwargs = kwargs
-
-    def forward(self, observations):
-        # De-construct obs and act from observations using the original shapes
-        obs_shape = self.kwargs["action_extractor_kwargs"]["obs_space"].shape
-        action_shape = self.kwargs["action_extractor_kwargs"]["act_space"].shape
-
-        # Separate obs and act while keeping the batch dimension
-        obs = observations[:, :np.prod(obs_shape)].reshape(observations.shape[0], *obs_shape)
-        act = observations[:, np.prod(obs_shape):].reshape(observations.shape[0], *action_shape)
-
-        obs_features = self.obs_extractor(obs)
-        action_features = self.action_extractor(act)
-
-        combined_features = torch.cat([obs_features, action_features], dim=-1)
-        return combined_features
-    
-
-# Create a 3D ResNet model for feature extraction
-class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
-    
-    video_preprocessor = R3D_18_Weights.KINETICS400_V1.transforms()
-    # Create a lambda function to add random Gaussian noise
-    random_noise = lambda image: image + torch.randn(image.size()).to(image.device) * 0.05
-    image_augmentations = [
-                            # transforms.RandomResizedCrop(112),
-                            transforms.RandomHorizontalFlip(),
-                            # transforms.RandomGaussianNoise(std=(0, 0.05)),
-                            random_noise,
-                            transforms.ColorJitter(brightness=(0.7, 1.3), contrast=(0.7, 1.3))
-                          ]
-
-    def __init__(self, observation_space, hidden_dim=64, **kwargs):
-        super(CustomVideoFeatureExtractor, self).__init__(observation_space, hidden_dim)
-
-        if 'augment_image' in kwargs and kwargs['augment_image']:
-            self.augment_image = True
-        else:
-            self.augment_image = False
-
-        if not isinstance(observation_space, gym.spaces.Box):
-            raise ValueError("Observation space must be continuous (e.g., image-based)")
-        
-        self.resnet = models.video.r3d_18(pretrained=True)  # You can choose a different ResNet variant
-        # Remove the classification (fully connected) layer
-        self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-1])
-        self.set_grad_video_feature_extractor(requires_grad=False)
-
-        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
-
-        # Additional fully connected layer for custom hidden feature dimension
-        self.fc_hidden = nn.Sequential(
-                                        nn.Linear(self.resnet.fc.in_features, hidden_dim),
-                                        nn.Tanh(),
-                                        nn.Linear(hidden_dim, hidden_dim),
-                                        nn.Tanh(),
-                                        nn.Linear(hidden_dim, hidden_dim)
-                                    )
-
-    def set_grad_video_feature_extractor(self, requires_grad=False):
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = requires_grad
-
-    def forward(self, observations):
-
-        # Reshape observations to [batch_size, channels, stack_size, height, width]
-        observations = observations.view(observations.size(0),  -1, 1, self.height, self.width)
-        observations = torch.cat([observations, observations, observations], dim=2)
-        # Normalize pixel values to the range [0, 1] (if necessary)
-        # observations = observations / 255.0
-
-        if self.augment_image:
-            # Create a Compose transform to apply all of the transforms in the sequence to each frame in the video
-            compose_transforms = transforms.Compose(self.image_augmentations)
-            observations = compose_transforms(observations)
-        
-        observations = self.video_preprocessor(observations)
-
-        # print(self.feature_extractor)
-        # Pass input through the feature extractor (without the classification layer)
-        resnet_features = self.feature_extractor(observations).squeeze()
-        # Apply a fully connected layer for the custom hidden feature dimension
-        hidden_features = torch.nn.functional.relu(self.fc_hidden(resnet_features))
-        return hidden_features
 
 def save_checkpoint(project, run_name, epoch, model, **kwargs):
     # if epoch is None:
@@ -575,8 +441,6 @@ def process_batch(output_queue, input_queue, labels, worker_index,lock, batch_co
         # else:
         #     output_samples.append(output_sample)
 
-
-
 def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs):
     true_labels = []
     predicted_labels = []
@@ -730,66 +594,6 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
     return metrics
 
 
-class CustomImageExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space, hidden_dim=64):
-        super(CustomImageExtractor, self).__init__(observation_space, hidden_dim)
-        self.channels = 3
-        if not isinstance(observation_space, gym.spaces.Box):
-            raise ValueError("Observation space must be continuous (e.g., image-based)")
-        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
-        
-        # Define a pretrained ResNet model as the feature extractor trunk
-        self.resnet = torch.hub.load('pytorch/vision', 'resnet18', pretrained=True)
-        # self.resnet.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
-
-        # Adjust the last fully connected layer for feature dimension control
-        # self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_dim)
-        self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-1])
-
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
-        
-        self.lstm = nn.LSTM(input_size=self.resnet.fc.in_features, hidden_size=hidden_dim, num_layers=4, batch_first=True)
-        
-        # Additional fully connected layer for custom hidden feature dimension
-        self.fc_hidden = nn.Sequential(
-                                        nn.Linear(self.lstm.hidden_size, hidden_dim),
-                                        nn.Tanh(),
-                                        nn.Linear(hidden_dim, hidden_dim),
-                                        nn.Tanh(),
-                                        nn.Linear(hidden_dim, hidden_dim)
-                                      )
-    
-    def forward(self, observations):
-
-        # Reshape observations to [batch_size, stack_size, height, width]
-        observations = observations.view(observations.size(0), -1, 1, self.height, self.width)
-        observations = observations / 255.0
-
-        # Expand the grayscale image along the channel dimension to create an RGB image
-        observations = observations.repeat(1, 1, self.channels , 1, 1)        # Normalize pixel values to the range [0, 1] (if necessary)
-        
-        # Reshape the input for feature extraction
-        batch_size, seq_len, c, h, w = observations.size()
-        observations = observations.view(batch_size * seq_len, c, h, w)
-
-        # Forward pass through the ResNet trunk for feature extraction
-        resnet_features = self.feature_extractor(observations).squeeze()
-
-        # Flatten the features and pass through the LSTM
-        resnet_features = resnet_features.view(batch_size, seq_len, -1)  # Flatten the spatial dimensions
-
-          # Pass through the LSTM layer
-        lstm_features, _ = self.lstm(resnet_features)
-
-        # Reshape the output of the LSTM to match the expected input size of fc_hidden
-        lstm_features = lstm_features.contiguous().view(batch_size , seq_len, -1)
-        lstm_features = lstm_features[:, -1, :]  # Select the last time step
-
-        # Apply a fully connected layer for the custom hidden feature dimension
-        hidden_features = torch.nn.functional.relu(self.fc_hidden(lstm_features))
-        
-        return hidden_features  # Return the extracted features
 
 
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
