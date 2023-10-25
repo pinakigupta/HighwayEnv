@@ -20,7 +20,7 @@ from datetime import datetime
 import time
 from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent
-from forward_simulation import make_configure_env, append_key_to_dict_of_dict, simulate_with_model
+from forward_simulation import make_configure_env, append_key_to_dict_of_dict
 from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
 from utilities import *
 from utils import record_videos
@@ -33,6 +33,8 @@ import importlib
 import pandas as pd
 import tracemalloc
 from highway_env.envs.common.observation import *
+from scipy.stats import entropy
+from feature_extractors import *
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -76,7 +78,7 @@ if __name__ == "__main__":
             action_extractor_kwargs = dict(
             action_extractor_kwargs = {
                                 "feature_size": 4, 
-                                "dropout_factor": 0.25, 
+                                "dropout_factor": 0.0, 
                                 "obs_space": make_configure_env(**env_kwargs).env.observation_space,
                                 "act_space": make_configure_env(**env_kwargs).env.action_space
                            })
@@ -123,7 +125,7 @@ if __name__ == "__main__":
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = True
+            policy = None
             env = make_configure_env(**env_kwargs)
             if policy:
                 # oracle_agent                            = retrieve_agent(
@@ -145,7 +147,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 5,
+                                    delta_iterations = 7,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -449,7 +451,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 55600 if last_epoch else 750*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 155600 if last_epoch else 750*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -700,82 +702,44 @@ if __name__ == "__main__":
             print("Recall:", recall, np.mean(recall))
             print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
-            val_batch_count = 50000
-            train_data_loader                                             = create_dataloaders(
-                                                                                                          zip_filename,
-                                                                                                          train_datasets=[], 
-                                                                                                          type = 'train',
-                                                                                                          device=device,
-                                                                                                          batch_size=minibatch_size,
-                                                                                                          n_cpu = n_cpu,
-                                                                                                          visited_data_files=set([])
-                                                                                                      )
-            # Create a DataFrame from the data loader
-            data_list = np.empty((0, 101))
-            actions = []
-
-            obs_list = []
-            acts_list = [] 
-
-            with torch.no_grad():
-                for batch_number, batch in enumerate(train_data_loader):
-                    if batch_number >= val_batch_count:
-                        break
-                    obs = batch['obs']
-                    acts = batch['acts']
-                    obs_list.extend(obs.cpu().numpy())
-                    acts_list.extend(acts.cpu().numpy().astype(int))
-
-
-            # actions = torch.cat(acts_list, dim=0).cpu().numpy().astype(int)
-            # data_list = torch.cat(obs_list, dim=0).cpu().numpy()
-            actions = acts_list
-            data_list = obs_list
-            # data_df = pd.DataFrame(data_list)
-            actions = np.array(actions)
-            action_counts = np.bincount(actions.astype(int))
-            print('action_counts ', action_counts, 'actions shape ', actions.shape, ' obs shape ',data_list.shape)
-
-            # Create a bar chart for action distribution
-            plt.figure(figsize=(10, 6))
-            plt.bar(range(len(action_counts)), action_counts, tick_label=range(len(action_counts)))
-            plt.xlabel("Action")
-            plt.ylabel("Frequency")
-            plt.title("Action Distribution")
-            plt.savefig("Action_Distribution.png")
-            # plt.show()
-
-            # Define the ranges for each feature
-            feature_ranges = np.linspace(-1, 1, num=101)  # Adjust the number of bins as needed
-
-            # Calculate the count of samples within each range for each feature
-            sample_counts = np.array([[((data_list[:, col]  >= feature_ranges[i]) & (data_list[:, col]  <= feature_ranges[i+1])).sum()
-                                    for i in range(len(feature_ranges)-1)]
-                                    for col in range(data_list.shape[1])])
-            sample_counts = sample_counts.T
-            print('Sample counts done')
-                  
-            # Normalize the sample counts to a range between 0 and 1
-            normalized_counts = (sample_counts - sample_counts.min()) / (sample_counts.max() - sample_counts.min())
-            # Reshape the sample counts to create a heatmap
-            # sample_count_matrix = sample_counts.reshape(-1, 1)
-            print('normalized_counts', normalized_counts)
-
-            # Create a color map based on the sample counts
-            cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=1.0, reverse=False, as_cmap=True)
-
-
-            # Create a violin plot directly from the data loader
-            # Create a figure with two subplots
-            fig, axes = plt.subplots(2, 1, figsize=(12, 6))
-            sns.violinplot(data=data_list , inner="quartile", ax=axes[0])
-            axes[0].set_title("Violin Plot (input)")
-            sns.heatmap(data=sample_counts, cmap=cmap, cbar=False, ax=axes[1])
-            axes[1].set_title("Heatmap (input)")
-
-            plt.tight_layout()
-            plt.show()
-            plt.savefig('Analysis.png')
+            val_batch_count=50000
+            manager = multiprocessing.Manager()
+            obs_list = manager.list()
+            acts_list = manager.list()
+            p =  analyze_data(
+                                                zip_filename,
+                                                obs_list,
+                                                acts_list,
+                                                device=device,
+                                                batch_size=batch_size,
+                                                n_cpu=n_cpu,
+                                                type='train',
+                                                val_batch_count=val_batch_count,
+                                                plot_path=None,
+                                                validation=True,
+                                                chunk_size=500,
+                                                plot=False,
+                                              )
+            obs_list = manager.list()
+            acts_list = manager.list()
+            q =  analyze_data(
+                                                'temp.zip',
+                                                obs_list,
+                                                acts_list,
+                                                device=device,
+                                                batch_size=batch_size,
+                                                n_cpu=n_cpu,
+                                                type='train',
+                                                val_batch_count=val_batch_count,
+                                                plot_path=None,
+                                                validation=True,
+                                                chunk_size=500,
+                                                plot=False,
+                                              )
+            # Calculate the KL divergence between the two distributions
+            cross_entropy = entropy(p, q)
+            kl_div = np.sum(entropy(p, q) - entropy(p))
+            print('kl_div ', kl_div, ' cross_entropy ', np.sum(cross_entropy), cross_entropy)
         elif train == TrainEnum.VALIDATION:
             policy                            = retrieve_agent(
                                                                 artifact_version='trained_model_directory:latest',
@@ -787,17 +751,28 @@ if __name__ == "__main__":
             policy.to(val_device)
             policy.eval()
             type = 'val'
-            val_data_loader                                             =  CustomDataLoader(
-                                                                                            zip_filename, 
-                                                                                            device=val_device,
-                                                                                            batch_size=batch_size,
-                                                                                            n_cpu=n_cpu,
-                                                                                            val_batch_count=5000,
-                                                                                            chunk_size=500,
-                                                                                            type= type,
-                                                                                            plot_path=None,
-                                                                                            visited_data_files = set([])
-                                                                                        ) 
+            val_batch_count = 2500
+            # val_data_loader                                             =  CustomDataLoader(
+            #                                                                                 zip_filename, 
+            #                                                                                 device=val_device,
+            #                                                                                 batch_size=batch_size,
+            #                                                                                 n_cpu=n_cpu,
+            #                                                                                 val_batch_count=val_batch_count,
+            #                                                                                 chunk_size=500,
+            #                                                                                 type= type,
+            #                                                                                 plot_path=None,
+            #                                                                                 visited_data_files = set([])
+            #                                                                             ) 
+            
+            val_data_loader =                                                       create_dataloaders(
+                                                                                                          zip_filename,
+                                                                                                          train_datasets = [], 
+                                                                                                          type = type,
+                                                                                                          device=device,
+                                                                                                          batch_size=minibatch_size,
+                                                                                                          n_cpu = n_cpu,
+                                                                                                          visited_data_files= set([])
+                                                                                                      )
             metrics                      = calculate_validation_metrics(
                                                                             val_data_loader,
                                                                             policy, 
@@ -805,7 +780,7 @@ if __name__ == "__main__":
                                                                             device=val_device,
                                                                             batch_size=batch_size,
                                                                             n_cpu=n_cpu,
-                                                                            val_batch_count=5000,
+                                                                            val_batch_count=val_batch_count,
                                                                             chunk_size=500,
                                                                             type= type,
                                                                             validation = True,

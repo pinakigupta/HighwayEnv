@@ -21,16 +21,9 @@ from highway_env.vehicle.behavior import MDPVehicle
 from highway_env.envs.common.observation import  observation_factory
 from highway_env.envs.common.action import DiscreteMetaAction
 from forward_simulation import append_key_to_dict_of_dict
-from forward_simulation import make_configure_env
+from gym_wrappers import make_configure_env
 
 torch.set_default_tensor_type(torch.FloatTensor)
-
-# def make_configure_env(**kwargs):
-#     env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"], config=kwargs["config"])
-#     # env.configure(kwargs["config"])
-#     env.reset()
-#     return env
-
 
 def worker(
                 exit_event,
@@ -148,7 +141,8 @@ def worker(
         # time.sleep(0.001)
         end_time = time.time()
         frequency = 1/(end_time-start_time)
-        print(f"Execution frequency is {frequency}")
+        # time.sleep(max(1/env_kwargs['config']['simulation_frequency']-1/frequency, 0.0))
+        # print(f"Execution frequency is {frequency}")
 
 def collect_expert_data(
                         oracle,
