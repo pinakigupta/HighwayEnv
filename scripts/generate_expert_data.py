@@ -297,7 +297,7 @@ def postprocess(inputfile,outputfile):
     exp_obs, exp_kin_obs , exp_acts, exp_dones = extract_expert_data(inputfile)
     class_distribution = Counter(exp_acts)
     print(" Before post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs), len(exp_acts), len(exp_dones))
-    exp_obs, exp_kin_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=1.25)
+    exp_obs, exp_kin_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=0.95)
     class_distribution = Counter(exp_acts)
     print(" After post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs))
     # Convert the list of arrays into a NumPy array
@@ -314,10 +314,10 @@ def postprocess(inputfile,outputfile):
 def downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=2.0):
     # Calculate the distribution of classes
     class_distribution = Counter(exp_acts)
-    actions_indexes = {'LANE_LEFT': 0, 'IDLE': 1, 'LANE_RIGHT': 2, 'FASTER': 3, 'SLOWER': 4}
-    # Initialize all classes to 0 in the class_distribution
-    for action_index in actions_indexes.values():
-        class_distribution[action_index] = class_distribution.get(action_index, 0)
+    # actions_indexes = {'LANE_LEFT': 0, 'IDLE': 1, 'LANE_RIGHT': 2, 'FASTER': 3, 'SLOWER': 4}
+    # # Initialize all classes to 0 in the class_distribution
+    # for action_index in actions_indexes.values():
+    #     class_distribution[action_index] = class_distribution.get(action_index, 0)
     most_common_class, most_common_count = class_distribution.most_common(1)[0]
     second_most_common_class, second_most_common_count = class_distribution.most_common(2)[1]
     if second_most_common_count == 0:

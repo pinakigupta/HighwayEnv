@@ -78,7 +78,7 @@ if __name__ == "__main__":
             action_extractor_kwargs = dict(
             action_extractor_kwargs = {
                                 "feature_size": 4, 
-                                "dropout_factor": 0.0, 
+                                "dropout_factor": 1.0, # probability of an element to be zeroed.
                                 "obs_space": make_configure_env(**env_kwargs).env.observation_space,
                                 "act_space": make_configure_env(**env_kwargs).env.action_space
                            })
@@ -147,7 +147,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 7,
+                                    delta_iterations = 17,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -594,10 +594,10 @@ if __name__ == "__main__":
             # env_kwargs.update({'render_mode': 'human'})
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
-            append_key_to_dict_of_dict(env_kwargs,'config','lanes_count',2)
+            # append_key_to_dict_of_dict(env_kwargs,'config','lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
+            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
@@ -631,6 +631,7 @@ if __name__ == "__main__":
                                                                     device=device
                                                                 )
                                              )
+                # policy.action_extractor.training = True
                 image_space_obs = False
             else:
                 image_space_obs = True
