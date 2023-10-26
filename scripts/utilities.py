@@ -565,7 +565,7 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
         sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
         plt.xlabel("Predicted Labels")
         plt.ylabel("True Labels")
-        plt.title(f"Confusion Matrix for {kwargs['type']}")
+        plt.title(f"Confusion Matrix for {kwargs['type']} for {zip_filename}")
         heatmap_png = f'heatmap_{kwargs["type"]}.png'
         plt.savefig(heatmap_png)
 

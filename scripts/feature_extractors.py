@@ -47,7 +47,7 @@ from gym import spaces
 
 # Custom feature extractor for the action space
 class ActionFeatureExtractor(nn.Module):
-    def __init__(self, action_space, dropout_factor=0.75, feature_size = 8):
+    def __init__(self, action_space, dropout_factor=0.75, feature_size = 8, **kwargs):
         super(ActionFeatureExtractor, self).__init__()
         if isinstance(action_space, spaces.Discrete) or isinstance(action_space, gyms.spaces.discrete.Discrete):
             self.embeddings = nn.Embedding(action_space.n, feature_size)
@@ -56,21 +56,28 @@ class ActionFeatureExtractor(nn.Module):
             self.embeddings = nn.Identity(action_space.shape[0])
             self.normalize = nn.BatchNorm1d(action_space.shape[0])
         self.action_space = action_space
-        self.dropout = nn.Dropout(p=dropout_factor)
+        self.dropout_factor = dropout_factor
+        # self.dropout = nn.functional.dropout(p=dropout_factor, training=True)
         self.activation = nn.Tanh()
-    
+        self.training = None
+        if 'training' in kwargs:
+            self.training = kwargs['training']
+
     def forward(self, action):
         if isinstance(self.action_space, spaces.Discrete) or isinstance(self.action_space, gyms.spaces.discrete.Discrete):
             # Add an extra dimension for the batch
             action = action.unsqueeze(1)
             embedded = self.embeddings(action.long()).squeeze(dim=1)
             normalized = self.normalize(embedded)
-            return self.dropout(self.activation(normalized))
+            activated = self.activation(normalized)
         elif isinstance(self.action_space, spaces.Box):
             # For Box action space, use an identity layer directly
             embedded = self.embeddings(action)
             normalized = self.normalize(embedded)
-            return self.dropout(self.activation(normalized))
+            activated = self.activation(normalized)
+            if self.training:    
+                return nn.functional.dropout(activated, p=self.dropout_factor, training=self.training)
+        return  nn.functional.dropout(activated, p=self.dropout_factor)
 
 class CustomExtractor(BaseFeaturesExtractor):
     """
