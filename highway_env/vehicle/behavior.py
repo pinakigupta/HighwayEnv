@@ -280,8 +280,8 @@ class IDMVehicle(ControlledVehicle):
             # if not self.road.network.get_lane(lane_index).is_reachable_from(self.observed_position):
             #     continue
             # Only change lane when the vehicle is moving
-            # if np.abs(self.speed) < 1:
-            #     continue
+            if np.abs(self.speed) < 1:
+                continue
             # Does the MOBIL model recommend a lane change?
             if self.mobil(lane_index):
                 # self.target_lane_index = lane_index
@@ -595,6 +595,8 @@ class MDPVehicle(IDMVehicle):
             speed_index = self.speed_to_index(self.speed) + 1
         elif action['long'] == "SLOWER":
             speed_index = self.speed_to_index(self.speed) - 1
+            if self.config['deploy']:
+                speed_index -= 1
         elif action['long'] == "FASTER2":
             speed_index = self.speed_to_index(self.speed) + 2
         elif action['long'] == "SLOWER2":
