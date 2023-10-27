@@ -228,6 +228,7 @@ class KinematicObservation(ObservationType):
 
         if close_vehicles:
             if observer_vehicle is self.env.vehicle:
+                self.env.close_vehicles = close_vehicles
                 for v in close_vehicles:
                     v.color = (200, 200, 0) # YELLOW
 
