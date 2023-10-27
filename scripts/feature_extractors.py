@@ -75,8 +75,8 @@ class ActionFeatureExtractor(nn.Module):
             embedded = self.embeddings(action)
             normalized = self.normalize(embedded)
             activated = self.activation(normalized)
-            if self.training:    
-                return nn.functional.dropout(activated, p=self.dropout_factor, training=self.training)
+        if self.training:    
+            return nn.functional.dropout(activated, p=self.dropout_factor, training=self.training)
         return  nn.functional.dropout(activated, p=self.dropout_factor)
 
 class CustomExtractor(BaseFeaturesExtractor):
