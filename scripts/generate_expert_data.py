@@ -297,7 +297,7 @@ def postprocess(inputfile,outputfile):
     exp_obs, exp_kin_obs , exp_acts, exp_dones = extract_expert_data(inputfile)
     class_distribution = Counter(exp_acts)
     print(" Before post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs), len(exp_acts), len(exp_dones))
-    exp_obs, exp_kin_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=1.25)
+    exp_obs, exp_kin_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=0.95)
     class_distribution = Counter(exp_acts)
     print(" After post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs))
     # Convert the list of arrays into a NumPy array

@@ -78,7 +78,7 @@ if __name__ == "__main__":
             action_extractor_kwargs = dict(
             action_extractor_kwargs = {
                                 "feature_size": 4, 
-                                "dropout_factor": 0.0, 
+                                "dropout_factor": 1.0, # probability of an element to be zeroed.
                                 "obs_space": make_configure_env(**env_kwargs).env.observation_space,
                                 "act_space": make_configure_env(**env_kwargs).env.action_space
                            })
@@ -147,7 +147,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 7,
+                                    delta_iterations = 17,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -594,10 +594,10 @@ if __name__ == "__main__":
             # env_kwargs.update({'render_mode': 'human'})
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
-            append_key_to_dict_of_dict(env_kwargs,'config','lanes_count',2)
+            # append_key_to_dict_of_dict(env_kwargs,'config','lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
+            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
@@ -622,78 +622,80 @@ if __name__ == "__main__":
             policy = BC_agent
             policy.to(device)
             policy.eval()
-            if isinstance(env.observation_type, KinematicObservation):
-                env.viewer.set_agent_display(
-                                                functools.partial(
-                                                                    display_vehicles_attention, 
-                                                                    env=env, 
-                                                                    extractor=policy.features_extractor.obs_extractor.extractor,
-                                                                    device=device
-                                                                )
-                                             )
-                image_space_obs = False
-            else:
-                image_space_obs = True
+            with torch.no_grad():
+                if isinstance(env.observation_type, KinematicObservation):
+                    env.viewer.set_agent_display(
+                                                    functools.partial(
+                                                                        display_vehicles_attention, 
+                                                                        env=env, 
+                                                                        extractor=policy.features_extractor.obs_extractor.extractor,
+                                                                        device=device
+                                                                    )
+                                                )
+                    
+                    image_space_obs = False
+                else:
+                    image_space_obs = True
 
-            
-            if image_space_obs:   
-                fig = plt.figure(figsize=(8, 16))
-                import cv2
-            predicted_labels = []
-            true_labels = []
-            for _ in range(num_deploy_rollouts):
-                obs, info = env.reset()
-                done = truncated = False
-                cumulative_reward = 0
-                while not (done or truncated):
-                    start_time = time.time()
-                    expert_action = env.discrete_action(env.vehicle.discrete_action()[0])
-                    true_labels.append(expert_action)
-                    action, _ = policy.predict(obs)
-                    # action_logits = torch.nn.functional.softmax(policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.tensor(obs).to(device)))[0]))
-                    # action = np.array(torch.argmax(action_logits, dim=-1).item())
-                    predicted_labels.append(action)
-                    # env.vehicle.actions = []
-                    obs, reward, done, truncated, info = env.step(action)
-                    obs[9::10] = 0 # hardcoding lane ids out 
-                    end_time = time.time()
-                    cumulative_reward += gamma * reward
-                    if image_space_obs:
-                        height, width = env.observation_space.shape[1], env.observation_space.shape[2]
-                        observations = torch.tensor(obs, dtype=torch.float32)
-                        observations = observations.view( -1, 1, height, width)
-                        observations = torch.cat([observations, observations, observations], dim=1)
-                        transformed_obs = policy.features_extractor.video_preprocessor(observations)
-                        for i in range(3,4):
-                            raw_image = obs[i,:]
-                            image =  transformed_obs[0, i,:].cpu().numpy()
-                            # action_logits = policy.action_net(input_tensor)
-                            # action_logits = policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.Tensor(obs).unsqueeze(0)))[0])
-                            # selected_action = torch.argmax(action_logits, dim=1)
-                            # action_logits[0, selected_action].backward()
-                            # gradients = input_tensor.grad.squeeze()
-                            # # Normalize and overlay the gradient-based heatmap on the original image
-                            # heatmap = gradients.numpy()
-                            # heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))  # Normalize between 0 and 1
-                            # heatmap = cv2.resize(heatmap, (image.shape[1], image.shape[0]))
-                            # heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
-                            # result  = cv2.addWeighted(image.astype(np.uint8), 0.5, heatmap, 0.5, 0)
+                
+                if image_space_obs:   
+                    fig = plt.figure(figsize=(8, 16))
+                    import cv2
+                predicted_labels = []
+                true_labels = []
+                for _ in range(num_deploy_rollouts):
+                    obs, info = env.reset()
+                    done = truncated = False
+                    cumulative_reward = 0
+                    while not (done or truncated):
+                        start_time = time.time()
+                        expert_action = env.discrete_action(env.vehicle.discrete_action()[0])
+                        true_labels.append(expert_action)
+                        action, _ = policy.predict(obs)
+                        # action_logits = torch.nn.functional.softmax(policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.tensor(obs).to(device)))[0]))
+                        # action = np.array(torch.argmax(action_logits, dim=-1).item())
+                        predicted_labels.append(action)
+                        # env.vehicle.actions = []
+                        obs, reward, done, truncated, info = env.step(action)
+                        obs[9::10] = 0 # hardcoding lane ids out 
+                        end_time = time.time()
+                        cumulative_reward += gamma * reward
+                        if image_space_obs:
+                            height, width = env.observation_space.shape[1], env.observation_space.shape[2]
+                            observations = torch.tensor(obs, dtype=torch.float32)
+                            observations = observations.view( -1, 1, height, width)
+                            observations = torch.cat([observations, observations, observations], dim=1)
+                            transformed_obs = policy.features_extractor.video_preprocessor(observations)
+                            for i in range(3,4):
+                                raw_image = obs[i,:]
+                                image =  transformed_obs[0, i,:].cpu().numpy()
+                                # action_logits = policy.action_net(input_tensor)
+                                # action_logits = policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.Tensor(obs).unsqueeze(0)))[0])
+                                # selected_action = torch.argmax(action_logits, dim=1)
+                                # action_logits[0, selected_action].backward()
+                                # gradients = input_tensor.grad.squeeze()
+                                # # Normalize and overlay the gradient-based heatmap on the original image
+                                # heatmap = gradients.numpy()
+                                # heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))  # Normalize between 0 and 1
+                                # heatmap = cv2.resize(heatmap, (image.shape[1], image.shape[0]))
+                                # heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
+                                # result  = cv2.addWeighted(image.astype(np.uint8), 0.5, heatmap, 0.5, 0)
 
-                            ax1 = plt.subplot(121)  # 2 rows, 1 column, subplot 1
-                            ax1.imshow(raw_image, cmap='gray', origin='lower', aspect=1.0)
-                            ax1.set_xlim(20, 40)
+                                ax1 = plt.subplot(121)  # 2 rows, 1 column, subplot 1
+                                ax1.imshow(raw_image, cmap='gray', origin='lower', aspect=1.0)
+                                ax1.set_xlim(20, 40)
 
-                            ax2 = plt.subplot(122)  # 2 rows, 1 column, subplot 2
-                            ax2.imshow(image, cmap='gray', origin='lower', aspect=1.0)
-                            ax2.set_xlim(20, 80)   
+                                ax2 = plt.subplot(122)  # 2 rows, 1 column, subplot 2
+                                ax2.imshow(image, cmap='gray', origin='lower', aspect=1.0)
+                                ax2.set_xlim(20, 80)   
 
-                            plt.show(block=False)
-                            plt.pause(0.01)
-                    # env.render()
-                    frequency = 1/(end_time-start_time)
-                    print(f"Execution frequency is {frequency}")
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                print("--------------------------------------------------------------------------------------")
+                                plt.show(block=False)
+                                plt.pause(0.01)
+                        # env.render()
+                        frequency = 1/(end_time-start_time)
+                        print(f"Execution frequency is {frequency}")
+                    print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
+                    print("--------------------------------------------------------------------------------------")
             # true_labels = true_labels @ label_weights
             # predicted_labels = predicted_labels @ label_weights
             accuracy = accuracy_score(true_labels, predicted_labels)
@@ -754,66 +756,67 @@ if __name__ == "__main__":
             policy.to(val_device)
             policy.eval()
             type = 'val'
-            val_batch_count = 2500
-            # val_data_loader                                             =  CustomDataLoader(
-            #                                                                                 zip_filename, 
-            #                                                                                 device=val_device,
-            #                                                                                 batch_size=batch_size,
-            #                                                                                 n_cpu=n_cpu,
-            #                                                                                 val_batch_count=val_batch_count,
-            #                                                                                 chunk_size=500,
-            #                                                                                 type= type,
-            #                                                                                 plot_path=None,
-            #                                                                                 visited_data_files = set([])
-            #                                                                             ) 
-            
-            val_data_loader =                                                       create_dataloaders(
-                                                                                                          zip_filename,
-                                                                                                          train_datasets = [], 
-                                                                                                          type = type,
-                                                                                                          device=device,
-                                                                                                          batch_size=minibatch_size,
-                                                                                                          n_cpu = n_cpu,
-                                                                                                          visited_data_files= set([])
-                                                                                                      )
-            metrics                      = calculate_validation_metrics(
-                                                                            val_data_loader,
-                                                                            policy, 
-                                                                            zip_filename=zip_filename,
-                                                                            device=val_device,
-                                                                            batch_size=batch_size,
-                                                                            n_cpu=n_cpu,
-                                                                            val_batch_count=val_batch_count,
-                                                                            chunk_size=500,
-                                                                            type= type,
-                                                                            validation = True,
-                                                                            plot_path=None
-                                                                          )
-            # type = 'train'
-            # train_data_loader = CustomDataLoader(
-            #                                     zip_filename, 
-            #                                     device=val_device,
-            #                                     batch_size=batch_size,
-            #                                     n_cpu=n_cpu,
-            #                                     val_batch_count=500,
-            #                                     chunk_size=500,
-            #                                     type= type,
-            #                                     plot_path=None,
-            #                                     visited_data_files = set([])
-            #                                   ) 
-            # metrics                      = calculate_validation_metrics(
-            #                                                                 train_data_loader,
-            #                                                                 policy, 
-            #                                                                 zip_filename=zip_filename,
-            #                                                                 device=val_device,
-            #                                                                 batch_size=batch_size,
-            #                                                                 n_cpu=n_cpu,
-            #                                                                 val_batch_count=500,
-            #                                                                 chunk_size=500,
-            #                                                                 type= type,
-            #                                                                 validation = True,
-            #                                                                 plot_path=None
-            #                                                               )
+            with torch.no_grad():
+                val_batch_count = 2500
+                # val_data_loader                                             =  CustomDataLoader(
+                #                                                                                 zip_filename, 
+                #                                                                                 device=val_device,
+                #                                                                                 batch_size=batch_size,
+                #                                                                                 n_cpu=n_cpu,
+                #                                                                                 val_batch_count=val_batch_count,
+                #                                                                                 chunk_size=500,
+                #                                                                                 type= type,
+                #                                                                                 plot_path=None,
+                #                                                                                 visited_data_files = set([])
+                #                                                                             ) 
+                
+                val_data_loader =                                                       create_dataloaders(
+                                                                                                            zip_filename,
+                                                                                                            train_datasets = [], 
+                                                                                                            type = type,
+                                                                                                            device=device,
+                                                                                                            batch_size=minibatch_size,
+                                                                                                            n_cpu = n_cpu,
+                                                                                                            visited_data_files= set([])
+                                                                                                        )
+                metrics                      = calculate_validation_metrics(
+                                                                                val_data_loader,
+                                                                                policy, 
+                                                                                zip_filename=zip_filename,
+                                                                                device=val_device,
+                                                                                batch_size=batch_size,
+                                                                                n_cpu=n_cpu,
+                                                                                val_batch_count=val_batch_count,
+                                                                                chunk_size=500,
+                                                                                type= type,
+                                                                                validation = True,
+                                                                                plot_path=None
+                                                                            )
+                # type = 'train'
+                # train_data_loader = CustomDataLoader(
+                #                                     zip_filename, 
+                #                                     device=val_device,
+                #                                     batch_size=batch_size,
+                #                                     n_cpu=n_cpu,
+                #                                     val_batch_count=500,
+                #                                     chunk_size=500,
+                #                                     type= type,
+                #                                     plot_path=None,
+                #                                     visited_data_files = set([])
+                #                                   ) 
+                # metrics                      = calculate_validation_metrics(
+                #                                                                 train_data_loader,
+                #                                                                 policy, 
+                #                                                                 zip_filename=zip_filename,
+                #                                                                 device=val_device,
+                #                                                                 batch_size=batch_size,
+                #                                                                 n_cpu=n_cpu,
+                #                                                                 val_batch_count=500,
+                #                                                                 chunk_size=500,
+                #                                                                 type= type,
+                #                                                                 validation = True,
+                #                                                                 plot_path=None
+                #                                                               )
     except KeyboardInterrupt:
         if TRACE:
             tracemalloc.stop()  # Stop memory tracing when done

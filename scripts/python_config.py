@@ -87,7 +87,7 @@ sweep_config = {
             "values": [ 64 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [20]  # Values for the "duration" field to be swept
+            "values": [1]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -116,7 +116,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.VALIDATION
+train = TrainEnum.BC
 zip_filename = 'temp_6.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
@@ -125,13 +125,13 @@ attention_network_kwargs = dict(
     # in_size=5*15,
     embedding_layer_kwargs={
                                 "in_size": len(env_kwargs['config']['KinematicObservation']['features']), 
-                                "layer_sizes": [64, 64], 
+                                "layer_sizes": [128, 128, 128], 
                                 "reshape": False,
                                 "activation": 'RELU'
                             },
     attention_layer_kwargs={
-                                "feature_size": 64, 
-                                "heads": 2, 
+                                "feature_size": 128, 
+                                "heads": 4, 
                                 # "dropout_factor" :0.2
                            },
     # num_layers = 3,
