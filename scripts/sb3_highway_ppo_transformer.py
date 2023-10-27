@@ -78,7 +78,7 @@ if __name__ == "__main__":
             action_extractor_kwargs = dict(
             action_extractor_kwargs = {
                                 "feature_size": 4, 
-                                "dropout_factor": 1.0, # probability of an element to be zeroed.
+                                "dropout_factor": 0.95, # probability of an element to be zeroed.
                                 "obs_space": make_configure_env(**env_kwargs).env.observation_space,
                                 "act_space": make_configure_env(**env_kwargs).env.action_space
                            })
@@ -147,7 +147,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 17,
+                                    delta_iterations = 7,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -397,7 +397,13 @@ if __name__ == "__main__":
             env = make_configure_env(**env_kwargs)
             # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
-            policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
+            # policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
+            policy =                    retrieve_agent(
+                                                        artifact_version='trained_model_directory:latest',
+                                                        agent_model = 'agent_final.pth',
+                                                        device=device,
+                                                        project=project
+                                                        )
             print("Default policy initialized ")
             run_name = f"sweep_{month}{day}_{timenow()}"
             # sweep_id = wandb.sweep(sweep_config, project=project_name)
@@ -450,8 +456,8 @@ if __name__ == "__main__":
                     #                                         type='train'
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
-                    last_epoch = (epoch ==num_epochs-1)
-                    num_mini_batches = 155600 if last_epoch else 750*(1+epoch) # Mini epoch here correspond to typical epoch
+                    last_epoch = (epoch == num_epochs-1)
+                    num_mini_batches = 255600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -591,7 +597,7 @@ if __name__ == "__main__":
             final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY:
             env_kwargs.update({'reward_oracle':None})
-            # env_kwargs.update({'render_mode': 'human'})
+            env_kwargs.update({'render_mode': 'human'})
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             # append_key_to_dict_of_dict(env_kwargs,'config','lanes_count',2)
@@ -602,7 +608,7 @@ if __name__ == "__main__":
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
             env = make_configure_env(**env_kwargs)
-            env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
+            # env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
             # BC_agent                            = retrieve_agent(
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',
@@ -755,7 +761,7 @@ if __name__ == "__main__":
             policy.to(val_device)
             policy.eval()
             type = 'val'
-            val_batch_count = 2500
+            val_batch_count = 5000
             # val_data_loader                                             =  CustomDataLoader(
             #                                                                                 zip_filename, 
             #                                                                                 device=val_device,
