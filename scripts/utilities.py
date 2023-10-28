@@ -44,10 +44,6 @@ import numpy as np
 from gym import spaces
 
 
-
-
-
-
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
     if os.path.exists(directory):
@@ -328,7 +324,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(" File handle for the zip file opened ")
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name]           
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name] 
         for train_data_file in hdf5_train_file_names:
             if train_data_file not in visited_data_files:
                 visited_data_files.add(train_data_file)
@@ -353,6 +349,20 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     print("DATA loader scanned all files")
 
     # shutil.rmtree(extract_path)
+
+    # val_data_loader                                             =  CustomDataLoader(
+    #                                                                             zip_filename, 
+    #                                                                             device=device,
+    #                                                                             batch_size=kwargs['batch_size'],
+    #                                                                             n_cpu=kwargs['n_cpu'],
+    #                                                                             val_batch_count=np.inf,
+    #                                                                             chunk_size=500,
+    #                                                                             type= kwargs['type'],
+    #                                                                             plot_path=None,
+    #                                                                             visited_data_files = visited_data_files
+    #                                                                         ) 
+    # for batch in val_data_loader:
+    #     train_datasets.append(batch)
 
 
     # Create a combined dataset from the individual datasets

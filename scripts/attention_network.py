@@ -54,6 +54,7 @@ class MultiLayerPerceptron(BaseModule):
                  out_size=None,
                  activation="RELU",
                  is_policy=False,
+                 dropout_factor=0.0,
                  **kwargs):
         super().__init__(**kwargs)
         self.reshape = reshape
@@ -62,6 +63,8 @@ class MultiLayerPerceptron(BaseModule):
         self.activation = activation_factory(activation)
         self.is_policy = is_policy
         self.softmax = nn.Softmax(dim=-1)
+        self.dropout_factor = dropout_factor
+        self.dropout = nn.Dropout(p=dropout_factor)
         sizes = [in_size] + self.layer_sizes
         layers_list = [nn.Linear(sizes[i], sizes[i + 1])
                        for i in range(len(sizes) - 1)]
@@ -80,7 +83,7 @@ class MultiLayerPerceptron(BaseModule):
             action_probs = self.softmax(x)
             dist = Categorical(action_probs)
             return dist
-        return x
+        return self.dropout(x)
 
     def action_scores(self, x):
         if self.is_policy:
