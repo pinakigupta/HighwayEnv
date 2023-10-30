@@ -125,6 +125,7 @@ class CombinedFeatureExtractor(BaseFeaturesExtractor):
         return self.fc_layer(combined_features)
 
 
+
 # Create a 3D ResNet model for feature extraction
 class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
     
@@ -253,3 +254,37 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         hidden_features = torch.nn.functional.relu(self.fc_hidden(lstm_features))
         
         return hidden_features  # Return the extracted features
+
+
+class CustomMLPPolicy(ActorCriticPolicy):
+    def __init__(self, observation_space, action_space, lr_schedule, net_arch, features_extractor, **kwargs):
+        super(CustomMLPPolicy, self).__init__(observation_space, action_space, lr_schedule, net_arch, features_extractor, **kwargs)
+
+    def forward(self, obs, deterministic=False):
+        # Custom logic for the forward pass
+        # You can modify this as needed to define your policy's architecture
+        features = self.extract_features(obs)
+        action_mean = self.mlp_extractor(features)
+        action_std = th.ones_like(action_mean)  # You can customize this for your action space
+        value = self.value_net(features)
+        
+        if not deterministic:
+            action = self.dist.sample()
+        else:
+            action = action_mean
+
+        return action, value
+
+class CustomMLPFeaturesExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space, features_dim=64):
+        super(CustomMLPFeaturesExtractor, self).__init__(observation_space, features_dim)
+        # Define the architecture for feature extraction here
+        self.features_extractor = nn.Sequential(
+            nn.Linear(observation_space.shape[0], 64),
+            nn.ReLU(),
+            nn.Linear(64, features_dim),
+            nn.ReLU()
+        )
+
+    def forward(self, observations):
+        return self.features_extractor(observations)

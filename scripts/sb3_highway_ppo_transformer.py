@@ -170,18 +170,20 @@ if __name__ == "__main__":
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
-            bc_policy =                                        retrieve_agent(
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'agent_final.pth',
-                                                                    device=device,
-                                                                    project=project_names[TrainEnum.BC.value]
-                                                                    )
-            policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
-            # policy = CustomMLPPolicy(env.observation_space, env.action_space)
+            # bc_policy =                                        retrieve_agent(
+            #                                                         artifact_version='trained_model_directory:latest',
+            #                                                         agent_model = 'agent_final.pth',
+            #                                                         device=device,
+            #                                                         project=project_names[TrainEnum.BC.value]
+            #                                                         )
+            # bc_policy.eval()
+            # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
+            # policy.load_state_dict(bc_policy.state_dict())
+            # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
             model = PPO(
                             'MlpPolicy',
-                            # policy,
-                            env,
+                            # policy=bc_policy,
+                            env=env,
                             n_steps=2048 // n_cpu,
                             batch_size=32,
                             learning_rate=2e-3,
