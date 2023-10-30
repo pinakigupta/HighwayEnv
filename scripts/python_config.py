@@ -6,7 +6,7 @@ env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
     'expert': 'MDPVehicle',
-    'config': {
+    'config': {   #Vehicle configs
         'deploy': False,
          **{
                 "EGO_LENGTH": 'random',
@@ -17,53 +17,50 @@ env_kwargs = {
                 "max_length": 10,
                 "min_width": 2,
                 "max_width": 3.5,
+                'politeness': 'random',
+                "vehicles_count": 'random',
+                "max_vehicles_count": 150,
+                'headway_timegap': 1.0,
+                "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
+                'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
+                # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
+                'planning_heuristic': True,
             },
-        'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
-        # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
         'simulation_frequency': 10,
-        "lanes_count": 'random',
-        "min_lanes_count": 2,
-        "max_lanes_count": 7,
-        "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
-        "vehicles_count": 'random',
-        "max_vehicles_count": 150,
-        'politeness': 'random',
-        'headway_timegap': 1.0,
+            **{ # Lane configs
+                "lanes_count": 'random',
+                "min_lanes_count": 2,
+                "max_lanes_count": 7,
+             },
         "action": {
                 "type": "DiscreteMetaAction",
             },
         "offscreen_rendering": True,
-        "KinematicObservation": {
-            "type": "Kinematics",
-            "vehicles_count": 10,
-            "features": [
-                "presence",
-                "x",
-                "y",
-                "vx",
-                "vy",
-                "cos_h",
-                "sin_h",
-                'L',
-                'W',
-                'lane' 
-            ],
-            "absolute": False,
-            "relative_features": ['x']
-        },
-        "GrayscaleObservation": {
-            "type": "GrayscaleObservation",
-            "observation_shape": (128, 64),
-            "stack_size": 4,
-            "weights": [0.2989, 0.5870, 0.1140],  # weights for RGB conversion
-            "scaling": .75,
-        },
+         ** { # Observation configs
+                "KinematicObservation": {
+                    "type": "Kinematics",
+                    "vehicles_count": 10,
+                    "features": [ "presence", "x", "y", "vx", "vy", "cos_h", "sin_h", 'L', 'W', 'lane'],
+                    "absolute": False,
+                    "relative_features": ['x']
+                },
+                "GrayscaleObservation": {
+                    "type": "GrayscaleObservation",
+                    "observation_shape": (128, 64),
+                    "stack_size": 4,
+                    "weights": [0.2989, 0.5870, 0.1140],  # weights for RGB conversion
+                    "scaling": .75,
+                },
+            },
+          **{
+                "screen_width": 960,
+                "screen_height": 180,
+                "screen_text": False,
+                "real_time_rendering": False
+              
+            },
         "policy_frequency": 2,
         "duration": 40,
-        "screen_width": 960,
-        "screen_height": 180,
-        "screen_text": False,
-        "real_time_rendering": False
     }
 }
 
