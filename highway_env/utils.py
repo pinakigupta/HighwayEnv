@@ -18,7 +18,7 @@ Interval = Union[np.ndarray,
 
 
 def do_every(duration: float, timer: float) -> bool:
-    return duration < timer
+    return timer > duration 
 
 
 def lmap(v: float, x: Interval, y: Interval) -> float:

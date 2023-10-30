@@ -40,13 +40,14 @@ class Vehicle(RoadObject):
         self.impact = None
         self.log = []
         self.history = deque(maxlen=self.HISTORY_SIZE)
-        self.kwargs = kwargs
+        self.config = kwargs
         self.position_noise = 0 
         if 'target_speed' in kwargs:
             self.target_speed = kwargs['target_speed']
         if 'position_noise' in kwargs:
             self.position_noise = kwargs['position_noise']
         self.action_type = kwargs['action_type'] if 'action_type' in kwargs else None
+        self.LENGTH_org = self.LENGTH
 
     @classmethod
     def create_random(cls, 
@@ -95,8 +96,10 @@ class Vehicle(RoadObject):
                 x0 -= offset * road.np_random.uniform(0.9, 1.1)
             else:
                 x0 = np.max([lane.local_coordinates(v.position)[0] for v in road.vehicles]) 
-                x0 += offset * road.np_random.uniform(0.9, 1.1) 
+                x0 += offset * road.np_random.uniform(0.9, 1.1)
         target_speed = road.np_random.uniform(1.0, 1.25*lane.speed_limit)
+        if 'target_speed' in kwargs:
+            target_speed = kwargs['target_speed']
         action_type = action_type             
         v = cls(
                 road, 
@@ -143,6 +146,11 @@ class Vehicle(RoadObject):
 
         :param dt: timestep of integration of the model [s]
         """
+
+
+        self.LENGTH = self.LENGTH_org 
+        if 'length_noise' in self.config:
+             self.LENGTH += self.config['length_noise']()
         self.clip_actions()
         delta_f = self.action['steering']
         beta = np.arctan(1 / 2 * np.tan(delta_f))
@@ -231,6 +239,7 @@ class Vehicle(RoadObject):
     def to_dict(self, origin_vehicle: "Vehicle" = None, observe_intentions: bool = True, relative_features=[]) -> dict:
         if origin_vehicle is None:
             origin_vehicle = self
+        
         d = {
             'presence': 1,
             'x': self.observed_position[0],
@@ -245,7 +254,7 @@ class Vehicle(RoadObject):
             'long_off': self.lane_offset[0],
             'lat_off': self.lane_offset[1],
             'ang_off': self.lane_offset[2],
-            'L': self.LENGTH,
+            'L': self.LENGTH ,
             'W': self.WIDTH,
             'lane': self.lane_index[2]
         }

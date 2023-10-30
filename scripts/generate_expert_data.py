@@ -21,16 +21,9 @@ from highway_env.vehicle.behavior import MDPVehicle
 from highway_env.envs.common.observation import  observation_factory
 from highway_env.envs.common.action import DiscreteMetaAction
 from forward_simulation import append_key_to_dict_of_dict
-from forward_simulation import make_configure_env
+from gym_wrappers import make_configure_env
 
 torch.set_default_tensor_type(torch.FloatTensor)
-
-# def make_configure_env(**kwargs):
-#     env = gym.make(kwargs["id"], render_mode=kwargs["render_mode"], config=kwargs["config"])
-#     # env.configure(kwargs["config"])
-#     env.reset()
-#     return env
-
 
 def worker(
                 exit_event,
@@ -71,7 +64,8 @@ def worker(
         all_done = {}
         all_kinematic_obs = {}
         
-        act = {'long': 'SLOWER', 'lat': 'STRAIGHT'}
+        # act = {'long': 'SLOWER', 'lat': 'STRAIGHT'}
+        act = env.action_space.sample()
 
         if exit_event.is_set():
             # print('Exit condition is triggered. Breaking ', worker_id)
@@ -80,7 +74,7 @@ def worker(
         env_reset = True
         # print(" Entered worker ", worker_id, " . num_steps ", steps_per_worker,  flush=True)
         while rollout_steps < steps_per_worker:
-
+            start_time = time.time()
             if exit_event.is_set():
                 # print('Exit condition is triggered. Breaking ', worker_id)
                 return
@@ -106,8 +100,8 @@ def worker(
                 obs = v.observer
                 discrete_action = v.discrete_action()[0]
                 # print('env.action_type.actions_indexes ', env.action_type.actions_indexes, ' discrete_action ', discrete_action)
-                acts =  {k:env.action_type.actions_indexes[k][v] for k,v in discrete_action.items()}
-                acts = env.discrete_action(acts)
+                # acts =  {k:env.action_type.actions_indexes[k][v] for k,v in discrete_action.items()}
+                acts = env.discrete_action(discrete_action)
                 if v not in all_obs:
                     all_obs[v] = []
                     all_acts[v] = []
@@ -125,6 +119,7 @@ def worker(
                     all_done[v][-1] = True
                 break
             ob = next_ob
+            obs[-2] = 0
             # data_queue.put((ob, act))
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
@@ -144,6 +139,10 @@ def worker(
             time.sleep(0.25)
         # episode_rewards.append(np.sum(ep_rwds))
         # time.sleep(0.001)
+        end_time = time.time()
+        frequency = 1/(end_time-start_time)
+        # time.sleep(max(1/env_kwargs['config']['simulation_frequency']-1/frequency, 0.0))
+        # print(f"Execution frequency is {frequency}")
 
 def collect_expert_data(
                         oracle,
@@ -298,7 +297,7 @@ def postprocess(inputfile,outputfile):
     exp_obs, exp_kin_obs , exp_acts, exp_dones = extract_expert_data(inputfile)
     class_distribution = Counter(exp_acts)
     print(" Before post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs), len(exp_acts), len(exp_dones))
-    exp_obs, exp_kin_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=1.25)
+    exp_obs, exp_kin_obs, exp_acts, exp_dones = downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=0.95)
     class_distribution = Counter(exp_acts)
     print(" After post process class_distribution ", class_distribution, ' len(exp_obs) ' , len(exp_obs))
     # Convert the list of arrays into a NumPy array
@@ -315,10 +314,10 @@ def postprocess(inputfile,outputfile):
 def downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, factor=2.0):
     # Calculate the distribution of classes
     class_distribution = Counter(exp_acts)
-    actions_indexes = {'LANE_LEFT': 0, 'IDLE': 1, 'LANE_RIGHT': 2, 'FASTER': 3, 'SLOWER': 4}
-    # Initialize all classes to 0 in the class_distribution
-    for action_index in actions_indexes.values():
-        class_distribution[action_index] = class_distribution.get(action_index, 0)
+    # actions_indexes = {'LANE_LEFT': 0, 'IDLE': 1, 'LANE_RIGHT': 2, 'FASTER': 3, 'SLOWER': 4}
+    # # Initialize all classes to 0 in the class_distribution
+    # for action_index in actions_indexes.values():
+    #     class_distribution[action_index] = class_distribution.get(action_index, 0)
     most_common_class, most_common_count = class_distribution.most_common(1)[0]
     second_most_common_class, second_most_common_count = class_distribution.most_common(2)[1]
     if second_most_common_count == 0:

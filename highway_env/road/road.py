@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 from typing import List, Tuple, Dict, TYPE_CHECKING, Optional
+import time
 
 from highway_env.road.lane import LineType, StraightLane, AbstractLane, lane_from_config
 from highway_env.vehicle.objects import Landmark
@@ -311,20 +312,21 @@ class Road(object):
 
     def close_vehicles_to(self, vehicle: 'kinematics.Vehicle', distance: float, count: Optional[int] = None,
                           see_behind: bool = True, sort: bool = True) -> object:
-        vehicles = [v for v in self.vehicles
+        all_vehicles = [v for v in self.vehicles
                     if np.linalg.norm(v.position - vehicle.position) < distance
                     and v is not vehicle
                     and (see_behind or -2 * vehicle.LENGTH < vehicle.lane_distance_to(v))]
 
         if sort:
-            vehicles = sorted(vehicles, key=lambda v: abs(vehicle.lane_distance_to(v)))
+            all_vehicles = sorted(all_vehicles, key=lambda v: abs(vehicle.lane_distance_to(v)))
         if count:
-            vehicles = vehicles[:2*count]
+            all_vehicles = all_vehicles[:2*count]
         front_vehicle, rear_vehicle = self.neighbour_vehicles(vehicle)
         # print("front_vehicle ", front_vehicle, ' rear_vehicle ', rear_vehicle, vehicle.lane_index[2], front_vehicle.lane_index[2] , rear_vehicle.lane_index[2])
-        for v in vehicles:
-            if v.lane_index[2] is vehicle.lane_index[2]:
-                vehicles.remove(v)
+        vehicles = []
+        for v in all_vehicles:
+            if v.lane_index[2] != vehicle.lane_index[2]:
+                vehicles.append(v)
         if front_vehicle not in vehicles:
             if front_vehicle is not None:
                 vehicles.append(front_vehicle)

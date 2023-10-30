@@ -4,7 +4,6 @@ from torch import multiprocessing
 import os, shutil
 os.environ["HDF5_USE_THREADING"] = "true"
 import h5py
-import copy
 import sys
 from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
 from torch.utils.data import Dataset, DataLoader
@@ -19,7 +18,7 @@ import wandb
 import json
 from tqdm import tqdm
 from attention_network import EgoAttentionNetwork
-import gymnasium as gym
+import gymnasium as gyms
 import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
 import zipfile
@@ -33,6 +32,8 @@ from torchvision.models.video import R3D_18_Weights
 from torchvision import transforms
 import random
 import math
+import functools
+from gymnasium.spaces import Space as Space
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
@@ -41,17 +42,23 @@ ACTIONS_LONGI = DiscreteMetaAction.ACTIONS_LONGI
 import gym
 import numpy as np
 from gym import spaces
-
-
-
-
-
+import tracemalloc
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
     if os.path.exists(directory):
         shutil.rmtree(directory)
     os.makedirs(directory)
+
+
+
+
+
+def print_stack_size():
+    while True:
+        current_size, peak_size = tracemalloc.get_traced_memory()
+        print(f"Current memory size: {current_size / (1024 * 1024):.2f} MB")
+        time.sleep(15)  # Adjust the interval as needed
 
 class ZipfContextManager:
     def __init__(self, zip_filename, file_name):
@@ -121,9 +128,8 @@ class RandomPolicy(BasePolicy):
     def predict(self, obs):
         return self._predict(obs)
     
-
+                
 def DefaultActorCriticPolicy(env, device, **policy_kwargs):
-        state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
         def linear_decay_lr_schedule(step_num, initial_learning_rate, decay_steps, end_learning_rate):
             progress = step_num / decay_steps
             learning_rate = initial_learning_rate * (1 - progress) + end_learning_rate * progress
@@ -137,9 +143,11 @@ def DefaultActorCriticPolicy(env, device, **policy_kwargs):
                                                                 end_learning_rate=0.0001
                                                                )
         policy = ActorCriticPolicy(
-                                    observation_space=env.observation_space,
+                                    # observation_space= spaces.Dict({"obs": env.observation_space, "action": env.action_space}),
+                                    observation_space = env.observation_space,
                                     action_space=env.action_space,
                                     lr_schedule=lr_schedule,
+                                    share_features_extractor=True,
                                     **policy_kwargs
                                   )
 
@@ -163,30 +171,35 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx):
         sample = {}
+        prev_sample = {}
         try:
             for key in self.keys_attributes:
                 if key in self.data:
                     try:
                         # Attempt to deserialize the data as JSON
-                        value = json.loads(self.data[key][idx]) 
+                        value = json.loads(self.data[key][idx])
+                        prev_value =  json.loads(self.data[key][idx-1]) if idx>1 else value
                     except:
                         # If JSON deserialization fails, assume it's a primitive type
                         value = self.data[key][idx]
-                    value = torch.tensor(value, dtype=torch.float32)
-                    # value = torch.tensor(self.data[key][idx], dtype=torch.float32)
-                    sample[key] = value
+                        prev_value = self.data[key][idx-1] if idx>1 else value
+                    sample[key] = torch.tensor(value, dtype=torch.float32).to(self.device)
+                    prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32).to(self.device)
 
         except Exception as e:
+            print(f' {e} , for , { id(self)}. key {key} , value {value} ')
             pass
-            # print(f' {e} , for , { id(self)}. key {key} , value {value} ')
             # raise e
 
-        sample['obs'][:, -1] = 0
+        sample['obs'][:, -1].fill_(0)
+        sample['obs'] = torch.cat([ sample['obs'].view(-1), prev_sample['act'].view(1)], dim=0)
+        # sample['obs'] = {'obs':sample['obs'], 'action':prev_sample['act']}
 
-        return sample
+        return sample 
         
-def display_vehicles_attention(agent_surface, sim_surface, env, fe, device,  min_attention=0.01):
-        v_attention = compute_vehicles_attention(env, fe, device)
+        
+def display_vehicles_attention(agent_surface, sim_surface, env, extractor, device,  min_attention=0.01):
+        v_attention = compute_vehicles_attention(env, extractor, device)
         # print("v_attention ", v_attention)
         # Extract the subsurface of the larger rectangle
         attention_surface = pygame.Surface(sim_surface.get_size(), pygame.SRCALPHA)
@@ -197,6 +210,8 @@ def display_vehicles_attention(agent_surface, sim_surface, env, fe, device,  min
                                         radius=20,
                                         width=2
                           )
+        if not v_attention:
+            return
         for head in range(list(v_attention.values())[0].shape[0]):
             
             for vehicle, attention in v_attention.items():
@@ -217,18 +232,23 @@ def display_vehicles_attention(agent_surface, sim_surface, env, fe, device,  min
             # subsurface = attention_surface.subsurface(pygame.Rect(0, 0, 4800, 200))
             sim_surface.blit(attention_surface, (0, 0))
 
-def compute_vehicles_attention(env,fe, device):
-    observer = env.unwrapped.observation_type
+def compute_vehicles_attention(env,extractor, device):
+    observer = env.env.observation_type
     obs = observer.observe()
     obs_t = torch.tensor(obs[None, ...], dtype=torch.float).to(device)
-    attention = fe.extractor.get_attention_matrix(obs_t)
+    attention = extractor.get_attention_matrix(obs_t)
     attention = attention.squeeze(0).squeeze(1).detach().cpu().numpy()
-    ego, others, mask = fe.extractor.split_input(obs_t)
+    ego, others, mask = extractor.split_input(obs_t)
     mask = mask.squeeze()
     v_attention = {}
     obs_type = env.observation_type
     if hasattr(obs_type, "agents_observation_types"):  # Handle multi-model observation
         obs_type = obs_type.agents_observation_types[0]
+    close_vehicles =       env.road.close_vehicles_to(env.vehicle,
+                                                        env.PERCEPTION_DISTANCE,
+                                                        count=observer.vehicles_count - 1,
+                                                        see_behind=observer.see_behind,
+                                                        sort=observer.order == "sorted")        
     for v_index in range(obs.shape[0]):
         if mask[v_index]:
             continue
@@ -241,95 +261,10 @@ def compute_vehicles_attention(env,fe, device):
         env = env.unwrapped
         if not obs_type.absolute and v_index > 0:
             v_position += env.vehicle.position # This is ego
-        close_vehicles =       env.road.close_vehicles_to(env.vehicle,
-                                                          env.PERCEPTION_DISTANCE,
-                                                         count=observer.vehicles_count - 1,
-                                                         see_behind=observer.see_behind,
-                                                         sort=observer.order == "sorted")        
-        vehicle = min(close_vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
-        v_attention[vehicle] = attention[:, v_index]
+        if close_vehicles:
+            vehicle = min(close_vehicles, key=lambda v: np.linalg.norm(v.position - v_position))
+            v_attention[vehicle] = attention[:, v_index]
     return v_attention
-
-class CustomExtractor(BaseFeaturesExtractor):
-    """
-    :param observation_space: (gym.Space)
-    :param features_dim: (int) Number of features extracted.
-        This corresponds to the number of unit for the last layer.
-    """
-
-    def __init__(self, observation_space: gym.spaces.Box, **kwargs):
-        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"])
-        self.extractor = EgoAttentionNetwork(**kwargs)
-
-    def forward(self, observations: torch.Tensor) -> torch.Tensor:
-        return self.extractor(observations)
-
-# Create a 3D ResNet model for feature extraction
-class CustomVideoFeatureExtractor(BaseFeaturesExtractor):
-    
-    video_preprocessor = R3D_18_Weights.KINETICS400_V1.transforms()
-    # Create a lambda function to add random Gaussian noise
-    random_noise = lambda image: image + torch.randn(image.size()).to(image.device) * 0.05
-    image_augmentations = [
-                            # transforms.RandomResizedCrop(112),
-                            transforms.RandomHorizontalFlip(),
-                            # transforms.RandomGaussianNoise(std=(0, 0.05)),
-                            random_noise,
-                            transforms.ColorJitter(brightness=(0.7, 1.3), contrast=(0.7, 1.3))
-                          ]
-
-    def __init__(self, observation_space, hidden_dim=64, **kwargs):
-        super(CustomVideoFeatureExtractor, self).__init__(observation_space, hidden_dim)
-
-        if 'augment_image' in kwargs and kwargs['augment_image']:
-            self.augment_image = True
-        else:
-            self.augment_image = False
-
-        if not isinstance(observation_space, gym.spaces.Box):
-            raise ValueError("Observation space must be continuous (e.g., image-based)")
-        
-        self.resnet = models.video.r3d_18(pretrained=True)  # You can choose a different ResNet variant
-        # Remove the classification (fully connected) layer
-        self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-1])
-        self.set_grad_video_feature_extractor(requires_grad=False)
-
-        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
-
-        # Additional fully connected layer for custom hidden feature dimension
-        self.fc_hidden = nn.Sequential(
-                                        nn.Linear(self.resnet.fc.in_features, hidden_dim),
-                                        nn.Tanh(),
-                                        nn.Linear(hidden_dim, hidden_dim),
-                                        nn.Tanh(),
-                                        nn.Linear(hidden_dim, hidden_dim)
-                                    )
-
-    def set_grad_video_feature_extractor(self, requires_grad=False):
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = requires_grad
-
-    def forward(self, observations):
-
-        # Reshape observations to [batch_size, channels, stack_size, height, width]
-        observations = observations.view(observations.size(0),  -1, 1, self.height, self.width)
-        observations = torch.cat([observations, observations, observations], dim=2)
-        # Normalize pixel values to the range [0, 1] (if necessary)
-        # observations = observations / 255.0
-
-        if self.augment_image:
-            # Create a Compose transform to apply all of the transforms in the sequence to each frame in the video
-            compose_transforms = transforms.Compose(self.image_augmentations)
-            observations = compose_transforms(observations)
-        
-        observations = self.video_preprocessor(observations)
-
-        # print(self.feature_extractor)
-        # Pass input through the feature extractor (without the classification layer)
-        resnet_features = self.feature_extractor(observations).squeeze()
-        # Apply a fully connected layer for the custom hidden feature dimension
-        hidden_features = torch.nn.functional.relu(self.fc_hidden(resnet_features))
-        return hidden_features
 
 def save_checkpoint(project, run_name, epoch, model, **kwargs):
     # if epoch is None:
@@ -399,7 +334,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(" File handle for the zip file opened ")
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name]           
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name] 
         for train_data_file in hdf5_train_file_names:
             if train_data_file not in visited_data_files:
                 visited_data_files.add(train_data_file)
@@ -424,6 +359,20 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     print("DATA loader scanned all files")
 
     # shutil.rmtree(extract_path)
+
+    # val_data_loader                                             =  CustomDataLoader(
+    #                                                                             zip_filename, 
+    #                                                                             device=device,
+    #                                                                             batch_size=kwargs['batch_size'],
+    #                                                                             n_cpu=kwargs['n_cpu'],
+    #                                                                             val_batch_count=np.inf,
+    #                                                                             chunk_size=500,
+    #                                                                             type= kwargs['type'],
+    #                                                                             plot_path=None,
+    #                                                                             visited_data_files = visited_data_files
+    #                                                                         ) 
+    # for batch in val_data_loader:
+    #     train_datasets.append(batch)
 
 
     # Create a combined dataset from the individual datasets
@@ -462,7 +411,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                                  ) 
     return train_data_loader
 
-def process_batch(output_queue, input_queue, labels, worker_index,lock, batch_count, **kwargs):
+def process_validation_batch(output_queue, input_queue, labels, worker_index,lock, batch_count=None, **kwargs):
     # local_policy_path = f'/tmp/validation_policy{worker_index}.pth'
     # shutil.copy('validation_policy.pth', local_policy_path)
     if lock.acquire(timeout=10):
@@ -512,8 +461,6 @@ def process_batch(output_queue, input_queue, labels, worker_index,lock, batch_co
         # else:
         #     output_samples.append(output_sample)
 
-
-
 def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs):
     true_labels = []
     predicted_labels = []
@@ -552,7 +499,7 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
     for i in range(num_workers):
         
         worker_process = multiprocessing.Process(
-                                                    target=process_batch, 
+                                                    target=process_validation_batch, 
                                                     args=(
                                                             output_queue, 
                                                             input_queue, 
@@ -589,6 +536,8 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
         try:
             input_queue.put(sample)
             if input_queue.qsize() > 1.25*kwargs['val_batch_count']:
+                break
+            if len(accuracies) > kwargs['val_batch_count']:
                 break
         except Exception as e:
             print(e)
@@ -636,7 +585,7 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
         sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=class_labels, yticklabels=class_labels)
         plt.xlabel("Predicted Labels")
         plt.ylabel("True Labels")
-        plt.title(f"Confusion Matrix for {kwargs['type']}")
+        plt.title(f"Confusion Matrix for {kwargs['type']} for {zip_filename}")
         heatmap_png = f'heatmap_{kwargs["type"]}.png'
         plt.savefig(heatmap_png)
 
@@ -665,66 +614,6 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
     return metrics
 
 
-class CustomImageExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space, hidden_dim=64):
-        super(CustomImageExtractor, self).__init__(observation_space, hidden_dim)
-        self.channels = 3
-        if not isinstance(observation_space, gym.spaces.Box):
-            raise ValueError("Observation space must be continuous (e.g., image-based)")
-        self.height, self.width = observation_space.shape[1], observation_space.shape[2]
-        
-        # Define a pretrained ResNet model as the feature extractor trunk
-        self.resnet = torch.hub.load('pytorch/vision', 'resnet18', pretrained=True)
-        # self.resnet.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
-
-        # Adjust the last fully connected layer for feature dimension control
-        # self.resnet.fc = nn.Linear(self.resnet.fc.in_features, hidden_dim)
-        self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-1])
-
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
-        
-        self.lstm = nn.LSTM(input_size=self.resnet.fc.in_features, hidden_size=hidden_dim, num_layers=4, batch_first=True)
-        
-        # Additional fully connected layer for custom hidden feature dimension
-        self.fc_hidden = nn.Sequential(
-                                        nn.Linear(self.lstm.hidden_size, hidden_dim),
-                                        nn.Tanh(),
-                                        nn.Linear(hidden_dim, hidden_dim),
-                                        nn.Tanh(),
-                                        nn.Linear(hidden_dim, hidden_dim)
-                                      )
-    
-    def forward(self, observations):
-
-        # Reshape observations to [batch_size, stack_size, height, width]
-        observations = observations.view(observations.size(0), -1, 1, self.height, self.width)
-        observations = observations / 255.0
-
-        # Expand the grayscale image along the channel dimension to create an RGB image
-        observations = observations.repeat(1, 1, self.channels , 1, 1)        # Normalize pixel values to the range [0, 1] (if necessary)
-        
-        # Reshape the input for feature extraction
-        batch_size, seq_len, c, h, w = observations.size()
-        observations = observations.view(batch_size * seq_len, c, h, w)
-
-        # Forward pass through the ResNet trunk for feature extraction
-        resnet_features = self.feature_extractor(observations).squeeze()
-
-        # Flatten the features and pass through the LSTM
-        resnet_features = resnet_features.view(batch_size, seq_len, -1)  # Flatten the spatial dimensions
-
-          # Pass through the LSTM layer
-        lstm_features, _ = self.lstm(resnet_features)
-
-        # Reshape the output of the LSTM to match the expected input size of fc_hidden
-        lstm_features = lstm_features.contiguous().view(batch_size , seq_len, -1)
-        lstm_features = lstm_features[:, -1, :]  # Select the last time step
-
-        # Apply a fully connected layer for the custom hidden feature dimension
-        hidden_features = torch.nn.functional.relu(self.fc_hidden(lstm_features))
-        
-        return hidden_features  # Return the extracted features
 
 
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
@@ -869,7 +758,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             self.epoch += 1
             print(f"Data loader Epoch count {self.epoch}")
             if self.is_validation: # Only one iteration through all the files is file
-                break
+                return
 
     def reader_worker(
                         self, 
@@ -907,7 +796,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                         chunk[key] = [json.loads(data_str) for data_str in hf[key][chunk_indices]]
                     except:
                         # If JSON deserialization fails, assume it's a primitive type
-                        chunk[key] = hf[key][chunk_indices]                
+                        chunk[key] = hf[key][chunk_indices]
+                                        
 
             reader_queue.put(chunk)
             # print(f"Acquired lock from worker {worker_id} . Accumulated samples of size {len(chunk['acts'])} for file_name {file_name}")
@@ -967,6 +857,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
             #Yield chunks as they come
             for batch in self.generate_batches_from_one_chunk(len(self.all_acts) ,self.step_num):
                 yield batch
+
 
 
             self.step_num +=1
@@ -1042,6 +933,8 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                 if self.all_dones:
                     sample['dones'] = self.all_dones[index]
                 if sample:
+                    sample['obs'][:, -1 ] = 0
+                    sample['obs'] = np.concatenate([sample['obs'].flatten(), [sample['acts']]]) # For now hard code 
                     samples_queue.put(sample)
             except (IndexError, EOFError, BrokenPipeError) as e:
                 # print(f'Error {e} accessing index {index} in writer worker {worker_id}. Length of obs {len(self.all_obs)}')
@@ -1052,3 +945,124 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                         
         # samples_queue.put(None)
 
+def process_batch(batch, batch_number, obs_list, acts_list):
+    with torch.no_grad():
+        obs = batch['obs']
+        acts = batch['acts']
+        obs_list.extend(obs.cpu().numpy())
+        acts_list.extend(acts.cpu().numpy().astype(int))
+
+# Define a function to calculate a portion of the sample_counts
+def calculate_sample_counts(col_range, obs_list, feature_ranges):
+    col_start, col_end = col_range
+    partial_counts = []
+    for col in range(col_start, col_end):
+        col_counts = [((obs_list[:, col] > feature_ranges[i]) & (obs_list[:, col] <= feature_ranges[i + 1])).sum()
+                    for i in range(len(feature_ranges) - 1)]
+        partial_counts.append(col_counts)
+    return partial_counts
+
+
+def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
+    n_cpu=kwargs['n_cpu']
+    val_batch_count=kwargs['val_batch_count']
+    # train_data_loader                                             = create_dataloaders(
+    #                                                                                               zip_filename,
+    #                                                                                               train_datasets=[], 
+    #                                                                                               type = 'train',
+    #                                                                                               device=device,
+    #                                                                                               batch_size=minibatch_size,
+    #                                                                                               n_cpu = n_cpu,
+    #                                                                                               visited_data_files=set([])
+    #                                                                                           )
+    train_data_loader                                             =  CustomDataLoader(
+                                                                        zip_filename, 
+                                                                        device=kwargs['device'],
+                                                                        batch_size=kwargs['batch_size'],
+                                                                        n_cpu=n_cpu,
+                                                                        val_batch_count=val_batch_count,
+                                                                        chunk_size=kwargs['chunk_size'],
+                                                                        type= kwargs['type'],
+                                                                        plot_path=kwargs['plot_path'],
+                                                                        validation=kwargs['validation'],
+                                                                        visited_data_files = set([])
+                                                                    ) 
+    train_data_loader_iterator = iter(train_data_loader)
+    # Create a DataFrame from the data loader
+    data_list = np.empty((0, 101))
+
+    num_processes = n_cpu
+
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        for batch_number in range(val_batch_count):
+            try:
+                batch = next(train_data_loader_iterator)
+                pool.apply_async(process_batch, (batch, batch_number, obs_list, acts_list))
+            except StopIteration:
+                print('StopIteration Error ')
+                break
+        
+        pool.close()
+        pool.join()
+
+    obs_list = np.array(obs_list)
+    acts_list = np.array(acts_list)
+
+    actions = np.array(acts_list)
+    action_counts = np.bincount(actions.astype(int))
+    print('action_counts ', action_counts)
+
+    # Create a bar chart for action distribution
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(len(action_counts)), action_counts, tick_label=range(len(action_counts)))
+    plt.xlabel("Action")
+    plt.ylabel("Frequency")
+    plt.title(f"Action Distribution for {zip_filename}")
+    plt.savefig("Action_Distribution.png")
+    # plt.show()
+
+    # Define the ranges for each feature
+    feature_ranges = np.linspace(-1, 1, num=101)  # Adjust the number of bins as needed
+
+
+    
+
+    col_ranges = [(col, col + 1) for col in range(obs_list.shape[1])]
+
+    # Create a partially-applied function with fixed arguments
+    calculate_sample_counts_partially_wrapped = functools.partial(calculate_sample_counts, obs_list=obs_list, feature_ranges=feature_ranges)
+
+
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        partial_counts_list = pool.map(calculate_sample_counts_partially_wrapped, col_ranges)
+
+    # Concatenate the partial counts to obtain the complete sample_counts
+    sample_counts = np.concatenate(partial_counts_list, axis=0)
+    
+    sample_counts = sample_counts.T
+    print('Sample counts done')
+            
+    # Normalize the sample counts to a range between 0 and 1
+    normalized_counts = sample_counts / sample_counts[0,:].sum()
+    # Reshape the sample counts to create a heatmap
+    # sample_count_matrix = sample_counts.reshape(-1, 1)
+    
+
+    if 'plot' in kwargs and kwargs['plot']:
+        # Create a color map based on the sample counts
+        cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=1.0, reverse=False, as_cmap=True)
+
+
+        # Create a violin plot directly from the data loader
+        # Create a figure with two subplots
+        fig, axes = plt.subplots(2, 1, figsize=(12, 6))
+        sns.violinplot(data=obs_list , inner="quartile", ax=axes[0])
+        axes[0].set_title(f"Violin Plot (input) for {zip_filename}")
+        sns.heatmap(data=sample_counts, cmap=cmap, cbar=False, ax=axes[1])
+        axes[1].set_title(f"Heatmap (input) for {zip_filename}")
+
+        plt.tight_layout()
+        plt.show()
+        plt.savefig('Analysis.png')
+        print('Plotting done')
+    return normalized_counts

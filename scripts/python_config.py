@@ -19,6 +19,7 @@ env_kwargs = {
                 "max_width": 3.5,
             },
         'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
+        # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
         'simulation_frequency': 10,
         "lanes_count": 'random',
         "min_lanes_count": 2,
@@ -86,7 +87,7 @@ sweep_config = {
             "values": [ 64 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
-            "values": [10]  # Values for the "duration" field to be swept
+            "values": [1]  # Values for the "duration" field to be swept
         },    
     }
 }
@@ -115,25 +116,27 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.BC
-zip_filename = 'expert_trial_data_large.zip'
-env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
-# env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
+train = TrainEnum.RLTRAIN
+zip_filename = 'temp_6.zip'
+# env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
+env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
 attention_network_kwargs = dict(
     # in_size=5*15,
     embedding_layer_kwargs={
                                 "in_size": len(env_kwargs['config']['KinematicObservation']['features']), 
-                                "layer_sizes": [64, 64], 
+                                "layer_sizes": [128, 128, 128], 
                                 "reshape": False,
-                                "activation": 'RELU'
+                                "activation": 'RELU',
+                                'dropout_factor': 0.1
                             },
     attention_layer_kwargs={
-                                "feature_size": 64, 
-                                "heads": 2, 
+                                "feature_size": 128, 
+                                "heads": 4, 
                                 # "dropout_factor" :0.2
                            },
     # num_layers = 3,
 )
+
 label_weights = np.array([3, 1])
 

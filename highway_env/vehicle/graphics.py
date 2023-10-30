@@ -24,7 +24,7 @@ class VehicleGraphics(object):
     DEFAULT_COLOR = YELLOW
     EGO_COLOR = GREEN
     SCALING_FACTOR = 1.3
-    scaling = 5.5
+    scaling = 25.5
 
     @classmethod
     def display(cls, vehicle: Vehicle, surface: "WorldSurface",
@@ -32,7 +32,8 @@ class VehicleGraphics(object):
                 offscreen: bool = False,
                 label: bool = True,
                 draw_roof: bool = True,
-                color = None) -> None:
+                color = None,
+                **kwargs) -> None:
         """
         Display a vehicle on a pygame surface.
 
@@ -46,7 +47,7 @@ class VehicleGraphics(object):
         """
         if not surface.is_visible(vehicle.observed_position):
             return
-
+        
         v = vehicle
         tire_length, tire_width = 1, 0.3
         headlight_length, headlight_width = 0.72, 0.6
@@ -109,6 +110,11 @@ class VehicleGraphics(object):
         if label:
             font = pygame.font.Font(None, int(1*cls.scaling))
             text = "{}".format(id(v) % 1000)
+            if 'observed_vehicles' in kwargs and v in kwargs['observed_vehicles']:
+                text = text + ":"
+                text = text + str(kwargs['observed_vehicles'].index(v))
+            else:
+                text = text + ":-1"
             text = font.render(text, 1, (10, 10, 10), (255, 255, 255))
             surface.blit(text, position)
 
