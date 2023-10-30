@@ -42,13 +42,23 @@ ACTIONS_LONGI = DiscreteMetaAction.ACTIONS_LONGI
 import gym
 import numpy as np
 from gym import spaces
-
+import tracemalloc
 
 def clear_and_makedirs(directory):
     # Clear the directory to remove existing files
     if os.path.exists(directory):
         shutil.rmtree(directory)
     os.makedirs(directory)
+
+
+
+
+
+def print_stack_size():
+    while True:
+        current_size, peak_size = tracemalloc.get_traced_memory()
+        print(f"Current memory size: {current_size / (1024 * 1024):.2f} MB")
+        time.sleep(15)  # Adjust the interval as needed
 
 class ZipfContextManager:
     def __init__(self, zip_filename, file_name):

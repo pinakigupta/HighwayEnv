@@ -35,6 +35,7 @@ import tracemalloc
 from highway_env.envs.common.observation import *
 from scipy.stats import entropy
 from feature_extractors import *
+import threading
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -42,22 +43,23 @@ ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
 
 
 
-
 def timenow():
     return now.strftime("%H%M")
 
-
-def print_stack_size():
-    while True:
-        current_size, peak_size = tracemalloc.get_traced_memory()
-        print(f"Current memory size: {current_size / (1024 * 1024):.2f} MB")
-        time.sleep(15)  # Adjust the interval as needed
 # ==================================
 #        Main script  20 
 # ==================================
+class CustomPPO(PPO):
+    def __init__(self, feature_extractor, *args, **kwargs):
+        super(CustomPPO, self).__init__(*args, **kwargs)
+        self.custom_feature_extractor = feature_extractor
 
+    def forward(self, obs, deterministic=False):
+        # Use the custom feature extractor in your policy
+        features = self.custom_feature_extractor(obs)
+        action, value = super(CustomPPO, self).forward(obs, deterministic=deterministic)
+        return action, value
 
-import threading
 if __name__ == "__main__":
     torch.cuda.empty_cache()
     TRACE = False
@@ -168,27 +170,28 @@ if __name__ == "__main__":
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
-            # bc_policy =                                        retrieve_agent(
-            #                                                         artifact_version='trained_model_directory:latest',
-            #                                                         agent_model = 'agent_final.pth',
-            #                                                         device=device,
-            #                                                         project=project_names[TrainEnum.BC.value]
-            #                                                         )
+            bc_policy =                                        retrieve_agent(
+                                                                    artifact_version='trained_model_directory:latest',
+                                                                    agent_model = 'agent_final.pth',
+                                                                    device=device,
+                                                                    project=project_names[TrainEnum.BC.value]
+                                                                    )
             # bc_policy.eval()
             # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
             # policy.load_state_dict(bc_policy.state_dict())
             # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
-            model = PPO(
-                            'MlpPolicy',
-                            # policy=bc_policy,
-                            env=env,
-                            n_steps=2048 // n_cpu,
-                            batch_size=32,
-                            learning_rate=2e-3,
-                            policy_kwargs=policy_kwargs,
-                            # device="cpu",
-                            verbose=1,
-                        )
+            model = CustomPPO(
+                                bc_policy.features_extractor,
+                                "MlpPolicy",
+                                # policy=bc_policy,
+                                env=env,
+                                n_steps=2048 // n_cpu,
+                                batch_size=32,
+                                learning_rate=2e-3,
+                                # policy_kwargs=policy_kwargs,
+                                # device="cpu",
+                                verbose=1,
+                            )
             
 
             checkptcallback = CustomCheckpointCallback(checkpoint_freq, 'checkpoint')  # Create an instance of the custom callback
