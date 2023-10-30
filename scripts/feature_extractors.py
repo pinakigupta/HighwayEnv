@@ -97,7 +97,8 @@ class CustomExtractor(BaseFeaturesExtractor):
 
 class CombinedFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self,  observation_space: gym.spaces.Dict, **kwargs):
-        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"]+kwargs["action_extractor_kwargs"]["feature_size"])
+        features_dim = kwargs["attention_layer_kwargs"]["feature_size"]+kwargs["action_extractor_kwargs"]["feature_size"] 
+        super().__init__(observation_space, features_dim = features_dim)
         self.obs_extractor = CustomExtractor(kwargs["action_extractor_kwargs"]['obs_space'], **kwargs)
         self.action_extractor = ActionFeatureExtractor(
                                                         action_space =    kwargs["action_extractor_kwargs"]['act_space'],
@@ -105,6 +106,8 @@ class CombinedFeatureExtractor(BaseFeaturesExtractor):
                                                         feature_size =    kwargs["action_extractor_kwargs"]['feature_size']
                                                       )
         self.kwargs = kwargs
+        linear =  nn.Linear(features_dim, features_dim)
+        self.fc_layer = nn.Sequential(linear,  nn.ReLU(), linear, nn.ReLU())
 
     def forward(self, observations):
         # De-construct obs and act from observations using the original shapes
@@ -119,7 +122,7 @@ class CombinedFeatureExtractor(BaseFeaturesExtractor):
         action_features = self.action_extractor(act)
 
         combined_features = torch.cat([obs_features, action_features], dim=-1)
-        return combined_features
+        return self.fc_layer(combined_features)
 
 
 
@@ -251,3 +254,37 @@ class CustomImageExtractor(BaseFeaturesExtractor):
         hidden_features = torch.nn.functional.relu(self.fc_hidden(lstm_features))
         
         return hidden_features  # Return the extracted features
+
+
+class CustomMLPPolicy(ActorCriticPolicy):
+    def __init__(self, observation_space, action_space, lr_schedule, net_arch, features_extractor, **kwargs):
+        super(CustomMLPPolicy, self).__init__(observation_space, action_space, lr_schedule, net_arch, features_extractor, **kwargs)
+
+    def forward(self, obs, deterministic=False):
+        # Custom logic for the forward pass
+        # You can modify this as needed to define your policy's architecture
+        features = self.extract_features(obs)
+        action_mean = self.mlp_extractor(features)
+        action_std = th.ones_like(action_mean)  # You can customize this for your action space
+        value = self.value_net(features)
+        
+        if not deterministic:
+            action = self.dist.sample()
+        else:
+            action = action_mean
+
+        return action, value
+
+class CustomMLPFeaturesExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space, features_dim=64):
+        super(CustomMLPFeaturesExtractor, self).__init__(observation_space, features_dim)
+        # Define the architecture for feature extraction here
+        self.features_extractor = nn.Sequential(
+            nn.Linear(observation_space.shape[0], 64),
+            nn.ReLU(),
+            nn.Linear(64, features_dim),
+            nn.ReLU()
+        )
+
+    def forward(self, observations):
+        return self.features_extractor(observations)

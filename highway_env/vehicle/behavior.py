@@ -59,7 +59,7 @@ class IDMVehicle(ControlledVehicle):
         super().__init__(road, position, heading, speed, target_lane_index, target_speed, route, **kwargs)
         self.DISTANCE_WANTED = 5.0 + self.LENGTH  # [m]
         """Desired jam distance to the front vehicle."""
-        if ('politeness' in self.config) and (self.config['politeness'] is 'random'):
+        if ('politeness' in self.config) and (self.config['politeness'] == 'random'):
             self.POLITENESS = self.road.np_random.uniform(0.2, 0.8) #0.8  # in [0, 1]
         else:
              self.POLITENESS = self.config['politeness']
