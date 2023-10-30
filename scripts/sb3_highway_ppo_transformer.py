@@ -288,103 +288,6 @@ if __name__ == "__main__":
                                         **{'expert':'MDPVehicle'}
                                         }           
                                 )
-        elif train == TrainEnum.IRLDEPLOY:
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
-            append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',150)
-            append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
-            env_kwargs.update({'reward_oracle':None})
-            append_key_to_dict_of_dict(env_kwargs,'config','mode',None)
-            # env_kwargs.update({'render_mode': None})
-            env = make_configure_env(**env_kwargs)
-            record_videos(env=env, name_prefix = 'GAIL', video_folder='videos/GAIL')
-            artifact_version= f'trained_model_directory:latest',
-            agent_model = f'final_gail_agent.pth',
-            optimal_gail_agent                       = retrieve_agent(
-                                                                        artifact_version = artifact_version,
-                                                                        agent_model = agent_model,
-                                                                        device=device,
-                                                                        project = project
-                                                                    )
-            num_rollouts = 10
-            # reward = simulate_with_model(
-            #                                     agent=optimal_gail_agent, 
-            #                                     env_kwargs=env_kwargs, 
-            #                                     render_mode=None, 
-            #                                     num_workers= 1, 
-            #                                     num_rollouts=num_deploy_rollouts
-            #                             )
-            # print(" Mean reward ", reward)
-            gamma = 1.0
-            env.render()
-            agent = optimal_gail_agent
-            # env.viewer.set_agent_display(functools.partial(display_vehicles_attention, env=env, fe=agent.policy.features_extractor))
-            for _ in range(num_deploy_rollouts):
-                obs, info = env.reset()
-                env.step(4)
-                done = truncated = False
-                cumulative_reward = 0
-                while not (done or truncated):
-                    action = agent.act(obs.flatten())
-                    env.vehicle.actions = []
-                    obs, reward, done, truncated, info = env.step(action)
-                    cumulative_reward += gamma * reward
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                print("--------------------------------------------------------------------------------------")
-        elif train == TrainEnum.RLDEPLOY:
-            append_key_to_dict_of_dict(env_kwargs,'config','vehicles_count',30)
-            append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',80)
-            append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
-            env_kwargs.update({'reward_oracle':None})
-            env = make_configure_env(**env_kwargs)
-            env = record_videos(env=env, name_prefix = 'RL', video_folder='videos/RL')
-            # RL_agent                            = retrieve_agent(
-            #                                                     artifact_version='trained_model_directory:latest',
-            #                                                     agent_model = 'RL_agent_final.pth',
-                                                                #   device = device,
-            #                                                     project=project
-            #                                                     )
-            
-            wandb.init(project=project, name="inference")
-            # Access the run containing the logged artifact
-
-            # Download the artifact
-            artifact = wandb.use_artifact("trained_model:latest")
-            artifact_dir = artifact.download()
-
-            # Load the model from the downloaded artifact
-            rl_agent_path = os.path.join(artifact_dir, "RL_agent.pth")
-            model = torch.load(rl_agent_path, map_location=device)
-            wandb.finish()
-            
-            print(model)
-            env.render()
-            env.viewer.set_agent_display(
-                                            functools.partial(
-                                                                display_vehicles_attention, 
-                                                                env=env, 
-                                                                extractor=model.features_extractor.extractor,
-                                                                device=device
-                                                            )
-                                        )
-            gamma = 1.0
-            for _ in range(num_deploy_rollouts):
-                obs, info = env.reset()
-                env.step(4)
-                done = truncated = False
-                cumulative_reward = 0
-            
-                while not (done or truncated):
-                    start_time = time.time()
-                    action, _ = model.predict(obs)
-                    env.vehicle.actions = []
-                    obs, reward, done, truncated, info = env.step(action)
-                    cumulative_reward += gamma * reward
-                    end_time = time.time()
-                print("speed: ",env.vehicle.speed," ,reward: ", reward, " ,cumulative_reward: ",cumulative_reward)
-                print("--------------------------------------------------------------------------------------")
         elif train == TrainEnum.BC:
             env_kwargs.update({'reward_oracle':None})
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
@@ -599,7 +502,7 @@ if __name__ == "__main__":
             #                                                               )
             print('Ending final validation step and plotting the heatmap ')
             final_policy.to(device)
-        elif train == TrainEnum.BCDEPLOY:
+        elif train == TrainEnum.BCDEPLOY or train == TrainEnum.RLDEPLOY or train == TrainEnum.IRLDEPLOY:
             env_kwargs.update({'reward_oracle':None})
             env_kwargs.update({'render_mode': 'human'})
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
@@ -612,7 +515,7 @@ if __name__ == "__main__":
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
             env = make_configure_env(**env_kwargs)
-            # env = record_videos(env=env, name_prefix = 'BC', video_folder='videos/BC')
+            env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos/{project}')
             # BC_agent                            = retrieve_agent(
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',
