@@ -79,6 +79,7 @@ class ActionFeatureExtractor(nn.Module):
             return nn.functional.dropout(activated, p=self.dropout_factor, training=self.training)
         return  nn.functional.dropout(activated, p=self.dropout_factor)
 
+
 class CustomExtractor(BaseFeaturesExtractor):
     """
     :param observation_space: (gym.Space)
@@ -94,10 +95,10 @@ class CustomExtractor(BaseFeaturesExtractor):
         return self.extractor(observations)
     
 
-
 class CombinedFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self,  observation_space: gym.spaces.Dict, **kwargs):
-        super().__init__(observation_space, features_dim=kwargs["attention_layer_kwargs"]["feature_size"]+kwargs["action_extractor_kwargs"]["feature_size"])
+        features_dim = kwargs["attention_layer_kwargs"]["feature_size"]+kwargs["action_extractor_kwargs"]["feature_size"] 
+        super().__init__(observation_space, features_dim = features_dim)
         self.obs_extractor = CustomExtractor(kwargs["action_extractor_kwargs"]['obs_space'], **kwargs)
         self.action_extractor = ActionFeatureExtractor(
                                                         action_space =    kwargs["action_extractor_kwargs"]['act_space'],
@@ -105,6 +106,8 @@ class CombinedFeatureExtractor(BaseFeaturesExtractor):
                                                         feature_size =    kwargs["action_extractor_kwargs"]['feature_size']
                                                       )
         self.kwargs = kwargs
+        linear =  nn.Linear(features_dim, features_dim)
+        self.fc_layer = nn.Sequential(linear,  nn.ReLU(), linear, nn.ReLU())
 
     def forward(self, observations):
         # De-construct obs and act from observations using the original shapes
@@ -119,8 +122,7 @@ class CombinedFeatureExtractor(BaseFeaturesExtractor):
         action_features = self.action_extractor(act)
 
         combined_features = torch.cat([obs_features, action_features], dim=-1)
-        return combined_features
-
+        return self.fc_layer(combined_features)
 
 
 # Create a 3D ResNet model for feature extraction

@@ -147,7 +147,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 7,
+                                    delta_iterations = 37,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -157,16 +157,16 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','EGO_LENGTH',8)
             append_key_to_dict_of_dict(env_kwargs,'config','EGO_WIDTH',4)
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',80)
-            # env = make_vec_env(
-            #                     make_configure_env, 
-            #                     n_envs=n_cpu, 
-            #                     vec_env_cls=SubprocVecEnv, 
-            #                     env_kwargs=env_kwargs
-            #                 )
+            env = make_vec_env(
+                                make_configure_env, 
+                                n_envs=n_cpu, 
+                                vec_env_cls=SubprocVecEnv, 
+                                env_kwargs=env_kwargs
+                            )
             
-            env = make_configure_env(**env_kwargs)
+            # env = make_configure_env(**env_kwargs)
 
-            total_timesteps=100*1000
+            total_timesteps=200*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
@@ -179,8 +179,8 @@ if __name__ == "__main__":
             policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
             # policy = CustomMLPPolicy(env.observation_space, env.action_space)
             model = PPO(
-                            # 'MlpPolicy',
-                            policy,
+                            'MlpPolicy',
+                            # policy,
                             env,
                             n_steps=2048 // n_cpu,
                             batch_size=32,
@@ -397,7 +397,7 @@ if __name__ == "__main__":
             env = make_configure_env(**env_kwargs)
             # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
-            if True:
+            if False:
                 policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             else:
                 policy =                    retrieve_agent(
@@ -459,7 +459,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 255600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 155600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -719,8 +719,8 @@ if __name__ == "__main__":
             manager = multiprocessing.Manager()
             obs_list = manager.list()
             acts_list = manager.list()
-            p =  analyze_data(
-                                                zip_filename,
+            q =  analyze_data(
+                                                'temp.zip',
                                                 obs_list,
                                                 acts_list,
                                                 device=device,
@@ -735,8 +735,8 @@ if __name__ == "__main__":
                                               )
             obs_list = manager.list()
             acts_list = manager.list()
-            q =  analyze_data(
-                                                'temp.zip',
+            p =  analyze_data(
+                                                zip_filename,
                                                 obs_list,
                                                 acts_list,
                                                 device=device,
