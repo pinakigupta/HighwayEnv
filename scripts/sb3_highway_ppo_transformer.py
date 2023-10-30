@@ -54,10 +54,13 @@ class CustomPPO(PPO):
         super(CustomPPO, self).__init__(*args, **kwargs)
         self.custom_feature_extractor = feature_extractor
 
-    def forward(self, obs, deterministic=False):
+    def forward(self, obs, deterministic=True):
         # Use the custom feature extractor in your policy
         features = self.custom_feature_extractor(obs)
-        action, value = super(CustomPPO, self).forward(obs, deterministic=deterministic)
+        # action, value = super(CustomPPO, self).forward(obs, deterministic=deterministic)
+        action, value = self.policy(features)
+        if not deterministic:
+            action = action.sample()
         return action, value
 
 if __name__ == "__main__":
