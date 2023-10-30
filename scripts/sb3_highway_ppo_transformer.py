@@ -154,8 +154,6 @@ if __name__ == "__main__":
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             env_kwargs.update({'reward_oracle':None})
             append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
-            append_key_to_dict_of_dict(env_kwargs,'config','EGO_LENGTH',8)
-            append_key_to_dict_of_dict(env_kwargs,'config','EGO_WIDTH',4)
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',80)
             env = make_vec_env(
                                 make_configure_env, 
