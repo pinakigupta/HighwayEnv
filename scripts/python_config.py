@@ -24,7 +24,7 @@ env_kwargs = {
                 "other_vehicles_type": 'highway_env.vehicle.behavior.IDMVehicle',
                 'position_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
                 # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
-                'planning_heuristic': True,
+                'planning_heuristic': False,
             },
         'simulation_frequency': 10,
             **{ # Lane configs
@@ -113,7 +113,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.RLTRAIN
 zip_filename = 'temp_6.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
