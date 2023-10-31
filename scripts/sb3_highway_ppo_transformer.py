@@ -50,18 +50,9 @@ def timenow():
 #        Main script  20 
 # ==================================
 class CustomPPO(PPO):
-    def __init__(self, feature_extractor, *args, **kwargs):
+    def __init__(self, instruct_policy, *args, **kwargs):
         super(CustomPPO, self).__init__(*args, **kwargs)
-        self.custom_feature_extractor = feature_extractor
-
-    def forward(self, obs, deterministic=True):
-        # Use the custom feature extractor in your policy
-        features = self.custom_feature_extractor(obs)
-        # action, value = super(CustomPPO, self).forward(obs, deterministic=deterministic)
-        action, value = self.policy(features)
-        if not deterministic:
-            action = action.sample()
-        return action, value
+        self.policy = instruct_policy
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
@@ -169,7 +160,7 @@ if __name__ == "__main__":
             
             # env = make_configure_env(**env_kwargs)
 
-            total_timesteps=100*1000
+            total_timesteps=1000*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
@@ -184,7 +175,7 @@ if __name__ == "__main__":
             # policy.load_state_dict(bc_policy.state_dict())
             # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
             model = CustomPPO(
-                                bc_policy.features_extractor,
+                                bc_policy,
                                 "MlpPolicy",
                                 # policy=bc_policy,
                                 env=env,
