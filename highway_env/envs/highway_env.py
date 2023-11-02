@@ -174,8 +174,9 @@ class HighwayEnv(AbstractEnv):
                     imitation_reward -= abs(act-expert_act)
                 except Exception as e:
                     print(e)
-        imitation_reward += 4
-        print(f'imitation_reward is {imitation_reward}')
+        if imitation_reward == 0:
+            imitation_reward = 3
+        # print(f'imitation_reward is {imitation_reward}')
         
         return {
             "collision_reward": float(self.vehicle.crashed),
