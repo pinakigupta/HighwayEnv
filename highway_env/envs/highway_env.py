@@ -46,9 +46,10 @@ class HighwayEnv(AbstractEnv):
                                        # zero for other lanes.
             "high_speed_reward": 0.0,  # The reward received when driving at full speed, linearly mapped to zero for
                                        # lower speeds according to config["reward_speed_range"].
-            "lane_change_reward": -0.05,   # The reward received at each lane change action.
+            "lane_change_reward": -0.01,   # The reward received at each lane change action.
             "reward_speed_range": [20, 30],
-            "travel_reward": 2,
+            "travel_reward": 0.0,
+            "imitation_reward": 0.1,
             "normalize_reward": False,
             "offroad_terminal": False
         })
@@ -65,7 +66,7 @@ class HighwayEnv(AbstractEnv):
         self._create_road()
         self._create_vehicles()
         self.ego_x0 = self.vehicle.position[0]
-        self.step({'long':4, 'lat':1})
+        self.step({'long':'IDLE', 'lat':'STRAIGHT'})
 
     def _create_road(self) -> None:
         """Create a road composed of straight adjacent lanes."""
@@ -163,14 +164,27 @@ class HighwayEnv(AbstractEnv):
             travel_reward = np.clip(np.interp(avg_speed, speed_reward_spd, speed_reward_rwd),0,1)
             # print("travel_reward ", travel_reward)
     
-
+        expert_action = self.vehicle._discrete_action
+        imitation_reward = 0
+        if action:
+            for key, act, expert_act in zip(action.keys(), action.values(), expert_action.values()):
+                try:
+                    act = self.action_type.actions_indexes[key][act]
+                    expert_act = self.action_type.actions_indexes[key][expert_act]
+                    imitation_reward -= abs(act-expert_act)
+                except Exception as e:
+                    print(e)
+        imitation_reward += 4
+        print(f'imitation_reward is {imitation_reward}')
+        
         return {
             "collision_reward": float(self.vehicle.crashed),
             "right_lane_reward": 0 , #lane / max(len(neighbours) - 1, 1),
             "high_speed_reward": 0 , #np.clip(scaled_speed, 0, 1),
             # "on_road_reward": float(self.vehicle.on_road),
-            "lane_change_reward": action['lat'] in [0, 2] ,
+            "lane_change_reward": action['lat'] in [0, 2] if action else 0,
             "travel_reward": travel_reward,
+            "imitation_reward": imitation_reward,
             #np.clip(float(self._is_truncated()), 0, 1) ,
         }
 

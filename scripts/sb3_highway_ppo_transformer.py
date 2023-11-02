@@ -53,6 +53,8 @@ class CustomPPO(PPO):
     def __init__(self, instruct_policy, *args, **kwargs):
         super(CustomPPO, self).__init__(*args, **kwargs)
         self.policy = instruct_policy
+        for param in self.policy.features_extractor.parameters():
+            param.requires_grad = False
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
@@ -149,39 +151,38 @@ if __name__ == "__main__":
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             env_kwargs.update({'reward_oracle':None})
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',80)
+            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 120)
             env = make_vec_env(
                                 make_configure_env, 
-                                n_envs=n_cpu, 
+                                n_envs=n_cpu*3, 
                                 vec_env_cls=SubprocVecEnv, 
                                 env_kwargs=env_kwargs
                             )
             
             # env = make_configure_env(**env_kwargs)
 
-            total_timesteps=1000*1000
+            total_timesteps=500*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
-            bc_policy =                                        retrieve_agent(
+            policy =                                        retrieve_agent(
                                                                     artifact_version='trained_model_directory:latest',
                                                                     agent_model = 'agent_final.pth',
                                                                     device=device,
                                                                     project=project_names[TrainEnum.BC.value]
                                                                     )
-            # bc_policy.eval()
             # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
-            # policy.load_state_dict(bc_policy.state_dict())
             # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
+            # policy.eval()
             model = CustomPPO(
-                                bc_policy,
+                                policy,
                                 "MlpPolicy",
                                 # policy=bc_policy,
                                 env=env,
-                                n_steps=2048 // n_cpu,
-                                batch_size=32,
-                                learning_rate=2e-3,
+                                n_steps=100,
+                                batch_size=64,
+                                # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
                                 # device="cpu",
                                 verbose=1,
@@ -199,7 +200,7 @@ if __name__ == "__main__":
                                         total_timesteps=total_timesteps,
                                         callback=[
                                                     checkptcallback, 
-                                                    curriculamcallback,
+                                                    # curriculamcallback,
                                                 ]
                                         )
                 
