@@ -26,6 +26,19 @@ env_kwargs = {
                 # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
                 'planning_heuristic': False,
             },
+            **{
+                "collision_reward": 0.0,    # The reward received when colliding with a vehicle.
+                "right_lane_reward": 0.0,  # The reward received when driving on the right-most lanes, linearly mapped to
+                                        # zero for other lanes.
+                "high_speed_reward": 0.0,  # The reward received when driving at full speed, linearly mapped to zero for
+                                        # lower speeds according to config["reward_speed_range"].
+                "lane_change_reward": 0.0,   # The reward received at each lane change action.
+                "speed_reward_spd" : [5, 10, 15, 20, 25, 30],
+                "speed_reward_rwd" : [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0],
+                "travel_reward": 0.0,
+                "imitation_reward": 1.0,
+                "normalize_reward": False,
+              },
         'simulation_frequency': 10,
             **{ # Lane configs
                 "lanes_count": 'random',
@@ -113,7 +126,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.RLTRAIN
+train = TrainEnum.RLDEPLOY
 zip_filename = 'temp_6.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 

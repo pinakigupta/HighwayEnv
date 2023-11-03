@@ -12,8 +12,6 @@ from highway_env.vehicle.kinematics import Vehicle
 
 import functools
 Observation = np.ndarray
-speed_reward_spd = [5, 10, 15, 20, 25, 30]
-speed_reward_rwd = [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0]
 
 class HighwayEnv(AbstractEnv):
     """
@@ -47,11 +45,13 @@ class HighwayEnv(AbstractEnv):
             "high_speed_reward": 0.0,  # The reward received when driving at full speed, linearly mapped to zero for
                                        # lower speeds according to config["reward_speed_range"].
             "lane_change_reward": 0.0,   # The reward received at each lane change action.
-            "reward_speed_range": [20, 30],
+            "speed_reward_spd" : [5, 10, 15, 20, 25, 30],
+            "speed_reward_rwd" : [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0],
             "travel_reward": 0.0,
             "imitation_reward": 1.0,
             "normalize_reward": False,
             "offroad_terminal": False
+            # "reward_speed_range": [20, 30],
         })
         return config
 
@@ -158,11 +158,11 @@ class HighwayEnv(AbstractEnv):
             else self.vehicle.lane_index[2]
         # Use forward speed rather than speed, see https://github.com/eleurent/highway-env/issues/268
         forward_speed = self.vehicle.speed * np.cos(self.vehicle.heading)
-        scaled_speed = utils.lmap(forward_speed, self.config["reward_speed_range"], [0, 1])
+        # scaled_speed = utils.lmap(forward_speed, self.config["reward_speed_range"], [0, 1])
         travel_reward = 0
         if self._is_truncated():
             avg_speed = self.ego_travel/self.time
-            travel_reward = np.clip(np.interp(avg_speed, speed_reward_spd, speed_reward_rwd),0,1)
+            travel_reward = np.clip(np.interp(avg_speed, self.config['speed_reward_spd'], self.config['speed_reward_rwd']),0,1)
             print("avg_speed ", avg_speed, " cum_imitation_reward  ", self.cum_imitation_reward )
     
         expert_action = self.vehicle._discrete_action
