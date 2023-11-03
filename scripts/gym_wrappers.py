@@ -98,6 +98,7 @@ class SquashObservationsWrapper(gym.Wrapper):
     def step(self, action):
         obs, reward, done, truncated , info = self.env.step(action)
         custom_obs = np.concatenate([obs.flatten(), [action]]) 
+        custom_obs[9::10] = 0 # hardcoding lane ids out 
         return custom_obs, reward, done, truncated, info
 
 

@@ -567,7 +567,6 @@ if __name__ == "__main__":
                         predicted_labels.append(action)
                         # env.vehicle.actions = []
                         obs, reward, done, truncated, info = env.step(action)
-                        obs[9::10] = 0 # hardcoding lane ids out 
                         end_time = time.time()
                         cumulative_reward += gamma * reward
                         if image_space_obs:
