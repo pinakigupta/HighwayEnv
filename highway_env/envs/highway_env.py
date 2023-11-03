@@ -49,7 +49,7 @@ class HighwayEnv(AbstractEnv):
             "lane_change_reward": -0.01,   # The reward received at each lane change action.
             "reward_speed_range": [20, 30],
             "travel_reward": 0.0,
-            "imitation_reward": 0.1,
+            "imitation_reward": 1.0,
             "normalize_reward": False,
             "offroad_terminal": False
         })
@@ -66,6 +66,7 @@ class HighwayEnv(AbstractEnv):
         self._create_road()
         self._create_vehicles()
         self.ego_x0 = self.vehicle.position[0]
+        self.cum_imitation_reward  = 0.0
         self.step({'long':'IDLE', 'lat':'STRAIGHT'})
 
     def _create_road(self) -> None:
@@ -162,7 +163,7 @@ class HighwayEnv(AbstractEnv):
         if self._is_truncated():
             avg_speed = self.ego_travel/self.time
             travel_reward = np.clip(np.interp(avg_speed, speed_reward_spd, speed_reward_rwd),0,1)
-            # print("travel_reward ", travel_reward)
+            print("avg_speed ", avg_speed, " cum_imitation_reward  ", self.cum_imitation_reward )
     
         expert_action = self.vehicle._discrete_action
         imitation_reward = 0
@@ -171,11 +172,12 @@ class HighwayEnv(AbstractEnv):
                 try:
                     act = self.action_type.actions_indexes[key][act]
                     expert_act = self.action_type.actions_indexes[key][expert_act]
-                    imitation_reward -= abs(act-expert_act)
+                    imitation_reward -= 0.1*abs(act-expert_act)
                 except Exception as e:
                     print(e)
         if imitation_reward == 0:
-            imitation_reward = 3
+            imitation_reward = 0.3
+        self.cum_imitation_reward += imitation_reward
         # print(f'imitation_reward is {imitation_reward}')
         
         return {
