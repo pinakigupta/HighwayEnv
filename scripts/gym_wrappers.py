@@ -79,6 +79,7 @@ class SquashObservationsWrapper(gym.Wrapper):
         # Calculate obs_dim based on the shape of the observation space
         self.obs_dim = int(np.prod(env.observation_space.shape))
 
+
         if isinstance(env.action_space, gym.spaces.Discrete):
             self.action_dim = env.action_space.n  # For Discrete action space, action_dim is the number of discrete actions
         else:
@@ -97,7 +98,7 @@ class SquashObservationsWrapper(gym.Wrapper):
 
     def step(self, action):
         obs, reward, done, truncated , info = self.env.step(action)
-        custom_obs = np.concatenate([obs.flatten(), [action]]) 
+        custom_obs = np.concatenate([obs.flatten(), [0]]) 
         custom_obs[9::10] = 0 # hardcoding lane ids out 
         return custom_obs, reward, done, truncated, info
 

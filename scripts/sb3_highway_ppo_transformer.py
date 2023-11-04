@@ -36,6 +36,7 @@ from highway_env.envs.common.observation import *
 from scipy.stats import entropy
 from feature_extractors import *
 import threading
+import torch.optim as custom_optimizer
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -54,7 +55,7 @@ class CustomPPO(PPO):
         super(CustomPPO, self).__init__(*args, **kwargs)
         self.policy = instruct_policy
         for param in self.policy.features_extractor.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
@@ -150,7 +151,6 @@ if __name__ == "__main__":
                                 )
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
-            env_kwargs.update({'reward_oracle':None})
             append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 120)
             env = make_vec_env(
@@ -162,7 +162,7 @@ if __name__ == "__main__":
             
             # env = make_configure_env(**env_kwargs)
 
-            total_timesteps=500*1000
+            total_timesteps=900*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
@@ -175,6 +175,8 @@ if __name__ == "__main__":
             # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
             # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
             # policy.eval()
+            # policy.optimizer.param_groups[0]['lr'] = 0.001
+            # policy.vf_net.optimizer.param_groups[0]['lr'] = 0.01 
             model = CustomPPO(
                                 policy,
                                 "MlpPolicy",
@@ -216,7 +218,6 @@ if __name__ == "__main__":
             # Save the final model
             # model.save("highway_attention_ppo/model")
         elif train == TrainEnum.IRLTRAIN:
-            env_kwargs.update({'reward_oracle':None})
             project_name = f"random_env_gail_1"
             
             
@@ -285,7 +286,6 @@ if __name__ == "__main__":
                                         }           
                                 )
         elif train == TrainEnum.BC:
-            env_kwargs.update({'reward_oracle':None})
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             # env = make_configure_env(**env_kwargs)
             # env=env.unwrapped
@@ -499,7 +499,6 @@ if __name__ == "__main__":
             print('Ending final validation step and plotting the heatmap ')
             final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY or train == TrainEnum.RLDEPLOY or train == TrainEnum.IRLDEPLOY:
-            env_kwargs.update({'reward_oracle':None})
             env_kwargs.update({'render_mode': 'human'})
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
