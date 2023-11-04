@@ -76,6 +76,8 @@ class SquashObservationsWrapper(gym.Wrapper):
     def __init__(self, env, **kwargs):
         super(SquashObservationsWrapper, self).__init__(env, **kwargs)
         self.action_space = self.env.action_space
+        if 'policy' in kwargs:
+            self.env.policy = kwargs['policy']
         # Calculate obs_dim based on the shape of the observation space
         self.obs_dim = int(np.prod(env.observation_space.shape))
 
@@ -97,7 +99,7 @@ class SquashObservationsWrapper(gym.Wrapper):
 
     def step(self, action):
         obs, reward, done, truncated , info = self.env.step(action)
-        custom_obs = np.concatenate([obs.flatten(), [action]]) 
+        custom_obs = np.concatenate([obs.flatten(), [0]]) 
         custom_obs[9::10] = 0 # hardcoding lane ids out 
         return custom_obs, reward, done, truncated, info
 
