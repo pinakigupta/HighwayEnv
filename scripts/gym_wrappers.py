@@ -7,7 +7,7 @@ import statistics
 import numpy as np
 from utils import record_videos
 import copy
-
+import torch.nn.functional as F
 
 class DictToMultiDiscreteWrapper(gym.Wrapper):
     def __init__(self, env, key_order=None, **kwargs):
@@ -111,12 +111,16 @@ class SquashObservationsWrapper(gym.Wrapper):
         if self.policy and self.expert_policy:
             with torch.no_grad():
                 obs_with_batch = torch.Tensor(custom_obs).to(self.policy.device).unsqueeze(0)
-                # action_distribution, _ = copy.deepcopy(self.policy).forward(obs_with_batch).cpu().numpy()
-                expert_action_distribution, _ = self.expert_policy.forward(obs_with_batch)
-                expert_action_distribution = expert_action_distribution.cpu().numpy()
-                action_distribution = expert_action_distribution
-                kl_divergence = np.sum(action_distribution * np.log(action_distribution / expert_action_distribution))
-                print(f'kl_divergence {kl_divergence}')
+                action_distribution = self.policy.get_distribution(obs_with_batch)
+                action_distribution = action_distribution.distribution.logits
+                expert_action_distribution = self.expert_policy.get_distribution(obs_with_batch)
+                expert_action_distribution = expert_action_distribution.distribution.logits
+                action_probabilities = F.softmax(action_distribution, dim=1).cpu().numpy()
+                expert_action_probabilities = F.softmax(expert_action_distribution, dim=1).cpu().numpy()
+                # expert_action_distribution = expert_action_distribution.cpu().numpy()
+                # action_distribution = action_distribution.cpu().numpy()
+                kl_divergence = np.sum(action_probabilities * np.log(action_probabilities / expert_action_probabilities))
+                print(f'kl_divergence {kl_divergence}. expert_action_probabilities { expert_action_probabilities}. action_probabilities {action_probabilities}')
                 reward -= 0.1*kl_divergence
         return custom_obs, reward, done, truncated, info
 
