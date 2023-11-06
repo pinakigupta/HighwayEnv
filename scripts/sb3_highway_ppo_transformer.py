@@ -175,7 +175,7 @@ if __name__ == "__main__":
             env_kwargs['expert_policy'] = bc_policy
             env = make_vec_env(
                                 make_configure_env, 
-                                n_envs=2, 
+                                n_envs=n_cpu*3, 
                                 vec_env_cls=SubprocVecEnv, 
                                 env_kwargs=env_kwargs
                             )
