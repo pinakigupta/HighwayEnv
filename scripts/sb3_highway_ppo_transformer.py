@@ -22,7 +22,7 @@ import time
 from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict
-from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
+from sb3_callbacks import *
 from utilities import *
 from utils import record_videos
 import warnings
@@ -198,12 +198,14 @@ if __name__ == "__main__":
             # Create the custom callback
             metrics_callback = CustomMetricsCallback()
             curriculamcallback = CustomCurriculamCallback()
+            kldivergencecallback = KLDivergenceCallback(expert_policy=bc_policy, kl_coefficient = 0.1)
 
 
             training_info = model.learn(
                                         total_timesteps=total_timesteps,
                                         callback=[
                                                     checkptcallback, 
+                                                    kldivergencecallback,
                                                     # curriculamcallback,
                                                 ]
                                         )

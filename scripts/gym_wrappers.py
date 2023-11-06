@@ -77,15 +77,9 @@ class SquashObservationsWrapper(gym.Wrapper):
     def __init__(self, env, policy=None, expert_policy=None, **kwargs):
         super(SquashObservationsWrapper, self).__init__(env, **kwargs)
         self.action_space = self.env.action_space
-        if policy:
-            self.policy = policy
-        if expert_policy:
-            self.expert_policy = expert_policy
-            self.expert_policy.eval()
-            print(f'self.expert_policy {id(self.expert_policy)}')
         # Calculate obs_dim based on the shape of the observation space
         self.obs_dim = int(np.prod(env.observation_space.shape))
-
+        self.expert_divergence = 0.0
 
 
         if isinstance(env.action_space, gym.spaces.Discrete):
@@ -104,25 +98,24 @@ class SquashObservationsWrapper(gym.Wrapper):
         custom_obs = np.concatenate([obs.flatten(), [0]])
         return custom_obs, info
 
+    def get_obs(self):
+        return self.custom_obs
+    
+    def update_expert_divergence(self, kl_divergence):
+        self.expert_divergence = kl_divergence
+
+    def get_expert_divergence(self):
+        return self.expert_divergence 
+    
     def step(self, action):
         obs, reward, done, truncated , info = self.env.step(action)
         custom_obs = np.concatenate([obs.flatten(), [0]]) 
         custom_obs[9::10] = 0 # hardcoding lane ids out 
-        if self.policy and self.expert_policy:
-            with torch.no_grad():
-                obs_with_batch = torch.Tensor(custom_obs).to(self.policy.device).unsqueeze(0)
-                action_distribution = self.policy.get_distribution(obs_with_batch)
-                action_distribution = action_distribution.distribution.logits
-                expert_action_distribution = self.expert_policy.get_distribution(obs_with_batch)
-                expert_action_distribution = expert_action_distribution.distribution.logits
-                action_probabilities = F.softmax(action_distribution, dim=1).cpu().numpy()
-                expert_action_probabilities = F.softmax(expert_action_distribution, dim=1).cpu().numpy()
-                # expert_action_distribution = expert_action_distribution.cpu().numpy()
-                # action_distribution = action_distribution.cpu().numpy()
-                kl_divergence = np.sum(action_probabilities * np.log(action_probabilities / expert_action_probabilities))
-                print(f'kl_divergence {kl_divergence}. expert_action_probabilities { expert_action_probabilities}. action_probabilities {action_probabilities}')
-                reward -= 0.1*kl_divergence
-        return custom_obs, reward, done, truncated, info
+        # if self.policy and self.expert_policy:
+        #     with torch.no_grad():
+        self.custom_obs = custom_obs
+        custom_reward = reward - 0.1*self.expert_divergence
+        return custom_obs, custom_reward, done, truncated, info
 
 
 class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):

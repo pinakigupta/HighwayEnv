@@ -1,5 +1,7 @@
 import statistics
-
+import torch
+import torch.nn.functional as F
+import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 
@@ -67,3 +69,31 @@ class CustomCurriculamCallback(BaseCallback):
         # Clear the episode_rewards list for the next epoch
         return True
 
+
+class KLDivergenceCallback(BaseCallback):
+    def __init__(self, expert_policy, kl_coefficient, verbose=0):
+        super(KLDivergenceCallback, self).__init__(verbose)
+        self.expert_policy = expert_policy
+        self.kl_coefficient = kl_coefficient
+
+    def _on_step(self) -> bool:
+        # Access the PPO policy from the model
+
+        # Access the observation without resetting the environmenting
+        obs = self.training_env.env_method("get_obs")  # Replace with the correct way to get observations
+
+        for env_idx in range(self.training_env.num_envs):
+            with torch.no_grad():
+                obs_with_batch = torch.Tensor(obs[env_idx]).to(self.model.policy.device).unsqueeze(0)
+                action_distribution = self.model.policy.get_distribution(obs_with_batch)
+                action_distribution = action_distribution.distribution.logits
+                expert_action_distribution = self.expert_policy.get_distribution(obs_with_batch)
+                expert_action_distribution = expert_action_distribution.distribution.logits
+                action_probabilities = F.softmax(action_distribution, dim=1).cpu().numpy()
+                expert_action_probabilities = F.softmax(expert_action_distribution, dim=1).cpu().numpy()
+                kl_divergence = np.sum(action_probabilities * np.log(action_probabilities / expert_action_probabilities))
+                # are_weights_same = all(torch.allclose(param1, param2) for param1, param2 in zip(self.model.policy.parameters(), self.expert_policy.parameters() ))
+                # print(f'kl_divergence {kl_divergence}. are_weights_same { are_weights_same }.')
+                self.training_env.env_method("update_expert_divergence", kl_divergence , indices=env_idx)
+
+        return True
