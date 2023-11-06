@@ -4,6 +4,7 @@ import gymnasium as gym
 import seaborn as sns
 from stable_baselines3 import PPO
 import torch
+import copy
 import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -153,30 +154,31 @@ if __name__ == "__main__":
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 120)
-            env = make_vec_env(
-                                make_configure_env, 
-                                n_envs=n_cpu*3, 
-                                vec_env_cls=SubprocVecEnv, 
-                                env_kwargs=env_kwargs
-                            )
-            
-            # env = make_configure_env(**env_kwargs)
-
             total_timesteps=900*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
-            policy =                                        retrieve_agent(
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'agent_final.pth',
-                                                                    device=device,
-                                                                    project=project_names[TrainEnum.BC.value]
-                                                                    )
+            bc_policy =                                        retrieve_agent(
+                                                                                artifact_version='trained_model_directory:latest',
+                                                                                agent_model = 'agent_final.pth',
+                                                                                device=device,
+                                                                                project=project_names[TrainEnum.BC.value]
+                                                                             )
+            policy = copy.deepcopy(bc_policy)
+            bc_policy.eval()
             # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
             # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
             # policy.eval()
             # policy.optimizer.param_groups[0]['lr'] = 0.001
             # policy.vf_net.optimizer.param_groups[0]['lr'] = 0.01 
+            env_kwargs['policy'] = policy
+            env_kwargs['expert_policy'] = bc_policy
+            env = make_vec_env(
+                                make_configure_env, 
+                                n_envs=2, 
+                                vec_env_cls=SubprocVecEnv, 
+                                env_kwargs=env_kwargs
+                            )
             model = CustomPPO(
                                 policy,
                                 "MlpPolicy",

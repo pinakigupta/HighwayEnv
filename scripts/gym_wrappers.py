@@ -6,6 +6,7 @@ import concurrent.futures
 import statistics
 import numpy as np
 from utils import record_videos
+import copy
 
 
 class DictToMultiDiscreteWrapper(gym.Wrapper):
@@ -73,13 +74,18 @@ class ObsToDictObsWrapper(gym.Wrapper):
 
 
 class SquashObservationsWrapper(gym.Wrapper):
-    def __init__(self, env, **kwargs):
+    def __init__(self, env, policy=None, expert_policy=None, **kwargs):
         super(SquashObservationsWrapper, self).__init__(env, **kwargs)
         self.action_space = self.env.action_space
-        if 'policy' in kwargs:
-            self.env.policy = kwargs['policy']
+        if policy:
+            self.policy = policy
+        if expert_policy:
+            self.expert_policy = expert_policy
+            self.expert_policy.eval()
+            print(f'self.expert_policy {id(self.expert_policy)}')
         # Calculate obs_dim based on the shape of the observation space
         self.obs_dim = int(np.prod(env.observation_space.shape))
+
 
 
         if isinstance(env.action_space, gym.spaces.Discrete):
@@ -102,6 +108,16 @@ class SquashObservationsWrapper(gym.Wrapper):
         obs, reward, done, truncated , info = self.env.step(action)
         custom_obs = np.concatenate([obs.flatten(), [0]]) 
         custom_obs[9::10] = 0 # hardcoding lane ids out 
+        if self.policy and self.expert_policy:
+            with torch.no_grad():
+                obs_with_batch = torch.Tensor(custom_obs).to(self.policy.device).unsqueeze(0)
+                # action_distribution, _ = copy.deepcopy(self.policy).forward(obs_with_batch).cpu().numpy()
+                expert_action_distribution, _ = self.expert_policy.forward(obs_with_batch)
+                expert_action_distribution = expert_action_distribution.cpu().numpy()
+                action_distribution = expert_action_distribution
+                kl_divergence = np.sum(action_distribution * np.log(action_distribution / expert_action_distribution))
+                print(f'kl_divergence {kl_divergence}')
+                reward -= 0.1*kl_divergence
         return custom_obs, reward, done, truncated, info
 
 
@@ -147,7 +163,7 @@ class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
         return multi_action @ self.action_weights
 
 
-def make_configure_env(**kwargs):
+def make_configure_env(policy=None, expert_policy=None, **kwargs):
     env = gym.make(
                     # kwargs["id"], 
                     # render_mode=kwargs["render_mode"], 
@@ -159,5 +175,5 @@ def make_configure_env(**kwargs):
     custom_key_order = ['long','lat']
     env = DictToMultiDiscreteWrapper(env,key_order=custom_key_order)
     env = MultiDiscreteToSingleDiscreteWrapper(env)
-    env = SquashObservationsWrapper(env)
+    env = SquashObservationsWrapper(env, policy=policy, expert_policy=expert_policy)
     return env

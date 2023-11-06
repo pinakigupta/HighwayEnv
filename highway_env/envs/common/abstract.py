@@ -48,6 +48,7 @@ class AbstractEnv(gym.Env):
         # Scene
         self.road = None
         self.controlled_vehicles = []
+        self.close_vehicles = []
 
         # Spaces
         self.action_type = None
