@@ -128,7 +128,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.RLDEPLOY
+train = TrainEnum.VALIDATION
 zip_filename = 'temp_6.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
@@ -145,7 +145,7 @@ attention_network_kwargs = dict(
     attention_layer_kwargs={
                                 "feature_size": 256, 
                                 "heads": 8, 
-                                "dropout_factor" :0.35
+                                "dropout_factor" :0.25
                            },
     # num_layers = 3,
 )
