@@ -37,8 +37,8 @@ env_kwargs = {
                 "lane_change_reward": 0.0,   # The reward received at each lane change action.
                 "speed_reward_spd" : [5, 10, 15, 20, 25, 30],
                 "speed_reward_rwd" : [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0],
-                "travel_reward": 1.0,
-                "imitation_reward": -0.0,
+                "travel_reward": 0.0,
+                "imitation_reward": -1.0,
                 "normalize_reward": False,
               },
         'simulation_frequency': 10,
@@ -128,7 +128,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.RLDEPLOY
+train = TrainEnum.RLTRAIN
 zip_filename = 'temp_6.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 

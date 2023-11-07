@@ -55,9 +55,9 @@ class CustomPPO(PPO):
     def __init__(self, instruct_policy, *args, **kwargs):
         super(CustomPPO, self).__init__(*args, **kwargs)
         self.policy = instruct_policy
-        n_total_layers = len(self.policy.feature_extractor)
+        # n_total_layers = len(self.policy.features_extractor)
         n_layers_to_unfreeze = 2  # Freeze the last 2 layers
-        all_modules = [module for module in self.policy.feature_extractor.children()]
+        all_modules = [module for module in self.policy.features_extractor.children()]
         # for param in self.policy.features_extractor.parameters():
         #     param.requires_grad = True
         for i, module in enumerate(all_modules):
