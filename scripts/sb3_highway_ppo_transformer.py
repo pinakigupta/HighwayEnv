@@ -157,7 +157,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 7,
+                                    delta_iterations = 37,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -374,7 +374,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 255600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 155600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -573,8 +573,7 @@ if __name__ == "__main__":
                         start_time = time.time()
                         expert_action = env.discrete_action(env.vehicle.discrete_action()[0])
                         true_labels.append(expert_action)
-                        action, _ = policy.predict(obs[np.newaxis, :], deterministic=True)
-                        action = np.argmax(action)
+                        action = policy(torch.Tensor(obs).to(device).unsqueeze(0))[0].detach().cpu().numpy()[0]
                         # action_logits = torch.nn.functional.softmax(policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.tensor(obs).to(device)))[0]))
                         # action = np.array(torch.argmax(action_logits, dim=-1).item())
                         predicted_labels.append(action)
@@ -633,8 +632,8 @@ if __name__ == "__main__":
             manager = multiprocessing.Manager()
             obs_list = manager.list()
             acts_list = manager.list()
-            p =  analyze_data(
-                                                zip_filename,
+            q =  analyze_data(
+                                                'temp.zip',
                                                 obs_list,
                                                 acts_list,
                                                 device=device,
@@ -649,8 +648,8 @@ if __name__ == "__main__":
                                               )
             obs_list = manager.list()
             acts_list = manager.list()
-            q =  analyze_data(
-                                                'temp.zip',
+            p =  analyze_data(
+                                                zip_filename,
                                                 obs_list,
                                                 acts_list,
                                                 device=device,
