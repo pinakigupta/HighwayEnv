@@ -302,7 +302,7 @@ if __name__ == "__main__":
             env = make_configure_env(**env_kwargs)
             # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
-            if False:
+            if True:
                 policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             else:
                 policy =                    retrieve_agent(

@@ -128,7 +128,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.RLTRAIN
+train = TrainEnum.BC
 zip_filename = 'temp_6.zip'
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
@@ -140,12 +140,12 @@ attention_network_kwargs = dict(
                                 "layer_sizes": [128, 256], 
                                 "reshape": False,
                                 "activation": 'RELU',
-                                'dropout_factor': 0.1
+                                'dropout_factor': 0.2
                             },
     attention_layer_kwargs={
                                 "feature_size": 256, 
                                 "heads": 8, 
-                                # "dropout_factor" :0.2
+                                "dropout_factor" :0.35
                            },
     # num_layers = 3,
 )
