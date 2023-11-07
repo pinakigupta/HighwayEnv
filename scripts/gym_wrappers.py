@@ -6,7 +6,7 @@ import concurrent.futures
 import statistics
 import numpy as np
 from utils import record_videos
-import copy
+import random
 import torch.nn.functional as F
 
 class DictToMultiDiscreteWrapper(gym.Wrapper):
@@ -80,7 +80,12 @@ class SquashObservationsWrapper(gym.Wrapper):
         # Calculate obs_dim based on the shape of the observation space
         self.obs_dim = int(np.prod(env.observation_space.shape))
         self.expert_divergence = 0.0
-
+        self.shuffled_indices = []
+        if not self.config['deploy'] and 'obj_obs_random_shuffle_probability' in self.config and random.random() < self.config['obj_obs_random_shuffle_probability']:
+            vehicles_count =  self.observation_type.observe().shape[0]
+            shuffled_indices = list(range(1,vehicles_count)) 
+            random.shuffle(shuffled_indices)
+            self.shuffled_indices = shuffled_indices
 
         if isinstance(env.action_space, gym.spaces.Discrete):
             self.action_dim = env.action_space.n  # For Discrete action space, action_dim is the number of discrete actions
@@ -98,22 +103,37 @@ class SquashObservationsWrapper(gym.Wrapper):
         custom_obs = np.concatenate([obs.flatten(), [0]])
         return custom_obs, info
 
-    def get_obs(self):
-        return self.custom_obs
     
     def update_expert_divergence(self, kl_divergence):
         self.expert_divergence = kl_divergence
 
     def get_expert_divergence(self):
-        return self.expert_divergence 
+        return self.expert_divergence
+    
+    def shuffle_obs(self, obs):
+        if not self.shuffled_indices:
+            return obs
+        shuffled_obs = obs
+        for idx, obs_idx in enumerate(self.shuffled_indices):
+            shuffled_obs[idx, :] = obs[obs_idx, :]
+        return shuffled_obs
+        
+    
+    def get_obs(self):
+        obs = self.observation_type.observe()
+        obs = self.shuffle_obs(obs)
+        custom_obs = np.concatenate([obs.flatten(), [0]])
+        custom_obs[9::10] = 0 
+        return custom_obs
     
     def step(self, action):
         obs, reward, done, truncated , info = self.env.step(action)
+        obs = self.shuffle_obs(obs)
         custom_obs = np.concatenate([obs.flatten(), [0]]) 
         custom_obs[9::10] = 0 # hardcoding lane ids out 
         # if self.policy and self.expert_policy:
         #     with torch.no_grad():
-        self.custom_obs = custom_obs
+        # self.custom_obs = custom_obs
         custom_reward = reward - 0.1*self.expert_divergence
         return custom_obs, custom_reward, done, truncated, info
 

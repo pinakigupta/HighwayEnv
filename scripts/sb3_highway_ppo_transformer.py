@@ -154,7 +154,7 @@ if __name__ == "__main__":
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 120)
-            total_timesteps=900*1000
+            total_timesteps=250*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
@@ -290,7 +290,7 @@ if __name__ == "__main__":
                                         }           
                                 )
         elif train == TrainEnum.BC:
-            append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
+            # append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             # env = make_configure_env(**env_kwargs)
             # env=env.unwrapped
             # env = make_vec_env(
