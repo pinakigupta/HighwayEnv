@@ -2,6 +2,7 @@ import numpy as np
 import logging
 from typing import List, Tuple, Dict, TYPE_CHECKING, Optional
 import time
+import random
 
 from highway_env.road.lane import LineType, StraightLane, AbstractLane, lane_from_config
 from highway_env.vehicle.objects import Landmark
@@ -294,7 +295,8 @@ class Road(object):
                  vehicles: List['kinematics.Vehicle'] = None,
                  road_objects: List['objects.RoadObject'] = None,
                  np_random: np.random.RandomState = None,
-                 record_history: bool = False) -> None:
+                 record_history: bool = False,
+                 **kwargs) -> None:
         """
         New road.
 
@@ -309,6 +311,8 @@ class Road(object):
         self.objects = road_objects or []
         self.np_random = np_random if np_random else np.random.RandomState()
         self.record_history = record_history
+        self.config = kwargs
+
 
     def close_vehicles_to(self, vehicle: 'kinematics.Vehicle', distance: float, count: Optional[int] = None,
                           see_behind: bool = True, sort: bool = True) -> object:

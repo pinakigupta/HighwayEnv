@@ -73,7 +73,7 @@ class HighwayEnv(AbstractEnv):
         if self.config["lanes_count"] == 'random':
             self.config["lanes_count"] = int(self.np_random.uniform(low=self.config["min_lanes_count"], high=self.config["max_lanes_count"]))
         self.road = Road(network=RoadNetwork.straight_road_network(self.config["lanes_count"], speed_limit=30),
-                         np_random=self.np_random, record_history=self.config["show_trajectories"])
+                         np_random=self.np_random, record_history=self.config["show_trajectories"], **self.config)
 
     def _create_vehicles(self) -> None:
         """Create some new random vehicles of a given type, and add them on the road."""
@@ -161,7 +161,8 @@ class HighwayEnv(AbstractEnv):
         travel_reward = 0
         if self._is_truncated():
             avg_speed = self.ego_travel/self.time
-            travel_reward = np.clip(np.interp(avg_speed, self.config['speed_reward_spd'], self.config['speed_reward_rwd']),0,1)
+            # travel_reward = np.clip(np.interp(avg_speed, self.config['speed_reward_spd'], self.config['speed_reward_rwd']),0,1)
+            travel_reward = self.ego_travel/1200.0
             # print("avg_speed ", avg_speed, " cum_imitation_reward  ", self.cum_imitation_reward )
     
         expert_action = self.vehicle._discrete_action

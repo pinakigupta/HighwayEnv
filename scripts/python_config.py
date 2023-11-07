@@ -9,6 +9,7 @@ env_kwargs = {
     'expert': 'MDPVehicle',
     'config': {   #Vehicle configs
         'deploy': False,
+        'obj_obs_random_shuffle_probability': 0.2,
          **{
                 "EGO_LENGTH": 'random',
                 "EGO_WIDTH": 'random',
@@ -36,8 +37,8 @@ env_kwargs = {
                 "lane_change_reward": 0.0,   # The reward received at each lane change action.
                 "speed_reward_spd" : [5, 10, 15, 20, 25, 30],
                 "speed_reward_rwd" : [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0],
-                "travel_reward": 0.0,
-                "imitation_reward": -1.0,
+                "travel_reward": 1.0,
+                "imitation_reward": -0.0,
                 "normalize_reward": False,
               },
         'simulation_frequency': 10,
