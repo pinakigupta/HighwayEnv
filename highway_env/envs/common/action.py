@@ -272,12 +272,12 @@ class DiscreteMetaAction(ActionType):
                 actions['lat'].append(self.actions_indexes['lat']['LANE_RIGHT'])
         if self.controlled_vehicle.speed_index < self.controlled_vehicle.target_speeds.size - 1 and self.longitudinal:
             actions['long'].append(self.actions_indexes['FASTER'])
-        if self.controlled_vehicle.speed_index < self.controlled_vehicle.target_speeds.size - 2 and self.longitudinal:
-            actions['long'].append(self.actions_indexes['FASTER2'])
+        # if self.controlled_vehicle.speed_index < self.controlled_vehicle.target_speeds.size - 2 and self.longitudinal:
+        #     actions['long'].append(self.actions_indexes['FASTER2'])
         if self.controlled_vehicle.speed_index > 0 and self.longitudinal:
             actions['long'].append(self.actions_indexes['SLOWER'])
-        if self.controlled_vehicle.speed_index > 1 and self.longitudinal:
-            actions['long'].append(self.actions_indexes['SLOWER2'])
+        # if self.controlled_vehicle.speed_index > 1 and self.longitudinal:
+        #     actions['long'].append(self.actions_indexes['SLOWER2'])
         return actions
 
 

@@ -48,6 +48,7 @@ class AbstractEnv(gym.Env):
         # Scene
         self.road = None
         self.controlled_vehicles = []
+        self.close_vehicles = []
 
         # Spaces
         self.action_type = None
@@ -207,7 +208,7 @@ class AbstractEnv(gym.Env):
         self._reset()
         self.define_spaces()  # Second, to link the obs and actions to the vehicles once the scene is created
         obs = self.observation_type.observe()
-        info = self._info(obs, action=self.action_space.sample())
+        info = self._info(obs)
         if self.render_mode == 'human':
             self.render()
         return obs, info

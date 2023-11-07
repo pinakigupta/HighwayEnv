@@ -6,7 +6,8 @@ import concurrent.futures
 import statistics
 import numpy as np
 from utils import record_videos
-
+import copy
+import torch.nn.functional as F
 
 class DictToMultiDiscreteWrapper(gym.Wrapper):
     def __init__(self, env, key_order=None, **kwargs):
@@ -73,11 +74,13 @@ class ObsToDictObsWrapper(gym.Wrapper):
 
 
 class SquashObservationsWrapper(gym.Wrapper):
-    def __init__(self, env, **kwargs):
+    def __init__(self, env, policy=None, expert_policy=None, **kwargs):
         super(SquashObservationsWrapper, self).__init__(env, **kwargs)
         self.action_space = self.env.action_space
         # Calculate obs_dim based on the shape of the observation space
         self.obs_dim = int(np.prod(env.observation_space.shape))
+        self.expert_divergence = 0.0
+
 
         if isinstance(env.action_space, gym.spaces.Discrete):
             self.action_dim = env.action_space.n  # For Discrete action space, action_dim is the number of discrete actions
@@ -95,10 +98,24 @@ class SquashObservationsWrapper(gym.Wrapper):
         custom_obs = np.concatenate([obs.flatten(), [0]])
         return custom_obs, info
 
+    def get_obs(self):
+        return self.custom_obs
+    
+    def update_expert_divergence(self, kl_divergence):
+        self.expert_divergence = kl_divergence
+
+    def get_expert_divergence(self):
+        return self.expert_divergence 
+    
     def step(self, action):
         obs, reward, done, truncated , info = self.env.step(action)
-        custom_obs = np.concatenate([obs.flatten(), [action]]) 
-        return custom_obs, reward, done, truncated, info
+        custom_obs = np.concatenate([obs.flatten(), [0]]) 
+        custom_obs[9::10] = 0 # hardcoding lane ids out 
+        # if self.policy and self.expert_policy:
+        #     with torch.no_grad():
+        self.custom_obs = custom_obs
+        custom_reward = reward - 0.1*self.expert_divergence
+        return custom_obs, custom_reward, done, truncated, info
 
 
 class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
@@ -143,7 +160,7 @@ class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
         return multi_action @ self.action_weights
 
 
-def make_configure_env(**kwargs):
+def make_configure_env(policy=None, expert_policy=None, **kwargs):
     env = gym.make(
                     # kwargs["id"], 
                     # render_mode=kwargs["render_mode"], 
@@ -155,5 +172,5 @@ def make_configure_env(**kwargs):
     custom_key_order = ['long','lat']
     env = DictToMultiDiscreteWrapper(env,key_order=custom_key_order)
     env = MultiDiscreteToSingleDiscreteWrapper(env)
-    env = SquashObservationsWrapper(env)
+    env = SquashObservationsWrapper(env, policy=policy, expert_policy=expert_policy)
     return env

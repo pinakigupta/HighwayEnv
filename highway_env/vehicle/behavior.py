@@ -616,15 +616,23 @@ class MDPVehicle(IDMVehicle):
             if action['lat'] == "LANE_RIGHT" and np.abs(self.speed)>1:
                 _from, _to, _id = self.lane_index
                 mdp_target_lane_index = _from, _to, np.clip(_id + 1, 0, len(self.road.network.graph[_from][_to]) - 1)
-                # if self.mobil(mdp_target_lane_index):
-                #     self.mdp_target_lane_index = mdp_target_lane_index
-                self.mdp_target_lane_index = mdp_target_lane_index
+                if 'planning_heuristic' in self.config and self.config['planning_heuristic']:
+                    if self.mobil(mdp_target_lane_index) and self.config['deploy']:
+                        self.mdp_target_lane_index = mdp_target_lane_index
+                    else:
+                        self.mdp_target_lane_index = self.lane_index
+                else:
+                        self.mdp_target_lane_index = mdp_target_lane_index
             elif action['lat'] == "LANE_LEFT"  and np.abs(self.speed)>1:
                 _from, _to, _id = self.lane_index
                 mdp_target_lane_index = _from, _to, np.clip(_id - 1, 0, len(self.road.network.graph[_from][_to]) - 1)
-                # if self.mobil(mdp_target_lane_index):
-                #     self.mdp_target_lane_index = mdp_target_lane_index
-                self.mdp_target_lane_index = mdp_target_lane_index
+                if 'planning_heuristic' in self.config and self.config['planning_heuristic']:
+                    if self.mobil(mdp_target_lane_index) and self.config['deploy']:
+                        self.mdp_target_lane_index = mdp_target_lane_index
+                    else:
+                        self.mdp_target_lane_index = self.lane_index
+                else:
+                        self.mdp_target_lane_index = mdp_target_lane_index
             else:
                 action['lat'] == "STRAIGHT"
                 self.mdp_target_lane_index = self.lane_index
