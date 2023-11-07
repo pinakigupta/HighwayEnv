@@ -563,8 +563,7 @@ if __name__ == "__main__":
                         start_time = time.time()
                         expert_action = env.discrete_action(env.vehicle.discrete_action()[0])
                         true_labels.append(expert_action)
-                        action, _ = policy.predict(obs[np.newaxis, :], deterministic=True)
-                        action = np.argmax(action)
+                        action = policy(torch.Tensor(obs).to(device).unsqueeze(0))[0].detach().cpu().numpy()[0]
                         # action_logits = torch.nn.functional.softmax(policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.tensor(obs).to(device)))[0]))
                         # action = np.array(torch.argmax(action_logits, dim=-1).item())
                         predicted_labels.append(action)
