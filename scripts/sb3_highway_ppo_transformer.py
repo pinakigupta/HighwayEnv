@@ -55,8 +55,18 @@ class CustomPPO(PPO):
     def __init__(self, instruct_policy, *args, **kwargs):
         super(CustomPPO, self).__init__(*args, **kwargs)
         self.policy = instruct_policy
-        for param in self.policy.features_extractor.parameters():
-            param.requires_grad = True
+        # n_total_layers = len(self.policy.features_extractor)
+        n_layers_to_unfreeze = 2  # Freeze the last 2 layers
+        all_modules = [module for module in self.policy.features_extractor.children()]
+        # for param in self.policy.features_extractor.parameters():
+        #     param.requires_grad = True
+        for i, module in enumerate(all_modules):
+            for param in module.parameters():
+                if i >= len(all_modules) - n_layers_to_unfreeze:
+                    param.requires_grad = True
+                else:
+                    param.requires_grad = False
+
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
@@ -154,7 +164,7 @@ if __name__ == "__main__":
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 120)
-            total_timesteps=250*1000
+            total_timesteps=500*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
