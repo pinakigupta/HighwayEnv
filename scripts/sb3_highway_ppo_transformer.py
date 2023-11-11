@@ -162,8 +162,8 @@ if __name__ == "__main__":
                                 )
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 120)
+            append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 80)
             total_timesteps=500*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
@@ -196,10 +196,12 @@ if __name__ == "__main__":
                                 env=env,
                                 n_steps=100,
                                 batch_size=64,
+                                ent_coef = 0.01,
                                 # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
                                 # device="cpu",
                                 verbose=1,
+                                # learning_rate = 3e-3
                             )
             
 
@@ -216,7 +218,7 @@ if __name__ == "__main__":
                                         callback=[
                                                     checkptcallback, 
                                                     kldivergencecallback,
-                                                    # curriculamcallback,
+                                                    curriculamcallback,
                                                 ]
                                         )
                 
@@ -677,7 +679,7 @@ if __name__ == "__main__":
             print('kl_div ', kl_div, ' cross_entropy ', np.sum(cross_entropy), cross_entropy)
         elif train == TrainEnum.VALIDATION:
                 policy                            = retrieve_agent(
-                                                                    artifact_version='trained_model_directory:v66',
+                                                                    artifact_version='trained_model_directory:latest',
                                                                     agent_model = 'agent_final.pth',
                                                                     device=device,
                                                                     project=project

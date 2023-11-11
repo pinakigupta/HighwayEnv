@@ -161,8 +161,8 @@ class HighwayEnv(AbstractEnv):
         travel_reward = 0
         if self._is_truncated():
             avg_speed = self.ego_travel/self.time
-            # travel_reward = np.clip(np.interp(avg_speed, self.config['speed_reward_spd'], self.config['speed_reward_rwd']),0,1)
-            travel_reward = self.ego_travel/1200.0
+            travel_reward = np.clip(np.interp(avg_speed, self.config['speed_reward_spd'], self.config['speed_reward_rwd']),0,1)
+            # travel_reward = 1.0 #self.ego_travel/1200.0
             # print("avg_speed ", avg_speed, " cum_imitation_reward  ", self.cum_imitation_reward )
     
         expert_action = self.vehicle._discrete_action
@@ -175,8 +175,8 @@ class HighwayEnv(AbstractEnv):
                     imitation_reward += 0.1*abs(act-expert_act)
                 except Exception as e:
                     print(e)
-        # if imitation_reward == 0:
-        #     imitation_reward = 0.2
+            if imitation_reward == 0:
+                imitation_reward -= 0.2
         self.cum_imitation_reward += imitation_reward
         # print(f'imitation_reward is {imitation_reward}')
         
