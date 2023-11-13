@@ -1067,14 +1067,13 @@ def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
         print('Plotting done')
     return normalized_counts
 
-def validation(policy, device, project, zip_filename, batch_size, minibatch_size, n_cpu ,visited_data_files):
+def validation(policy, device, project, zip_filename, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500):
 
     val_device = torch.device('cpu')
     policy.to(val_device)
     policy.eval()
     type = 'val'
     with torch.no_grad():
-        val_batch_count = 2500
         # val_data_loader                                             =  CustomDataLoader(
         #                                                                                 zip_filename, 
         #                                                                                 device=val_device,
