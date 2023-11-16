@@ -48,7 +48,7 @@ class HighwayEnv(AbstractEnv):
             "speed_reward_spd" : [5, 10, 15, 20, 25, 30],
             "speed_reward_rwd" : [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0],
             "travel_reward": 0.0,
-            "imitation_reward": 1.0,
+            "imitation_reward": 0.0,
             "normalize_reward": False,
             "offroad_terminal": False
             # "reward_speed_range": [20, 30],
@@ -234,10 +234,9 @@ class HighwayEnv(AbstractEnv):
     def get_config(self):
         return self.config
     
-    def get_ep_reward(self):
-        reward = self.ep_rward
-        self.ep_rward = 0
-        return reward
+    # def get_ep_reward(self):
+    #     reward = self.ep_rward
+    #     return reward
     
     def discrete_action(self, action):
         return action
