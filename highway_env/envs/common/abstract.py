@@ -48,6 +48,7 @@ class AbstractEnv(gym.Env):
         # Scene
         self.road = None
         self.controlled_vehicles = []
+        self.close_vehicles = []
 
         # Spaces
         self.action_type = None
@@ -246,10 +247,10 @@ class AbstractEnv(gym.Env):
 
 
         reward = self._reward(action)
-        if hasattr(self, 'ep_rward'):
-            self.ep_rward += reward
-        else:
-            self.ep_rward = reward
+        # if hasattr(self, 'ep_rward'):
+        #     self.ep_rward += reward
+        # else:
+        #     self.ep_rward = reward
         terminated = self._is_terminated()
         truncated = self._is_truncated()
         info = self._info(obs, action)

@@ -4,6 +4,7 @@ import gymnasium as gym
 import seaborn as sns
 from stable_baselines3 import PPO
 import torch
+import copy
 import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -21,7 +22,7 @@ import time
 from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict
-from sb3_callbacks import CustomCheckpointCallback, CustomMetricsCallback, CustomCurriculamCallback
+from sb3_callbacks import *
 from utilities import *
 from utils import record_videos
 import warnings
@@ -36,6 +37,7 @@ from highway_env.envs.common.observation import *
 from scipy.stats import entropy
 from feature_extractors import *
 import threading
+import torch.optim as custom_optimizer
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -53,8 +55,18 @@ class CustomPPO(PPO):
     def __init__(self, instruct_policy, *args, **kwargs):
         super(CustomPPO, self).__init__(*args, **kwargs)
         self.policy = instruct_policy
-        for param in self.policy.features_extractor.parameters():
-            param.requires_grad = False
+        # n_total_layers = len(self.policy.features_extractor)
+        n_layers_to_unfreeze = 2  # Freeze the last 2 layers
+        all_modules = [module for module in self.policy.features_extractor.children()]
+        # for param in self.policy.features_extractor.parameters():
+        #     param.requires_grad = True
+        for i, module in enumerate(all_modules):
+            for param in module.parameters():
+                if i >= len(all_modules) - n_layers_to_unfreeze:
+                    param.requires_grad = True
+                else:
+                    param.requires_grad = False
+
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
@@ -104,8 +116,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
 
     n_cpu =  mp.cpu_count()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # device = torch.device('cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -145,36 +157,38 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 7,
+                                    delta_iterations = 37,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
-            env_kwargs.update({'reward_oracle':None})
-            append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 120)
+            append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 80)
+            total_timesteps=500*1000
+            # Set the checkpoint frequency
+            checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
+
+            bc_policy =                                        retrieve_agent(
+                                                                                artifact_version='trained_model_directory:latest',
+                                                                                agent_model = 'agent_final.pth',
+                                                                                device=device,
+                                                                                project=project_names[TrainEnum.BC.value]
+                                                                             )
+            policy = copy.deepcopy(bc_policy).to(device)
+            bc_policy.eval()
+            # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
+            # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
+            # policy.eval()
+            # policy.optimizer.param_groups[0]['lr'] = 0.001
+            # policy.vf_net.optimizer.param_groups[0]['lr'] = 0.01 
+            env_kwargs['policy'] = policy
+            env_kwargs['expert_policy'] = bc_policy
             env = make_vec_env(
                                 make_configure_env, 
                                 n_envs=n_cpu*3, 
                                 vec_env_cls=SubprocVecEnv, 
                                 env_kwargs=env_kwargs
                             )
-            
-            # env = make_configure_env(**env_kwargs)
-
-            total_timesteps=500*1000
-            # Set the checkpoint frequency
-            checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
-
-            policy =                                        retrieve_agent(
-                                                                    artifact_version='trained_model_directory:latest',
-                                                                    agent_model = 'agent_final.pth',
-                                                                    device=device,
-                                                                    project=project_names[TrainEnum.BC.value]
-                                                                    )
-            # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
-            # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
-            # policy.eval()
             model = CustomPPO(
                                 policy,
                                 "MlpPolicy",
@@ -182,10 +196,12 @@ if __name__ == "__main__":
                                 env=env,
                                 n_steps=100,
                                 batch_size=64,
+                                ent_coef = 0.01,
                                 # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
-                                # device="cpu",
+                                device=device,
                                 verbose=1,
+                                # learning_rate = 3e-3
                             )
             
 
@@ -194,13 +210,15 @@ if __name__ == "__main__":
             # Create the custom callback
             metrics_callback = CustomMetricsCallback()
             curriculamcallback = CustomCurriculamCallback()
+            kldivergencecallback = KLDivergenceCallback(expert_policy=bc_policy, kl_coefficient = 0.1)
 
 
             training_info = model.learn(
                                         total_timesteps=total_timesteps,
                                         callback=[
                                                     checkptcallback, 
-                                                    # curriculamcallback,
+                                                    kldivergencecallback,
+                                                    curriculamcallback,
                                                 ]
                                         )
                 
@@ -216,7 +234,6 @@ if __name__ == "__main__":
             # Save the final model
             # model.save("highway_attention_ppo/model")
         elif train == TrainEnum.IRLTRAIN:
-            env_kwargs.update({'reward_oracle':None})
             project_name = f"random_env_gail_1"
             
             
@@ -285,8 +302,7 @@ if __name__ == "__main__":
                                         }           
                                 )
         elif train == TrainEnum.BC:
-            env_kwargs.update({'reward_oracle':None})
-            append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
+            # append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             # env = make_configure_env(**env_kwargs)
             # env=env.unwrapped
             # env = make_vec_env(
@@ -328,7 +344,7 @@ if __name__ == "__main__":
                                     )        
         
 
-            def _train(env, policy, zip_filename, extract_path, device=device, **training_kwargs):
+            def _train(env, policy, zip_filenames, extract_path, device=device, **training_kwargs):
                 num_epochs = training_kwargs['num_epochs'] # These are dagger epochs
                 checkpoint_interval = num_epochs//2
                 append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
@@ -338,17 +354,19 @@ if __name__ == "__main__":
                 train_datasets = []                    
                 visited_data_files = set([])
                 metricses = {}
+                zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    train_data_loader                                            = create_dataloaders(
-                                                                                                          zip_filename,
-                                                                                                          train_datasets, 
-                                                                                                          type = 'train',
-                                                                                                          device=device,
-                                                                                                          batch_size=minibatch_size,
-                                                                                                          n_cpu = n_cpu,
-                                                                                                          visited_data_files=visited_data_files
-                                                                                                      )
+                    for zip_filename in zip_filenames:
+                        train_data_loader                                            = create_dataloaders(
+                                                                                                            zip_filename,
+                                                                                                            train_datasets, 
+                                                                                                            type = 'train',
+                                                                                                            device=device,
+                                                                                                            batch_size=minibatch_size,
+                                                                                                            n_cpu = n_cpu,
+                                                                                                            visited_data_files=visited_data_files
+                                                                                                        )
                     # train_data_loader = CustomDataLoader(
                     #                                         zip_filename, 
                     #                                         device, 
@@ -360,7 +378,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 255600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 155600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -460,6 +478,15 @@ if __name__ == "__main__":
                 print('Saved final model')
 
             print('Beginnig final validation step')
+            validation(
+                        final_policy,
+                        device, 
+                        project, 
+                        zip_filename, 
+                        batch_size, 
+                        minibatch_size, 
+                        n_cpu
+                        )
             # train_datasets =[]
             # data_loader              = CustomDataLoader(
             #                                                 zip_filename, 
@@ -499,7 +526,6 @@ if __name__ == "__main__":
             print('Ending final validation step and plotting the heatmap ')
             final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY or train == TrainEnum.RLDEPLOY or train == TrainEnum.IRLDEPLOY:
-            env_kwargs.update({'reward_oracle':None})
             env_kwargs.update({'render_mode': 'human'})
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
@@ -560,8 +586,7 @@ if __name__ == "__main__":
                         start_time = time.time()
                         expert_action = env.discrete_action(env.vehicle.discrete_action()[0])
                         true_labels.append(expert_action)
-                        action, _ = policy.predict(obs[np.newaxis, :], deterministic=True)
-                        action = np.argmax(action)
+                        action = policy(torch.Tensor(obs).to(device).unsqueeze(0))[0].detach().cpu().numpy()[0]
                         # action_logits = torch.nn.functional.softmax(policy.action_net(policy.mlp_extractor(policy.features_extractor(torch.tensor(obs).to(device)))[0]))
                         # action = np.array(torch.argmax(action_logits, dim=-1).item())
                         predicted_labels.append(action)
@@ -620,8 +645,8 @@ if __name__ == "__main__":
             manager = multiprocessing.Manager()
             obs_list = manager.list()
             acts_list = manager.list()
-            p =  analyze_data(
-                                                zip_filename,
+            q =  analyze_data(
+                                                'temp.zip',
                                                 obs_list,
                                                 acts_list,
                                                 device=device,
@@ -636,8 +661,8 @@ if __name__ == "__main__":
                                               )
             obs_list = manager.list()
             acts_list = manager.list()
-            q =  analyze_data(
-                                                'temp.zip',
+            p =  analyze_data(
+                                                zip_filename,
                                                 obs_list,
                                                 acts_list,
                                                 device=device,
@@ -655,52 +680,22 @@ if __name__ == "__main__":
             kl_div = np.sum(entropy(p, q) - entropy(p))
             print('kl_div ', kl_div, ' cross_entropy ', np.sum(cross_entropy), cross_entropy)
         elif train == TrainEnum.VALIDATION:
-            policy                            = retrieve_agent(
-                                                                artifact_version='trained_model_directory:latest',
-                                                                agent_model = 'agent_final.pth',
-                                                                device=device,
-                                                                project=project
-                                                              )
-            val_device = torch.device('cpu')
-            policy.to(val_device)
-            policy.eval()
-            type = 'val'
-            with torch.no_grad():
-                val_batch_count = 2500
-                # val_data_loader                                             =  CustomDataLoader(
-                #                                                                                 zip_filename, 
-                #                                                                                 device=val_device,
-                #                                                                                 batch_size=batch_size,
-                #                                                                                 n_cpu=n_cpu,
-                #                                                                                 val_batch_count=val_batch_count,
-                #                                                                                 chunk_size=500,
-                #                                                                                 type= type,
-                #                                                                                 plot_path=None,
-                #                                                                                 visited_data_files = set([])
-                #                                                                             ) 
-                
-                val_data_loader =                                                       create_dataloaders(
-                                                                                                            zip_filename,
-                                                                                                            train_datasets = [], 
-                                                                                                            type = type,
-                                                                                                            device=device,
-                                                                                                            batch_size=minibatch_size,
-                                                                                                            n_cpu = n_cpu,
-                                                                                                            visited_data_files= set([])
-                                                                                                        )
-                metrics                      = calculate_validation_metrics(
-                                                                                val_data_loader,
-                                                                                policy, 
-                                                                                zip_filename=zip_filename,
-                                                                                device=val_device,
-                                                                                batch_size=batch_size,
-                                                                                n_cpu=n_cpu,
-                                                                                val_batch_count=val_batch_count,
-                                                                                chunk_size=500,
-                                                                                type= type,
-                                                                                validation = True,
-                                                                                plot_path=None
-                                                                            )
+                policy                            = retrieve_agent(
+                                                                    artifact_version='trained_model_directory:latest',
+                                                                    agent_model = 'agent_final.pth',
+                                                                    device=device,
+                                                                    project=project
+                                                                    )
+                validation(
+                            policy = policy,
+                            device = device, 
+                            project = project, 
+                            zip_filename = zip_filename, 
+                            batch_size = batch_size, 
+                            minibatch_size = minibatch_size, 
+                            n_cpu = n_cpu,
+                            visited_data_files = set([])
+                          )
                 # type = 'train'
                 # train_data_loader = CustomDataLoader(
                 #                                     zip_filename, 

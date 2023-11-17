@@ -8,7 +8,7 @@ import sys
 from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
 from torch.utils.data import Dataset, DataLoader
 import torch
-from generate_expert_data import extract_post_processed_expert_data  
+from generate_expert_data import extract_post_processed_expert_data, retrieve_agent
 import pygame  
 import numpy as np
 import seaborn as sns
@@ -336,8 +336,9 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
         print(" File handle for the zip file opened ")
         hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name] 
         for train_data_file in hdf5_train_file_names:
-            if train_data_file not in visited_data_files:
-                visited_data_files.add(train_data_file)
+            visited_filepath = zip_filename + train_data_file
+            if visited_filepath not in visited_data_files:
+                visited_data_files.add(visited_filepath)
                 with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
                     samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])
@@ -1066,3 +1067,46 @@ def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
         plt.savefig('Analysis.png')
         print('Plotting done')
     return normalized_counts
+
+def validation(policy, device, project, zip_filename, batch_size, minibatch_size, n_cpu ,visited_data_files):
+
+    val_device = torch.device('cpu')
+    policy.to(val_device)
+    policy.eval()
+    type = 'val'
+    with torch.no_grad():
+        val_batch_count = 2500
+        # val_data_loader                                             =  CustomDataLoader(
+        #                                                                                 zip_filename, 
+        #                                                                                 device=val_device,
+        #                                                                                 batch_size=batch_size,
+        #                                                                                 n_cpu=n_cpu,
+        #                                                                                 val_batch_count=val_batch_count,
+        #                                                                                 chunk_size=500,
+        #                                                                                 type= type,
+        #                                                                                 plot_path=None,
+        #                                                                                 visited_data_files = set([])
+        #                                                                             ) 
+        
+        val_data_loader =                                                       create_dataloaders(
+                                                                                                    zip_filename,
+                                                                                                    train_datasets = [], 
+                                                                                                    type = type,
+                                                                                                    device=device,
+                                                                                                    batch_size=minibatch_size,
+                                                                                                    n_cpu = n_cpu,
+                                                                                                    visited_data_files= visited_data_files 
+                                                                                                )
+        metrics                      = calculate_validation_metrics(
+                                                                        val_data_loader,
+                                                                        policy, 
+                                                                        zip_filename=zip_filename,
+                                                                        device=val_device,
+                                                                        batch_size=batch_size,
+                                                                        n_cpu=n_cpu,
+                                                                        val_batch_count=val_batch_count,
+                                                                        chunk_size=500,
+                                                                        type= type,
+                                                                        validation = True,
+                                                                        plot_path=None
+                                                                    )

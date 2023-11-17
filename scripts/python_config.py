@@ -2,12 +2,14 @@ from enum import Enum
 import numpy as np
 import functools
 
+
 env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
     'expert': 'MDPVehicle',
     'config': {   #Vehicle configs
         'deploy': False,
+        'obj_obs_random_shuffle_probability': 0.0,
          **{
                 "EGO_LENGTH": 'random',
                 "EGO_WIDTH": 'random',
@@ -27,7 +29,7 @@ env_kwargs = {
                 'planning_heuristic': False,
             },
             **{
-                "collision_reward": 0.0,    # The reward received when colliding with a vehicle.
+                "collision_reward": -10.0,    # The reward received when colliding with a vehicle.
                 "right_lane_reward": 0.0,  # The reward received when driving on the right-most lanes, linearly mapped to
                                         # zero for other lanes.
                 "high_speed_reward": 0.0,  # The reward received when driving at full speed, linearly mapped to zero for
@@ -35,8 +37,8 @@ env_kwargs = {
                 "lane_change_reward": 0.0,   # The reward received at each lane change action.
                 "speed_reward_spd" : [5, 10, 15, 20, 25, 30],
                 "speed_reward_rwd" : [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0],
-                "travel_reward": 0.0,
-                "imitation_reward": 1.0,
+                "travel_reward": 10.0,
+                "imitation_reward": 0.0,
                 "normalize_reward": False,
               },
         'simulation_frequency': 10,
@@ -126,8 +128,8 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.RLDEPLOY
-zip_filename = 'temp_6.zip'
+train = TrainEnum.BC
+zip_filename = ['temp_5.zip', 'temp_1.zip']
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
@@ -135,18 +137,18 @@ attention_network_kwargs = dict(
     # in_size=5*15,
     embedding_layer_kwargs={
                                 "in_size": len(env_kwargs['config']['KinematicObservation']['features']), 
-                                "layer_sizes": [128, 128, 128], 
+                                "layer_sizes": [128, 256], 
                                 "reshape": False,
                                 "activation": 'RELU',
-                                'dropout_factor': 0.1
+                                'dropout_factor': 0.2
                             },
     attention_layer_kwargs={
-                                "feature_size": 128, 
-                                "heads": 4, 
-                                # "dropout_factor" :0.2
+                                "feature_size": 256, 
+                                "heads": 8, 
+                                "dropout_factor" :0.25
                            },
     # num_layers = 3,
 )
 
-label_weights = np.array([3, 1])
+# label_weights = np.array([3, 1])
 

@@ -48,7 +48,7 @@ class HighwayEnv(AbstractEnv):
             "speed_reward_spd" : [5, 10, 15, 20, 25, 30],
             "speed_reward_rwd" : [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0],
             "travel_reward": 0.0,
-            "imitation_reward": 1.0,
+            "imitation_reward": 0.0,
             "normalize_reward": False,
             "offroad_terminal": False
             # "reward_speed_range": [20, 30],
@@ -57,7 +57,6 @@ class HighwayEnv(AbstractEnv):
 
     def __init__(self, config: dict = None, render_mode: Optional[str] = None, **kwargs) -> None:
         super().__init__(config, render_mode)
-        self.reward_oracle = kwargs["reward_oracle"] if "reward_oracle" in kwargs else None
         for vehicle in self.road.vehicles:
                     if vehicle not in self.controlled_vehicles:
                         vehicle.check_collisions = False
@@ -74,7 +73,7 @@ class HighwayEnv(AbstractEnv):
         if self.config["lanes_count"] == 'random':
             self.config["lanes_count"] = int(self.np_random.uniform(low=self.config["min_lanes_count"], high=self.config["max_lanes_count"]))
         self.road = Road(network=RoadNetwork.straight_road_network(self.config["lanes_count"], speed_limit=30),
-                         np_random=self.np_random, record_history=self.config["show_trajectories"])
+                         np_random=self.np_random, record_history=self.config["show_trajectories"], **self.config)
 
     def _create_vehicles(self) -> None:
         """Create some new random vehicles of a given type, and add them on the road."""
@@ -163,7 +162,8 @@ class HighwayEnv(AbstractEnv):
         if self._is_truncated():
             avg_speed = self.ego_travel/self.time
             travel_reward = np.clip(np.interp(avg_speed, self.config['speed_reward_spd'], self.config['speed_reward_rwd']),0,1)
-            print("avg_speed ", avg_speed, " cum_imitation_reward  ", self.cum_imitation_reward )
+            # travel_reward = 1.0 #self.ego_travel/1200.0
+            # print("avg_speed ", avg_speed, " cum_imitation_reward  ", self.cum_imitation_reward )
     
         expert_action = self.vehicle._discrete_action
         imitation_reward = 0
@@ -172,11 +172,11 @@ class HighwayEnv(AbstractEnv):
                 try:
                     act = self.action_type.actions_indexes[key][act]
                     expert_act = self.action_type.actions_indexes[key][expert_act]
-                    imitation_reward -= 0.1*abs(act-expert_act)
+                    imitation_reward += 0.1*abs(act-expert_act)
                 except Exception as e:
                     print(e)
-        if imitation_reward == 0:
-            imitation_reward = 0.3
+            if imitation_reward == 0:
+                imitation_reward -= 0.2
         self.cum_imitation_reward += imitation_reward
         # print(f'imitation_reward is {imitation_reward}')
         
@@ -234,10 +234,9 @@ class HighwayEnv(AbstractEnv):
     def get_config(self):
         return self.config
     
-    def get_ep_reward(self):
-        reward = self.ep_rward
-        self.ep_rward = 0
-        return reward
+    # def get_ep_reward(self):
+    #     reward = self.ep_rward
+    #     return reward
     
     def discrete_action(self, action):
         return action

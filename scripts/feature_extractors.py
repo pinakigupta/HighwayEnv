@@ -49,6 +49,7 @@ class ActionFeatureExtractor(nn.Module):
             return nn.functional.dropout(activated, p=self.dropout_factor, training=self.training)
         return  nn.functional.dropout(activated, p=self.dropout_factor)
 
+
 class CustomExtractor(BaseFeaturesExtractor):
     """
     :param observation_space: (gym.Space)
@@ -63,7 +64,6 @@ class CustomExtractor(BaseFeaturesExtractor):
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         return self.extractor(observations)
     
-
 
 class CombinedFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self,  observation_space: gym.spaces.Dict, **kwargs):
