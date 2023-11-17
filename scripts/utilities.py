@@ -402,7 +402,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     train_data_loader = DataLoader(
                                         shuffled_combined_train_dataset, 
                                         batch_size=kwargs['batch_size'], 
-                                        # shuffle=True,
+                                        shuffle=True,
                                         # sampler=sampler,
                                         drop_last=True,
                                         num_workers=kwargs['n_cpu'],

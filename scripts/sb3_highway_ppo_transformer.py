@@ -314,7 +314,7 @@ if __name__ == "__main__":
             env = make_configure_env(**env_kwargs)
             # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
-            if False:
+            if True:
                 policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             else:
                 policy =                    retrieve_agent(
@@ -376,7 +376,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 55600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 155600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
