@@ -101,6 +101,7 @@ class SquashObservationsWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)
         custom_obs = np.concatenate([obs.flatten(), [0]])
+        self.custom_reward = 0
         return custom_obs, info
 
     
@@ -135,7 +136,11 @@ class SquashObservationsWrapper(gym.Wrapper):
         #     with torch.no_grad():
         # self.custom_obs = custom_obs
         custom_reward = reward - 0.1*self.expert_divergence
+        self.custom_reward = custom_reward
         return custom_obs, custom_reward, done, truncated, info
+    
+    def get_reward(self):
+        return self.custom_reward
 
 
 class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):

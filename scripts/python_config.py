@@ -128,8 +128,8 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.VALIDATION
-zip_filename = 'temp_7.zip'
+train = TrainEnum.BC
+zip_filename = ['temp_5.zip', 'temp_1.zip']
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

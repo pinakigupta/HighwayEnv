@@ -336,8 +336,9 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
         print(" File handle for the zip file opened ")
         hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name] 
         for train_data_file in hdf5_train_file_names:
-            if train_data_file not in visited_data_files:
-                visited_data_files.add(train_data_file)
+            visited_filepath = zip_filename + train_data_file
+            if visited_filepath not in visited_data_files:
+                visited_data_files.add(visited_filepath)
                 with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
                     samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])

@@ -116,8 +116,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
 
     n_cpu =  mp.cpu_count()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # device = torch.device('cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -174,7 +174,7 @@ if __name__ == "__main__":
                                                                                 device=device,
                                                                                 project=project_names[TrainEnum.BC.value]
                                                                              )
-            policy = copy.deepcopy(bc_policy)
+            policy = copy.deepcopy(bc_policy).to(device)
             bc_policy.eval()
             # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
             # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
@@ -199,7 +199,7 @@ if __name__ == "__main__":
                                 ent_coef = 0.01,
                                 # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
-                                # device="cpu",
+                                device=device,
                                 verbose=1,
                                 # learning_rate = 3e-3
                             )
@@ -344,7 +344,7 @@ if __name__ == "__main__":
                                     )        
         
 
-            def _train(env, policy, zip_filename, extract_path, device=device, **training_kwargs):
+            def _train(env, policy, zip_filenames, extract_path, device=device, **training_kwargs):
                 num_epochs = training_kwargs['num_epochs'] # These are dagger epochs
                 checkpoint_interval = num_epochs//2
                 append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
@@ -354,17 +354,19 @@ if __name__ == "__main__":
                 train_datasets = []                    
                 visited_data_files = set([])
                 metricses = {}
+                zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    train_data_loader                                            = create_dataloaders(
-                                                                                                          zip_filename,
-                                                                                                          train_datasets, 
-                                                                                                          type = 'train',
-                                                                                                          device=device,
-                                                                                                          batch_size=minibatch_size,
-                                                                                                          n_cpu = n_cpu,
-                                                                                                          visited_data_files=visited_data_files
-                                                                                                      )
+                    for zip_filename in zip_filenames:
+                        train_data_loader                                            = create_dataloaders(
+                                                                                                            zip_filename,
+                                                                                                            train_datasets, 
+                                                                                                            type = 'train',
+                                                                                                            device=device,
+                                                                                                            batch_size=minibatch_size,
+                                                                                                            n_cpu = n_cpu,
+                                                                                                            visited_data_files=visited_data_files
+                                                                                                        )
                     # train_data_loader = CustomDataLoader(
                     #                                         zip_filename, 
                     #                                         device, 
