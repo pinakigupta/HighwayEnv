@@ -138,14 +138,14 @@ if __name__ == "__main__":
             policy = None
             env = make_configure_env(**env_kwargs)
             if policy:
-                # oracle_agent                            = retrieve_agent(
-                #                                                             artifact_version='trained_model_directory:latest',
-                #                                                             agent_model = 'agent_final.pt',
-                #                                                             device=device,
-                #                                                             project=project
-                #                                                         )
+                policy                            = retrieve_agent(
+                                                        artifact_version='trained_model_directory:latest',
+                                                        agent_model = 'agent_final.pth',
+                                                        device=device,
+                                                        project=project
+                                                        )
                 # policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs), device, **policy_kwargs)
-                policy = RandomPolicy(env=env, device=device, **policy_kwargs)
+                # policy = RandomPolicy(env=env, device=device, **policy_kwargs)
                 # policy.load_state_dict(oracle_agent.state_dict())
                 policy.eval()
                 print('EXPERT_DATA_COLLECTION using PREVIOUS POLICY for exploration')
@@ -157,7 +157,7 @@ if __name__ == "__main__":
                                     policy,
                                     extract_path = extract_path,
                                     zip_filename=zip_filename,
-                                    delta_iterations = 37,
+                                    delta_iterations = 7,
                                     **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                 )
             print(" finished collecting data for ALL THE files ")
@@ -169,7 +169,7 @@ if __name__ == "__main__":
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
             bc_policy =                                        retrieve_agent(
-                                                                                artifact_version='trained_model_directory:latest',
+                                                                                artifact_version='trained_model_directory:v66',
                                                                                 agent_model = 'agent_final.pth',
                                                                                 device=device,
                                                                                 project=project_names[TrainEnum.BC.value]
@@ -302,6 +302,8 @@ if __name__ == "__main__":
                                         }           
                                 )
         elif train == TrainEnum.BC:
+            import matplotlib
+            matplotlib.use('Agg')
             # append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             # env = make_configure_env(**env_kwargs)
             # env=env.unwrapped
@@ -402,7 +404,7 @@ if __name__ == "__main__":
                                                 policy, # This is the exploration policy
                                                 extract_path = extract_path,
                                                 zip_filename=zip_filename,
-                                                delta_iterations = 1,
+                                                delta_iterations = 10,
                                                 **{
                                                     **env_kwargs, 
                                                     **{'expert':'MDPVehicle'}
@@ -463,8 +465,6 @@ if __name__ == "__main__":
                                                                     minibatch_size=minibatch_size
                                                                 )
             final_policy = bc_trainer.policy
-            val_device = torch.device('cpu')
-            final_policy.to(val_device)
             final_policy.eval()
             if True:
                 print('Saving final model')
@@ -479,13 +479,14 @@ if __name__ == "__main__":
 
             print('Beginnig final validation step')
             validation(
-                        final_policy,
-                        device, 
-                        project, 
-                        zip_filename, 
-                        batch_size, 
-                        minibatch_size, 
-                        n_cpu
+                        policy = final_policy,
+                        device = device, 
+                        project = project, 
+                        zip_filename = zip_filename, 
+                        batch_size = batch_size, 
+                        minibatch_size = minibatch_size, 
+                        n_cpu = n_cpu,
+                        visited_data_files = set([])
                         )
             # train_datasets =[]
             # data_loader              = CustomDataLoader(
@@ -690,11 +691,12 @@ if __name__ == "__main__":
                             policy = policy,
                             device = device, 
                             project = project, 
-                            zip_filename = zip_filename, 
+                            zip_filenames = zip_filename, 
                             batch_size = batch_size, 
                             minibatch_size = minibatch_size, 
                             n_cpu = n_cpu,
-                            visited_data_files = set([])
+                            visited_data_files = set([]),
+                            val_batch_count = 1250
                           )
                 # type = 'train'
                 # train_data_loader = CustomDataLoader(

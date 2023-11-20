@@ -2,6 +2,8 @@ from copy import deepcopy as dcp
 import torch.nn as nn
 from torch import multiprocessing
 import os, shutil
+from contextlib import redirect_stdout
+import io
 os.environ["HDF5_USE_THREADING"] = "true"
 import h5py
 import sys
@@ -330,34 +332,56 @@ class DownSamplingSampler(SubsetRandomSampler):
     def __len__(self):
         return len(self.indices)
 
+def process_zip_file(args, zip_filename = None, device = None, lock=None):
+    train_data_file, visited_data_files = args
+    visited_filepath = zip_filename + train_data_file
+    new_key = 'acts'
+    old_key = 'act'
+    modified_dataset = []
+
+    # Acquire the manager lock before checking and updating the set
+    with lock:
+        if visited_filepath in visited_data_files:
+            # The file has already been processed by another worker, skip it
+            return modified_dataset
+        visited_data_files.add(visited_filepath)
+
+    with zipfile.ZipFile(zip_filename, 'r') as zipf, zipf.open(train_data_file) as file_in_zip:
+        print(f"Processing the data file {train_data_file}")
+        
+        samples = CustomDataset(file_in_zip, device, keys_attributes=['obs', 'act'])
+        for i in range(len(samples)):
+            my_dict = samples[i]
+            if old_key in my_dict and new_key not in my_dict:
+                my_dict[new_key] = my_dict.pop(old_key)
+            modified_dataset.append(my_dict)
+        return modified_dataset
+
+        
 def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, **kwargs):
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
-        print(" File handle for the zip file opened ")
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name] 
-        for train_data_file in hdf5_train_file_names:
-            visited_filepath = zip_filename + train_data_file
-            if visited_filepath not in visited_data_files:
-                visited_data_files.add(visited_filepath)
-                with zipf.open(train_data_file) as file_in_zip:
-                    print(f"Opening the data file {train_data_file}")
-                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])
-                    print(f"Loaded custom data set for {train_data_file}")
-                    new_key = 'acts'
-                    old_key = 'act'
-                    modified_dataset = []
-                    for i in range(len(samples)):
-                        my_dict = samples[i]
-                        if old_key in my_dict and new_key not in my_dict:
-                            my_dict[new_key] = my_dict.pop(old_key)
-                        modified_dataset.append(my_dict)
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
 
-                    # print('modified_dataset', modified_dataset)
+    # Create a pool of worker processes
+    num_workers = 10
+    with redirect_stdout(io.StringIO()): 
+            # Create a manager to create a lock that can be shared among processes
+        manager = multiprocessing.Manager()
+        # Create a lock using the manager
+        lock = manager.Lock()
+        pool =  multiprocessing.Pool(processes=num_workers)
+        wrapped_function = functools.partial(process_zip_file, lock=lock, zip_filename = zip_filename, device = device)
+        args_list = [(train_data_file,  visited_data_files) for train_data_file in hdf5_train_file_names]
+        # Use map to distribute the work among processes
+        # modified_datasets = pool.map(process_zip_file, args_list)
+        result = pool.map_async(wrapped_function, args_list)
+        modified_datasets = result.get()
+        pool.close()
 
-                    train_datasets.append(modified_dataset)
-                    print(f"Dataset appended for  {train_data_file}")
-
-    print("DATA loader scanned all files")
+    # Combine the results into the train_datasets list
+    train_datasets.extend(modified_datasets)
+    print("All datasets appended.")
 
     # shutil.rmtree(extract_path)
 
@@ -403,7 +427,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     train_data_loader = DataLoader(
                                         shuffled_combined_train_dataset, 
                                         batch_size=kwargs['batch_size'], 
-                                        # shuffle=True,
+                                        shuffle=True,
                                         # sampler=sampler,
                                         drop_last=True,
                                         num_workers=kwargs['n_cpu'],
@@ -1068,14 +1092,14 @@ def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
         print('Plotting done')
     return normalized_counts
 
-def validation(policy, device, project, zip_filename, batch_size, minibatch_size, n_cpu ,visited_data_files):
+def validation(policy, device, project, zip_filenames, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500):
 
+    zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
     val_device = torch.device('cpu')
     policy.to(val_device)
     policy.eval()
     type = 'val'
     with torch.no_grad():
-        val_batch_count = 2500
         # val_data_loader                                             =  CustomDataLoader(
         #                                                                                 zip_filename, 
         #                                                                                 device=val_device,
@@ -1087,16 +1111,17 @@ def validation(policy, device, project, zip_filename, batch_size, minibatch_size
         #                                                                                 plot_path=None,
         #                                                                                 visited_data_files = set([])
         #                                                                             ) 
-        
-        val_data_loader =                                                       create_dataloaders(
-                                                                                                    zip_filename,
-                                                                                                    train_datasets = [], 
-                                                                                                    type = type,
-                                                                                                    device=device,
-                                                                                                    batch_size=minibatch_size,
-                                                                                                    n_cpu = n_cpu,
-                                                                                                    visited_data_files= visited_data_files 
-                                                                                                )
+        train_datasets = []
+        for zip_filename in zip_filenames:
+            val_data_loader =                                                       create_dataloaders(
+                                                                                                        zip_filename,
+                                                                                                        train_datasets = train_datasets, 
+                                                                                                        type = type,
+                                                                                                        device=device,
+                                                                                                        batch_size=minibatch_size,
+                                                                                                        n_cpu = n_cpu,
+                                                                                                        visited_data_files= visited_data_files 
+                                                                                                    )
         metrics                      = calculate_validation_metrics(
                                                                         val_data_loader,
                                                                         policy, 
