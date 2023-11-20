@@ -691,7 +691,7 @@ if __name__ == "__main__":
                             policy = policy,
                             device = device, 
                             project = project, 
-                            zip_filename = zip_filename, 
+                            zip_filenames = zip_filename, 
                             batch_size = batch_size, 
                             minibatch_size = minibatch_size, 
                             n_cpu = n_cpu,

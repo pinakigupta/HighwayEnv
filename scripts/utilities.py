@@ -1092,8 +1092,9 @@ def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
         print('Plotting done')
     return normalized_counts
 
-def validation(policy, device, project, zip_filename, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500):
+def validation(policy, device, project, zip_filenames, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500):
 
+    zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
     val_device = torch.device('cpu')
     policy.to(val_device)
     policy.eval()
@@ -1110,16 +1111,17 @@ def validation(policy, device, project, zip_filename, batch_size, minibatch_size
         #                                                                                 plot_path=None,
         #                                                                                 visited_data_files = set([])
         #                                                                             ) 
-        
-        val_data_loader =                                                       create_dataloaders(
-                                                                                                    zip_filename,
-                                                                                                    train_datasets = [], 
-                                                                                                    type = type,
-                                                                                                    device=device,
-                                                                                                    batch_size=minibatch_size,
-                                                                                                    n_cpu = n_cpu,
-                                                                                                    visited_data_files= visited_data_files 
-                                                                                                )
+        train_datasets = []
+        for zip_filename in zip_filenames:
+            val_data_loader =                                                       create_dataloaders(
+                                                                                                        zip_filename,
+                                                                                                        train_datasets = train_datasets, 
+                                                                                                        type = type,
+                                                                                                        device=device,
+                                                                                                        batch_size=minibatch_size,
+                                                                                                        n_cpu = n_cpu,
+                                                                                                        visited_data_files= visited_data_files 
+                                                                                                    )
         metrics                      = calculate_validation_metrics(
                                                                         val_data_loader,
                                                                         policy, 
