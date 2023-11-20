@@ -332,8 +332,7 @@ class DownSamplingSampler(SubsetRandomSampler):
     def __len__(self):
         return len(self.indices)
 
-def process_zip_file(args, zip_filename = None, device = None, lock=None):
-    train_data_file, visited_data_files = args
+def process_zip_file(result_queue, train_data_file, visited_data_files, zip_filename, device, lock):
     visited_filepath = zip_filename + train_data_file
     new_key = 'acts'
     old_key = 'act'
@@ -355,7 +354,8 @@ def process_zip_file(args, zip_filename = None, device = None, lock=None):
             if old_key in my_dict and new_key not in my_dict:
                 my_dict[new_key] = my_dict.pop(old_key)
             modified_dataset.append(my_dict)
-        return modified_dataset
+        # return modified_dataset
+    result_queue.put(modified_dataset)
 
         
 def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, **kwargs):
@@ -367,20 +367,31 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     num_workers = 10
     with redirect_stdout(io.StringIO()): 
             # Create a manager to create a lock that can be shared among processes
-        manager = multiprocessing.Manager()
+        with multiprocessing.Manager() as manager:
         # Create a lock using the manager
-        lock = manager.Lock()
-        pool =  multiprocessing.Pool(processes=num_workers)
-        wrapped_function = functools.partial(process_zip_file, lock=lock, zip_filename = zip_filename, device = device)
-        args_list = [(train_data_file,  visited_data_files) for train_data_file in hdf5_train_file_names]
-        # Use map to distribute the work among processes
-        # modified_datasets = pool.map(process_zip_file, args_list)
-        result = pool.map_async(wrapped_function, args_list)
-        modified_datasets = result.get()
-        pool.close()
+            lock = manager.Lock()
+            result_queue = manager.Queue()
+            processes = []
+
+            for train_data_file in hdf5_train_file_names:
+                # Create a new process for each file
+                p = multiprocessing.Process(target=process_zip_file, args=(result_queue, train_data_file, visited_data_files, zip_filename, device, lock))
+                p.start()
+                processes.append(p)
+
+            # Wait for all processes to finish
+            for p in processes:
+                p.join()
+
+            # Retrieve results from the queue
+            while not result_queue.empty():
+                modified_dataset = result_queue.get()
+                if modified_dataset:
+                    train_datasets.extend(modified_dataset)
+
 
     # Combine the results into the train_datasets list
-    train_datasets.extend(modified_datasets)
+    # train_datasets.extend(modified_datasets)
     print("All datasets appended.")
 
     # shutil.rmtree(extract_path)
