@@ -152,14 +152,14 @@ if __name__ == "__main__":
             else:
                 print('EXPERT_DATA_COLLECTION using IDM+MOBIL for exploration')
             
-            
-            expert_data_collector(  
-                                    policy,
-                                    extract_path = extract_path,
-                                    zip_filename=zip_filename,
-                                    delta_iterations = 7,
-                                    **{**env_kwargs, **{'expert':'MDPVehicle'}}           
-                                )
+            with torch.no_grad():
+                expert_data_collector(  
+                                        policy,
+                                        extract_path = extract_path,
+                                        zip_filename=zip_filename,
+                                        delta_iterations = 3,
+                                        **{**env_kwargs, **{'expert':'MDPVehicle'}}           
+                                    )
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
@@ -314,7 +314,7 @@ if __name__ == "__main__":
             env = make_configure_env(**env_kwargs)
             # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
-            if True:
+            if False:
                 policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             else:
                 policy =                    retrieve_agent(
@@ -476,16 +476,17 @@ if __name__ == "__main__":
                 print('Saved final model')
 
             print('Beginnig final validation step')
-            validation(
-                        policy = final_policy,
-                        device = device, 
-                        project = project, 
-                        zip_filename = zip_filename, 
-                        batch_size = batch_size, 
-                        minibatch_size = minibatch_size, 
-                        n_cpu = n_cpu,
-                        visited_data_files = set([])
-                        )
+            if False:
+                validation(
+                            policy = final_policy,
+                            device = device, 
+                            project = project, 
+                            zip_filenames = zip_filename, 
+                            batch_size = batch_size, 
+                            minibatch_size = minibatch_size, 
+                            n_cpu = n_cpu,
+                            visited_data_files = set([])
+                            )
             # train_datasets =[]
             # data_loader              = CustomDataLoader(
             #                                                 zip_filename, 
@@ -694,7 +695,7 @@ if __name__ == "__main__":
                             minibatch_size = minibatch_size, 
                             n_cpu = n_cpu,
                             visited_data_files = set([]),
-                            val_batch_count = 1250
+                            val_batch_count = 1000
                           )
                 # type = 'train'
                 # train_data_loader = CustomDataLoader(
