@@ -135,7 +135,7 @@ class SquashObservationsWrapper(gym.Wrapper):
         # if self.policy and self.expert_policy:
         #     with torch.no_grad():
         # self.custom_obs = custom_obs
-        custom_reward = reward - 0.1*self.expert_divergence
+        custom_reward = reward + self.config['kl_divergence_reward']*self.expert_divergence
         self.custom_reward = custom_reward
         return custom_obs, custom_reward, done, truncated, info
     

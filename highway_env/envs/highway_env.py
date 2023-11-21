@@ -86,7 +86,7 @@ class HighwayEnv(AbstractEnv):
         other_per_controlled = near_split(self.config["vehicles_count"], num_bins=self.config["controlled_vehicles"])
 
         self.controlled_vehicles = []
-        speed = self.np_random.uniform(low=20, high=30)
+        speed = self.np_random.uniform(low=0, high=30)
         for others in other_per_controlled:
             vehicle = Vehicle.create_random(
                 self.road,
