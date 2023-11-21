@@ -35,6 +35,7 @@ from torchvision import transforms
 import random
 import math
 import functools
+from collections import defaultdict, Counter
 from gymnasium.spaces import Space as Space
 
 from highway_env.envs.common.action import DiscreteMetaAction
@@ -357,42 +358,65 @@ def process_zip_file(result_queue, train_data_file, visited_data_files, zip_file
         # return modified_dataset
     result_queue.put(modified_dataset)
 
+def create_balanced_subset(dataset, shuffled_indices, alpha = 2.1):
+    class_distribution = Counter(sample['acts'].item() for sample in dataset)
+    class_counts = defaultdict(int)
+
+    # Calculate min_samples_per_class as the actual minimum count in the dataset
+    min_samples_per_class = int(min(class_distribution.values()))
+
+    # Calculate max_samples_per_class based on min_samples_per_class and alpha
+    max_samples_per_class = int(min_samples_per_class * alpha)
+
+    balanced_indices = []
+
+    for index in shuffled_indices:
+        _, label = dataset[index]  # Assuming dataset[index] returns a tuple (data, label)
         
-def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, **kwargs):
+        if class_counts[label] < max_samples_per_class:
+            balanced_indices.append(index)
+            class_counts[label] += 1
+
+    # Create the Subset
+    balanced_subset = Subset(dataset, balanced_indices)
+
+    return balanced_subset
+
+
+        
+def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, load_data = True, **kwargs):
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5') and kwargs['type'] in file_name]
+        print(f" File handle for the zip file {zip_filename} opened ")
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name] 
+        for train_data_file in hdf5_train_file_names:
+            visited_filepath = zip_filename + train_data_file
+            if visited_filepath not in visited_data_files:
+                visited_data_files.add(visited_filepath)
+                with zipf.open(train_data_file) as file_in_zip:
+                    print(f"Opening the data file {train_data_file}")
+                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])
+                    print(f"Loaded custom data set for {train_data_file}")
+                    new_key = 'acts'
+                    old_key = 'act'
+                    modified_dataset = []
+                    for i in range(len(samples)):
+                        my_dict = samples[i]
+                        if old_key in my_dict and new_key not in my_dict:
+                            my_dict[new_key] = my_dict.pop(old_key)
+                        modified_dataset.append(my_dict)
 
-    # Create a pool of worker processes
-    num_workers = 10
-    with redirect_stdout(io.StringIO()): 
-            # Create a manager to create a lock that can be shared among processes
-        with multiprocessing.Manager() as manager:
-        # Create a lock using the manager
-            lock = manager.Lock()
-            result_queue = manager.Queue()
-            processes = []
+                    # print('modified_dataset', modified_dataset)
 
-            for train_data_file in hdf5_train_file_names:
-                # Create a new process for each file
-                p = multiprocessing.Process(target=process_zip_file, args=(result_queue, train_data_file, visited_data_files, zip_filename, device, lock))
-                p.start()
-                processes.append(p)
-
-            # Wait for all processes to finish
-            for p in processes:
-                p.join()
-
-            # Retrieve results from the queue
-            while not result_queue.empty():
-                modified_dataset = result_queue.get()
-                if modified_dataset:
-                    train_datasets.extend(modified_dataset)
+                    train_datasets.append(modified_dataset)
+                    print(f"Dataset appended for  {train_data_file}")
 
 
     # Combine the results into the train_datasets list
     # train_datasets.extend(modified_datasets)
     print("All datasets appended.")
+    if not load_data:
+        return
 
     # shutil.rmtree(extract_path)
 
@@ -418,7 +442,8 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     np.random.shuffle(shuffled_indices)
 
     # Create a shuffled version of the combined dataset using Subset
-    shuffled_combined_train_dataset = Subset(combined_train_dataset, shuffled_indices)
+    # shuffled_combined_train_dataset = Subset(combined_train_dataset, shuffled_indices)
+    shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices)
 
     # Calculate the class frequencies
     # all_actions = [sample['acts'] for sample in combined_train_dataset]

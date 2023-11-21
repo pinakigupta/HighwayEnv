@@ -359,7 +359,7 @@ if __name__ == "__main__":
                 zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    for zip_filename in zip_filenames:
+                    for index, zip_filename in enumerate(zip_filenames):
                         train_data_loader                                            = create_dataloaders(
                                                                                                             zip_filename,
                                                                                                             train_datasets, 
@@ -367,7 +367,8 @@ if __name__ == "__main__":
                                                                                                             device=device,
                                                                                                             batch_size=minibatch_size,
                                                                                                             n_cpu = n_cpu,
-                                                                                                            visited_data_files=visited_data_files
+                                                                                                            visited_data_files=visited_data_files,
+                                                                                                            load_data = (index == len(zip_filenames) - 1)
                                                                                                         )
                     # train_data_loader = CustomDataLoader(
                     #                                         zip_filename, 
