@@ -302,6 +302,8 @@ if __name__ == "__main__":
                                         }           
                                 )
         elif train == TrainEnum.BC:
+            import matplotlib
+            matplotlib.use('Agg')
             # append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             # env = make_configure_env(**env_kwargs)
             # env=env.unwrapped
