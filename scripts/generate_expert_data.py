@@ -124,6 +124,9 @@ def worker(
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
         # print("all_obs. worker ",worker_id," : ", len(all_obs[env.vehicle]), len(all_acts[env.vehicle]), len(all_done[env.vehicle]))
+            # end_time = time.time()
+            # frequency = 1/(end_time-start_time)
+            # time.sleep(max(1/env_kwargs['config']['simulation_frequency']-1/frequency, 0.0))
         
         # Update progress value
         if lock.acquire(timeout=1):
@@ -139,9 +142,6 @@ def worker(
             time.sleep(0.25)
         # episode_rewards.append(np.sum(ep_rwds))
         # time.sleep(0.001)
-        end_time = time.time()
-        frequency = 1/(end_time-start_time)
-        # time.sleep(max(1/env_kwargs['config']['simulation_frequency']-1/frequency, 0.0))
         # print(f"Execution frequency is {frequency}")
 
 def collect_expert_data(

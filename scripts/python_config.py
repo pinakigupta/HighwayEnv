@@ -129,8 +129,12 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.RLTRAIN
-zip_filename = 'expert_data_2_Hz.zip'
+train = TrainEnum.VALIDATION
+zip_filename = [
+                    # 'temp_10.zip', 
+                    # 'temp_11.zip', 
+                    'temp_12.zip'
+                ]
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

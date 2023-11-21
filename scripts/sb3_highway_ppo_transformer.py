@@ -116,8 +116,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
 
     n_cpu =  mp.cpu_count()
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # device = torch.device('cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -138,28 +138,28 @@ if __name__ == "__main__":
             policy = None
             env = make_configure_env(**env_kwargs)
             if policy:
-                # oracle_agent                            = retrieve_agent(
-                #                                                             artifact_version='trained_model_directory:latest',
-                #                                                             agent_model = 'agent_final.pt',
-                #                                                             device=device,
-                #                                                             project=project
-                #                                                         )
+                policy                            = retrieve_agent(
+                                                        artifact_version='trained_model_directory:latest',
+                                                        agent_model = 'agent_final.pth',
+                                                        device=device,
+                                                        project=project
+                                                        )
                 # policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs), device, **policy_kwargs)
-                policy = RandomPolicy(env=env, device=device, **policy_kwargs)
+                # policy = RandomPolicy(env=env, device=device, **policy_kwargs)
                 # policy.load_state_dict(oracle_agent.state_dict())
                 policy.eval()
                 print('EXPERT_DATA_COLLECTION using PREVIOUS POLICY for exploration')
             else:
                 print('EXPERT_DATA_COLLECTION using IDM+MOBIL for exploration')
             
-            
-            expert_data_collector(  
-                                    policy,
-                                    extract_path = extract_path,
-                                    zip_filename=zip_filename,
-                                    delta_iterations = 37,
-                                    **{**env_kwargs, **{'expert':'MDPVehicle'}}           
-                                )
+            with torch.no_grad():
+                expert_data_collector(  
+                                        policy,
+                                        extract_path = extract_path,
+                                        zip_filename=zip_filename,
+                                        delta_iterations = 3,
+                                        **{**env_kwargs, **{'expert':'MDPVehicle'}}           
+                                    )
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
@@ -169,7 +169,7 @@ if __name__ == "__main__":
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
             bc_policy =                                        retrieve_agent(
-                                                                                artifact_version='trained_model_directory:latest',
+                                                                                artifact_version='trained_model_directory:v66',
                                                                                 agent_model = 'agent_final.pth',
                                                                                 device=device,
                                                                                 project=project_names[TrainEnum.BC.value]
@@ -202,7 +202,7 @@ if __name__ == "__main__":
                                 ent_coef = 0.05,
                                 # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
-                                # device="cpu",
+                                device=device,
                                 verbose=1,
                                 # learning_rate = 3e-3
                             )
@@ -307,6 +307,8 @@ if __name__ == "__main__":
                                         }           
                                 )
         elif train == TrainEnum.BC:
+            import matplotlib
+            matplotlib.use('Agg')
             # append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             # env = make_configure_env(**env_kwargs)
             # env=env.unwrapped
@@ -319,7 +321,7 @@ if __name__ == "__main__":
             env = make_configure_env(**env_kwargs)
             # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
-            if True:
+            if False:
                 policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             else:
                 policy =                    retrieve_agent(
@@ -349,7 +351,7 @@ if __name__ == "__main__":
                                     )        
         
 
-            def _train(env, policy, zip_filename, extract_path, device=device, **training_kwargs):
+            def _train(env, policy, zip_filenames, extract_path, device=device, **training_kwargs):
                 num_epochs = training_kwargs['num_epochs'] # These are dagger epochs
                 checkpoint_interval = num_epochs//2
                 append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
@@ -359,17 +361,19 @@ if __name__ == "__main__":
                 train_datasets = []                    
                 visited_data_files = set([])
                 metricses = {}
+                zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    train_data_loader                                            = create_dataloaders(
-                                                                                                          zip_filename,
-                                                                                                          train_datasets, 
-                                                                                                          type = 'train',
-                                                                                                          device=device,
-                                                                                                          batch_size=minibatch_size,
-                                                                                                          n_cpu = n_cpu,
-                                                                                                          visited_data_files=visited_data_files
-                                                                                                      )
+                    for zip_filename in zip_filenames:
+                        train_data_loader                                            = create_dataloaders(
+                                                                                                            zip_filename,
+                                                                                                            train_datasets, 
+                                                                                                            type = 'train',
+                                                                                                            device=device,
+                                                                                                            batch_size=minibatch_size,
+                                                                                                            n_cpu = n_cpu,
+                                                                                                            visited_data_files=visited_data_files
+                                                                                                        )
                     # train_data_loader = CustomDataLoader(
                     #                                         zip_filename, 
                     #                                         device, 
@@ -405,7 +409,7 @@ if __name__ == "__main__":
                                                 policy, # This is the exploration policy
                                                 extract_path = extract_path,
                                                 zip_filename=zip_filename,
-                                                delta_iterations = 1,
+                                                delta_iterations = 10,
                                                 **{
                                                     **env_kwargs, 
                                                     **{'expert':'MDPVehicle'}
@@ -466,8 +470,6 @@ if __name__ == "__main__":
                                                                     minibatch_size=minibatch_size
                                                                 )
             final_policy = bc_trainer.policy
-            val_device = torch.device('cpu')
-            final_policy.to(val_device)
             final_policy.eval()
             if True:
                 print('Saving final model')
@@ -481,15 +483,17 @@ if __name__ == "__main__":
                 print('Saved final model')
 
             print('Beginnig final validation step')
-            validation(
-                        final_policy,
-                        device, 
-                        project, 
-                        zip_filename, 
-                        batch_size, 
-                        minibatch_size, 
-                        n_cpu
-                        )
+            if False:
+                validation(
+                            policy = final_policy,
+                            device = device, 
+                            project = project, 
+                            zip_filenames = zip_filename, 
+                            batch_size = batch_size, 
+                            minibatch_size = minibatch_size, 
+                            n_cpu = n_cpu,
+                            visited_data_files = set([])
+                            )
             # train_datasets =[]
             # data_loader              = CustomDataLoader(
             #                                                 zip_filename, 
@@ -693,11 +697,12 @@ if __name__ == "__main__":
                             policy = policy,
                             device = device, 
                             project = project, 
-                            zip_filename = zip_filename, 
+                            zip_filenames = zip_filename, 
                             batch_size = batch_size, 
                             minibatch_size = minibatch_size, 
                             n_cpu = n_cpu,
-                            visited_data_files = set([])
+                            visited_data_files = set([]),
+                            val_batch_count = 1000
                           )
                 # type = 'train'
                 # train_data_loader = CustomDataLoader(

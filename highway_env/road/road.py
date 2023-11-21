@@ -310,6 +310,7 @@ class Road(object):
         self.vehicles = vehicles or []
         self.objects = road_objects or []
         self.np_random = np_random if np_random else np.random.RandomState()
+        # print(f'self.np_random seed {hash(tuple(self.np_random.bit_generator.state["state"].values()))}')
         self.record_history = record_history
         self.config = kwargs
 
