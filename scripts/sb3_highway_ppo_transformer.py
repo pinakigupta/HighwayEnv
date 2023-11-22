@@ -178,6 +178,7 @@ if __name__ == "__main__":
             bc_policy.features_extractor.obs_extractor.extractor.embedding.dropout_factor = 0.0 
             bc_policy.features_extractor.obs_extractor.extractor.attention_layer.dropout_factor = 0.0
             policy = copy.deepcopy(bc_policy)
+            policy.share_features_extractor = False
             bc_policy.eval()
             # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
             # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)

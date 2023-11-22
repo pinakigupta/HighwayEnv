@@ -129,7 +129,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.VALIDATION
+train = TrainEnum.RLTRAIN
 zip_filename = [
                     # 'temp_10.zip', 
                     # 'temp_11.zip', 
