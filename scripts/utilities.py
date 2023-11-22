@@ -443,7 +443,7 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
 
     # Create a shuffled version of the combined dataset using Subset
     # shuffled_combined_train_dataset = Subset(combined_train_dataset, shuffled_indices)
-    shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices)
+    shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices) if (kwargs['type']=='train') else Subset(combined_train_dataset, shuffled_indices)
 
     # Calculate the class frequencies
     # all_actions = [sample['acts'] for sample in combined_train_dataset]
