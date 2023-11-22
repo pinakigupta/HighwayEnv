@@ -68,7 +68,7 @@ class CustomCurriculamCallback(BaseCallback):
         # ep_rew = self.training_env.env_method("get_ep_reward")
         # ep_rew_mean = statistics.mean(ep_rew)
         print("Mean episode ep_rew_mean:", self.average_reward)
-        if self.average_reward > 0.5:
+        if self.average_reward > 0.0:
             config = self.training_env.env_method("get_config")[0]
             config['duration'] += 5
             config['max_vehicles_count'] = int(1.05 *  config['max_vehicles_count'])
@@ -78,12 +78,26 @@ class CustomCurriculamCallback(BaseCallback):
         # Clear the episode_rewards list for the next epoch
         return True
 
+class EntropyScheduleCallback(BaseCallback):
+    def __init__(self, initial_entropy_coef, final_entropy_coef, total_timesteps):
+        super(EntropyScheduleCallback, self).__init__()
+        self.initial_entropy_coef = initial_entropy_coef
+        self.final_entropy_coef = final_entropy_coef
+        self.total_timesteps = total_timesteps
 
+    def _on_step(self) -> bool:
+        if self.num_timesteps < self.total_timesteps:
+            ratio = self.num_timesteps / self.total_timesteps
+            new_entropy_coef = self.initial_entropy_coef - ratio * (self.initial_entropy_coef - self.final_entropy_coef)
+            self.model.policy.entropy_coef = new_entropy_coef
+        return True
+    
+    
 class KLDivergenceCallback(BaseCallback):
-    def __init__(self, expert_policy, kl_coefficient, verbose=0):
+    def __init__(self, expert_policy, verbose=0):
         super(KLDivergenceCallback, self).__init__(verbose)
         self.expert_policy = expert_policy
-        self.kl_coefficient = kl_coefficient
+        # self.kl_coefficient = kl_coefficient
 
     def _on_step(self) -> bool:
         # Access the PPO policy from the model
