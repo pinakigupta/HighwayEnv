@@ -530,7 +530,7 @@ if __name__ == "__main__":
             final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY or train == TrainEnum.RLDEPLOY or train == TrainEnum.IRLDEPLOY:
             env_kwargs.update({'render_mode': 'human'})
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',75)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             # append_key_to_dict_of_dict(env_kwargs,'config','lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
@@ -540,7 +540,7 @@ if __name__ == "__main__":
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
             env = make_configure_env(**env_kwargs)
-            env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos/{project}')
+            # env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos/{project}')
             # BC_agent                            = retrieve_agent(
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',
