@@ -58,8 +58,8 @@ class HighwayEnv(AbstractEnv):
     def __init__(self, config: dict = None, render_mode: Optional[str] = None, **kwargs) -> None:
         super().__init__(config, render_mode)
         for vehicle in self.road.vehicles:
-                    if vehicle not in self.controlled_vehicles:
-                        vehicle.check_collisions = False
+            if vehicle not in self.controlled_vehicles:
+                vehicle.check_collisions = False
 
     def _reset(self) -> None:
         self._create_road()
@@ -86,7 +86,7 @@ class HighwayEnv(AbstractEnv):
         other_per_controlled = near_split(self.config["vehicles_count"], num_bins=self.config["controlled_vehicles"])
 
         self.controlled_vehicles = []
-        speed = self.np_random.uniform(low=20, high=30)
+        speed = self.np_random.uniform(low=10, high=30)
         for others in other_per_controlled:
             vehicle = Vehicle.create_random(
                 self.road,

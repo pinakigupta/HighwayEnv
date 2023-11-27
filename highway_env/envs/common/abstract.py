@@ -199,6 +199,7 @@ class AbstractEnv(gym.Env):
         :return: the observation of the reset state
         """
         super().reset(seed=seed, options=options)
+        self.np_random,seed_value  = seeding.np_random(seed=seed)
         if options and "config" in options:
             self.configure(options["config"])
         self.update_metadata()
