@@ -29,7 +29,6 @@ import warnings
 from imitation.algorithms import bc
 from python_config import *
 import matplotlib.pyplot as plt
-from imitation.algorithms import bc
 import importlib
 import pandas as pd
 import tracemalloc
@@ -85,12 +84,14 @@ if __name__ == "__main__":
         features_extractor_kwargs=attention_network_kwargs
 
         if features_extractor_class is  CombinedFeatureExtractor:
+            temp_env = make_configure_env(**env_kwargs)
+            temp_env = temp_env.env
             action_extractor_kwargs = dict(
             action_extractor_kwargs = {
                                 "feature_size": 4, 
                                 "dropout_factor": 0.95, # probability of an element to be zeroed.
-                                "obs_space": make_configure_env(**env_kwargs).env.observation_space,
-                                "act_space": make_configure_env(**env_kwargs).env.action_space
+                                "obs_space": temp_env.observation_space,
+                                "act_space": temp_env.action_space
                            })
             features_extractor_kwargs = {**features_extractor_kwargs, **action_extractor_kwargs}
         policy_kwargs = dict(
@@ -530,7 +531,7 @@ if __name__ == "__main__":
             final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY or train == TrainEnum.RLDEPLOY or train == TrainEnum.IRLDEPLOY:
             env_kwargs.update({'render_mode': 'human'})
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',75)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             # append_key_to_dict_of_dict(env_kwargs,'config','lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
@@ -540,7 +541,7 @@ if __name__ == "__main__":
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
             env = make_configure_env(**env_kwargs)
-            env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos/{project}')
+            # env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos/{project}')
             # BC_agent                            = retrieve_agent(
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',
