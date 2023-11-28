@@ -29,7 +29,7 @@ env_kwargs = {
                 'planning_heuristic': False,
             },
             **{
-                "collision_reward": -10.0,    # The reward received when colliding with a vehicle.
+                "collision_reward": -1.0,    # The reward received when colliding with a vehicle.
                 "right_lane_reward": 0.0,  # The reward received when driving on the right-most lanes, linearly mapped to
                                         # zero for other lanes.
                 "high_speed_reward": 0.0,  # The reward received when driving at full speed, linearly mapped to zero for
@@ -37,8 +37,8 @@ env_kwargs = {
                 "lane_change_reward": 0.0,   # The reward received at each lane change action.
                 "speed_reward_spd" : [5, 10, 15, 20, 25, 30],
                 "speed_reward_rwd" : [-0.5 , -0.5, 0.0, 0.8, 1.0, 1.0],
-                "travel_reward": 10.0,
-                "imitation_reward": 0.0,
+                "travel_reward": 1.0,
+                "imitation_reward": -1.0,
                 "normalize_reward": False,
               },
         'simulation_frequency': 10,
@@ -128,12 +128,24 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.VALIDATION
-zip_filename = [
-                    # 'temp_10.zip', 
-                    # 'temp_11.zip', 
-                    'temp_12.zip'
+train = TrainEnum.BC
+zip_filename = \
+                [
+                    'temp_5.zip',
+                    'temp_7.zip',
+                    'temp_10.zip', 
+                    'temp_11.zip', 
+                    'temp_12.zip', 
+                    'temp_13.zip', 
+                    'temp_14.zip',
+                    'temp_15.zip',
+                    'temp_16.zip',
+                    'CL_temp_17.zip',                     
+                    'temp_18.zip',
+                    'temp_20.zip',
+                    'temp_21.zip'
                 ]
+# zip_filename =    'temp_21.zip' 
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
@@ -141,7 +153,7 @@ attention_network_kwargs = dict(
     # in_size=5*15,
     embedding_layer_kwargs={
                                 "in_size": len(env_kwargs['config']['KinematicObservation']['features']), 
-                                "layer_sizes": [128, 256], 
+                                "layer_sizes": [128, 256, 256], 
                                 "reshape": False,
                                 "activation": 'RELU',
                                 'dropout_factor': 0.2
