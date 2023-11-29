@@ -38,6 +38,8 @@ from scipy.stats import entropy
 from feature_extractors import *
 import threading
 import torch.optim as custom_optimizer
+import tensorflow as tf
+tf.get_logger().setLevel('ERROR')
 warnings.filterwarnings("ignore")
 
 from highway_env.envs.common.action import DiscreteMetaAction

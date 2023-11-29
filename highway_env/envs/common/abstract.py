@@ -198,7 +198,10 @@ class AbstractEnv(gym.Env):
         :param options: Allows the environment configuration to specified through `options["config"]`
         :return: the observation of the reset state
         """
+        seed = seed if seed else np.random.randint(0, 2**32 - 1)
         super().reset(seed=seed, options=options)
+        self.np_random,seed_value  = seeding.np_random(seed=seed)
+        print(f'self.np_random {id(self.np_random)}, {seed}, {seed_value}, {id(self)}')
         if options and "config" in options:
             self.configure(options["config"])
         self.update_metadata()

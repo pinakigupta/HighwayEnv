@@ -133,7 +133,7 @@ train = TrainEnum.RLTRAIN
 zip_filename = [
                     # 'temp_10.zip', 
                     # 'temp_11.zip', 
-                    'temp_12.zip'
+                    'temp_1.zip'
                 ]
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
