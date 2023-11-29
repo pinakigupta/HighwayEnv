@@ -3,6 +3,7 @@ import functools
 import gymnasium as gym
 import seaborn as sns
 from stable_baselines3 import PPO
+from stable_baselines3.common.logger import configure
 import torch
 import copy
 import numpy as np
@@ -344,8 +345,9 @@ if __name__ == "__main__":
             
             metrics_plot_path = "" #f"{extract_path}/metrics.png"
 
-            def create_trainer(obs_space, act_space, policy, device=device, **kwargs):
-                sb_logger = Logger(folder= "/tmp/bc_log/", output_formats=["stdout", "csv", "tensorboard"])
+            def create_trainer( policy, device=device, **kwargs):
+                # sb_logger = Logger(folder= "/tmp/bc_log/", output_formats=["stdout", "csv", "tensorboard"])
+                new_logger = configure("/tmp/bc_log/", ["stdout", "csv", "tensorboard"])
                 return       bc.BC(
                                         observation_space=policy.observation_space,
                                         action_space=policy.action_space,
@@ -357,7 +359,7 @@ if __name__ == "__main__":
                                         l2_weight = 0.0001,
                                         # ent_weight= 0.01,
                                         policy=policy,
-                                        custom_logger=sb_logger
+                                        custom_logger=new_logger
                                     )        
         
 
@@ -366,8 +368,6 @@ if __name__ == "__main__":
                 checkpoint_interval = num_epochs//2
                 append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
                 trainer = create_trainer(
-                                            obs_space, 
-                                            act_space, 
                                             policy, 
                                             batch_size=batch_size, 
                                             minibatch_size=minibatch_size, 
@@ -404,7 +404,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 5600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 1600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
