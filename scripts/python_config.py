@@ -129,12 +129,24 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.RLTRAIN
-zip_filename = [
-                    # 'temp_10.zip', 
-                    # 'temp_11.zip', 
-                    'temp_1.zip'
-                ]
+train = TrainEnum.BC
+# zip_filename = \
+#                 [
+#                     'temp_5.zip',
+#                     'temp_7.zip',
+#                     'temp_10.zip', 
+#                     'temp_11.zip', 
+#                     'temp_12.zip', 
+#                     'temp_13.zip', 
+#                     'temp_14.zip',
+#                     'temp_15.zip',
+#                     'temp_16.zip',
+#                     'CL_temp_17.zip',                     
+#                     'temp_18.zip',
+#                     'temp_20.zip',
+#                     'temp_21.zip'
+#                 ]
+zip_filename =    'temp_21.zip' 
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
@@ -142,7 +154,7 @@ attention_network_kwargs = dict(
     # in_size=5*15,
     embedding_layer_kwargs={
                                 "in_size": len(env_kwargs['config']['KinematicObservation']['features']), 
-                                "layer_sizes": [128, 256], 
+                                "layer_sizes": [128, 256, 256], 
                                 "reshape": False,
                                 "activation": 'RELU',
                                 'dropout_factor': 0.2

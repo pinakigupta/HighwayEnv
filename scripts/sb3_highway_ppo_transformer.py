@@ -27,9 +27,10 @@ from utilities import *
 from utils import record_videos
 import warnings
 from imitation.algorithms import bc
+# from imitation.util import logger as imit_logger
+from stable_baselines3.common.logger import Logger
 from python_config import *
 import matplotlib.pyplot as plt
-from imitation.algorithms import bc
 import importlib
 import pandas as pd
 import tracemalloc
@@ -81,19 +82,25 @@ if __name__ == "__main__":
         stack_size_thread.start()
 
     DAGGER = True
-    
+    obs_space = None
+    act_space = None
     if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
         features_extractor_class=CombinedFeatureExtractor
         features_extractor_kwargs=attention_network_kwargs
 
         if features_extractor_class is  CombinedFeatureExtractor:
+            temp_env = make_configure_env(**env_kwargs)
+            temp_env = temp_env.env
+            obs_space = temp_env.observation_space
+            act_space = temp_env.action_space
             action_extractor_kwargs = dict(
-            action_extractor_kwargs = {
-                                "feature_size": 4, 
-                                "dropout_factor": 0.95, # probability of an element to be zeroed.
-                                "obs_space": make_configure_env(**env_kwargs).env.observation_space,
-                                "act_space": make_configure_env(**env_kwargs).env.action_space
-                           })
+                                            action_extractor_kwargs = {
+                                                                        "feature_size": 4, 
+                                                                        "dropout_factor": 0.95, # probability of an element to be zeroed.
+                                                                        "obs_space": obs_space,
+                                                                        "act_space": act_space
+                                                                    }
+                                         )
             features_extractor_kwargs = {**features_extractor_kwargs, **action_extractor_kwargs}
         policy_kwargs = dict(
                 # policy=MLPPolicy,
@@ -339,10 +346,11 @@ if __name__ == "__main__":
             
             metrics_plot_path = "" #f"{extract_path}/metrics.png"
 
-            def create_trainer(env, policy, device=device, **kwargs):
+            def create_trainer(obs_space, act_space, policy, device=device, **kwargs):
+                sb_logger = Logger(folder= "/tmp/bc_log/", output_formats=["stdout", "csv", "tensorboard"])
                 return       bc.BC(
-                                        observation_space=env.observation_space,
-                                        action_space=env.action_space,
+                                        observation_space=policy.observation_space,
+                                        action_space=policy.action_space,
                                         demonstrations=None, #training_transitions,
                                         rng=np.random.default_rng(),
                                         batch_size=kwargs['batch_size'],
@@ -350,7 +358,8 @@ if __name__ == "__main__":
                                         device = device,
                                         l2_weight = 0.0001,
                                         # ent_weight= 0.01,
-                                        policy=policy
+                                        policy=policy,
+                                        custom_logger=sb_logger
                                     )        
         
 
@@ -358,7 +367,15 @@ if __name__ == "__main__":
                 num_epochs = training_kwargs['num_epochs'] # These are dagger epochs
                 checkpoint_interval = num_epochs//2
                 append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
-                trainer = create_trainer(env, policy, batch_size=batch_size, minibatch_size=minibatch_size, num_epochs=num_epochs, device=device) # Unfotunately needed to instantiate repetitively
+                trainer = create_trainer(
+                                            obs_space, 
+                                            act_space, 
+                                            policy, 
+                                            batch_size=batch_size, 
+                                            minibatch_size=minibatch_size, 
+                                            num_epochs=num_epochs, 
+                                            device=device
+                                        ) # Unfotunately needed to instantiate repetitively
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
                 train_datasets = []                    
@@ -389,7 +406,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 155600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 5600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -475,7 +492,7 @@ if __name__ == "__main__":
                                                                 )
             final_policy = bc_trainer.policy
             final_policy.eval()
-            if True:
+            if False:
                 print('Saving final model')
                 save_checkpoint(
                                     project = project, 
@@ -538,7 +555,7 @@ if __name__ == "__main__":
             final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY or train == TrainEnum.RLDEPLOY or train == TrainEnum.IRLDEPLOY:
             env_kwargs.update({'render_mode': 'human'})
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',125)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',75)
             append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
             # append_key_to_dict_of_dict(env_kwargs,'config','lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
@@ -548,7 +565,7 @@ if __name__ == "__main__":
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
             env = make_configure_env(**env_kwargs)
-            env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos/{project}')
+            # env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos/{project}')
             # BC_agent                            = retrieve_agent(
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',

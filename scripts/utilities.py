@@ -445,6 +445,8 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
     # shuffled_combined_train_dataset = Subset(combined_train_dataset, shuffled_indices)
     shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices) if (kwargs['type']=='train') else Subset(combined_train_dataset, shuffled_indices)
 
+    print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
+    print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//kwargs["batch_size"]}')
     # Calculate the class frequencies
     # all_actions = [sample['acts'] for sample in combined_train_dataset]
     # action_frequencies = np.bincount(all_actions)
@@ -482,7 +484,7 @@ def process_validation_batch(output_queue, input_queue, labels, worker_index,loc
         print(f"Couldn't fetch the validation policy for worker {worker_index}")
         return
     
-    print(f"ID of val policy is {id(local_policy)}")
+    # print(f"ID of val policy is {id(local_policy)}")
     output_samples =[]
     while True:
         if not input_queue.empty():
@@ -617,7 +619,7 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
 
     # Wait for all processes to finish
     for process in processes:
-        print(f'terminating process {process.pid}')
+        # print(f'terminating process {process.pid}')
         process.terminate()
 
                 

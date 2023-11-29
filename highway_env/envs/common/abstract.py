@@ -201,7 +201,7 @@ class AbstractEnv(gym.Env):
         seed = seed if seed else np.random.randint(0, 2**32 - 1)
         super().reset(seed=seed, options=options)
         self.np_random,seed_value  = seeding.np_random(seed=seed)
-        print(f'self.np_random {id(self.np_random)}, {seed}, {seed_value}, {id(self)}')
+        # print(f'self.np_random {id(self.np_random)}, {seed}, {seed_value}, {id(self)}')
         if options and "config" in options:
             self.configure(options["config"])
         self.update_metadata()
