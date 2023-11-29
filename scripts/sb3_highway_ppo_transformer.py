@@ -170,8 +170,8 @@ if __name__ == "__main__":
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 80)
-            total_timesteps=500*1000
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 20)
+            total_timesteps=5000*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
@@ -181,7 +181,11 @@ if __name__ == "__main__":
                                                                                 device=device,
                                                                                 project=project_names[TrainEnum.BC.value]
                                                                              )
-            policy = copy.deepcopy(bc_policy).to(device)
+            bc_policy.features_extractor.obs_extractor.extractor.ego_embedding.dropout_factor = 0.0 
+            bc_policy.features_extractor.obs_extractor.extractor.embedding.dropout_factor = 0.0 
+            bc_policy.features_extractor.obs_extractor.extractor.attention_layer.dropout_factor = 0.0
+            policy = copy.deepcopy(bc_policy)
+            policy.share_features_extractor = False
             bc_policy.eval()
             # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
             # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
@@ -201,9 +205,9 @@ if __name__ == "__main__":
                                 "MlpPolicy",
                                 # policy=bc_policy,
                                 env=env,
-                                n_steps=100,
+                                # n_steps=100,
                                 batch_size=64,
-                                ent_coef = 0.01,
+                                ent_coef = 0.05,
                                 # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
                                 device=device,
@@ -217,15 +221,17 @@ if __name__ == "__main__":
             # Create the custom callback
             metrics_callback = CustomMetricsCallback()
             curriculamcallback = CustomCurriculamCallback()
-            kldivergencecallback = KLDivergenceCallback(expert_policy=bc_policy, kl_coefficient = 0.1)
+            kldivergencecallback = KLDivergenceCallback(expert_policy=bc_policy)
+            entropyscehdulecallback = EntropyScheduleCallback(initial_entropy_coef=0.05, final_entropy_coef=0.01, total_timesteps = total_timesteps)
 
 
             training_info = model.learn(
                                         total_timesteps=total_timesteps,
                                         callback=[
-                                                    checkptcallback, 
                                                     kldivergencecallback,
                                                     curriculamcallback,
+                                                    checkptcallback, 
+                                                    entropyscehdulecallback
                                                 ]
                                         )
                 
