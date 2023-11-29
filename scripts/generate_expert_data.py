@@ -319,7 +319,7 @@ def downsample_most_dominant_class(exp_obs, exp_kin_obs, exp_acts, exp_dones, fa
     # for action_index in actions_indexes.values():
     #     class_distribution[action_index] = class_distribution.get(action_index, 0)
     most_common_class, most_common_count = class_distribution.most_common(1)[0]
-    second_most_common_class, second_most_common_count = class_distribution.most_common(2)[1]
+    second_most_common_class, second_most_common_count = class_distribution.most_common(2)[0]
     if second_most_common_count == 0:
         return exp_obs, exp_kin_obs, exp_acts, exp_dones
     desired_samples = factor * second_most_common_count
