@@ -321,13 +321,13 @@ if __name__ == "__main__":
             # append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             # env = make_configure_env(**env_kwargs)
             # env=env.unwrapped
-            # env = make_vec_env(
-            #                     make_configure_env, 
-            #                     n_envs=n_cpu, 
-            #                     vec_env_cls=SubprocVecEnv, 
-            #                     env_kwargs=env_kwargs
-            #                 )
-            env = make_configure_env(**env_kwargs)
+            env = make_vec_env(
+                                make_configure_env, 
+                                n_envs=n_cpu, 
+                                vec_env_cls=SubprocVecEnv, 
+                                env_kwargs=env_kwargs
+                            )
+            # env = make_configure_env(**env_kwargs)
             # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
             if False:
@@ -404,14 +404,29 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 155600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 15600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
+                    def on_epoch_end():
+                        validation_metrics =   validation(
+                                                            policy = policy,
+                                                            device = device, 
+                                                            project = project, 
+                                                            zip_filenames = 'temp_19.zip', 
+                                                            batch_size = 64, 
+                                                            minibatch_size = minibatch_size, 
+                                                            n_cpu = n_cpu,
+                                                            visited_data_files = set([]),
+                                                            val_batch_count = 500
+                                                        )
+                        for key, value in validation_metrics.items():
+                            trainer._bc_logger.record(key, value, step=trainer.batch_num)
                     trainer.train(
                                     n_batches=num_mini_batches,
+                                    # on_epoch_end=on_epoch_end,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
@@ -490,7 +505,7 @@ if __name__ == "__main__":
                                                                 )
             final_policy = bc_trainer.policy
             final_policy.eval()
-            if False:
+            if True:
                 print('Saving final model')
                 save_checkpoint(
                                     project = project, 
@@ -718,10 +733,11 @@ if __name__ == "__main__":
                             project = project, 
                             zip_filenames = zip_filename, 
                             batch_size = batch_size, 
-                            minibatch_size = minibatch_size, 
+                            minibatch_size = 64, 
                             n_cpu = n_cpu,
                             visited_data_files = set([]),
-                            val_batch_count = 1000
+                            val_batch_count = 1000,
+                            # plot_heatmap = False
                           )
                 # type = 'train'
                 # train_data_loader = CustomDataLoader(
