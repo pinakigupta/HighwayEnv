@@ -358,7 +358,7 @@ def process_zip_file(result_queue, train_data_file, visited_data_files, zip_file
         # return modified_dataset
     result_queue.put(modified_dataset)
 
-def create_balanced_subset(dataset, shuffled_indices, alpha = 2.1):
+def create_balanced_subset(dataset, shuffled_indices, alpha = 5.1):
     class_distribution = Counter(sample['acts'].item() for sample in dataset)
     class_counts = defaultdict(int)
 
@@ -1130,7 +1130,7 @@ def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
         print('Plotting done')
     return normalized_counts
 
-def validation(policy, device, project, zip_filenames, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500):
+def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500):
 
     zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
     val_device = torch.device('cpu')
