@@ -167,7 +167,7 @@ if __name__ == "__main__":
                                         policy,
                                         extract_path = extract_path,
                                         zip_filename=zip_filename,
-                                        delta_iterations = 3,
+                                        delta_iterations = 9,
                                         **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                     )
             print(" finished collecting data for ALL THE files ")
@@ -420,7 +420,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 15600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 25600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -537,7 +537,6 @@ if __name__ == "__main__":
                 validation(
                             policy = final_policy,
                             device = device, 
-                            project = project, 
                             zip_filenames = zip_filename, 
                             batch_size = batch_size, 
                             minibatch_size = minibatch_size, 
@@ -737,7 +736,7 @@ if __name__ == "__main__":
             cross_entropy = entropy(p, q)
             kl_div = np.sum(entropy(p, q) - entropy(p))
             print('kl_div ', kl_div, ' cross_entropy ', np.sum(cross_entropy), cross_entropy)
-        elif train == TrainEnum.VALIDATION:
+        elif train == TrainEnum.BCVALIDATION or train == TrainEnum.RLVALIDATION:
                 policy                            = retrieve_agent(
                                                                     artifact_version='trained_model_directory:latest',
                                                                     agent_model = 'agent_final.pth',
@@ -747,7 +746,6 @@ if __name__ == "__main__":
                 validation(
                             policy = policy,
                             device = device, 
-                            project = project, 
                             zip_filenames = zip_filename, 
                             batch_size = batch_size, 
                             minibatch_size = 64, 
