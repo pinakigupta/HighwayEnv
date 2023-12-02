@@ -97,7 +97,7 @@ sweep_config = {
             "values": [0.001]  # Values for the "duration" field to be swept
         },              
         "batch_size": {
-            "values": [ 64 ]  # Values for the "duration" field to be swept
+            "values": [ 1024 ]  # Values for the "duration" field to be swept
         }, 
         "num_epochs": {
             "values": [1]  # Values for the "duration" field to be swept
@@ -129,7 +129,7 @@ project_names= \
         f'BC'                        # VALIDATION = 8
     ]
 
-train = TrainEnum.BC
+train = TrainEnum.RLTRAIN
 # zip_filename = \
 #                 [
 #                     'temp_5.zip',
@@ -146,7 +146,7 @@ train = TrainEnum.BC
 #                     'temp_20.zip',
 #                     'temp_21.zip'
 #                 ]
-zip_filename =    'temp_21.zip' 
+zip_filename =    'temp_1.zip' 
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

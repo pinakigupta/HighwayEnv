@@ -19,8 +19,6 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import wandb
 import json
 from tqdm import tqdm
-from attention_network import EgoAttentionNetwork
-import gymnasium as gyms
 import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
 import zipfile
@@ -28,10 +26,7 @@ import time
 import signal
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from torch.utils.data import DataLoader, ConcatDataset, WeightedRandomSampler, Subset
-import torchvision.models as models
 from contextlib import ExitStack
-from torchvision.models.video import R3D_18_Weights
-from torchvision import transforms
 import random
 import math
 import functools

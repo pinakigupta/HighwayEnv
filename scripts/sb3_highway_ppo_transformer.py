@@ -179,7 +179,7 @@ if __name__ == "__main__":
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
 
             bc_policy =                                        retrieve_agent(
-                                                                                artifact_version='trained_model_directory:v66',
+                                                                                artifact_version='trained_model_directory:latest',
                                                                                 agent_model = 'agent_final.pth',
                                                                                 device=device,
                                                                                 project=project_names[TrainEnum.BC.value]
@@ -187,14 +187,27 @@ if __name__ == "__main__":
             bc_policy.features_extractor.obs_extractor.extractor.ego_embedding.dropout_factor = 0.0 
             bc_policy.features_extractor.obs_extractor.extractor.embedding.dropout_factor = 0.0 
             bc_policy.features_extractor.obs_extractor.extractor.attention_layer.dropout_factor = 0.0
+            bc_policy.features_extractor.action_extractor.dropout_factor = 0.95
             policy = copy.deepcopy(bc_policy)
-            policy.share_features_extractor = False
             bc_policy.eval()
+            policy.share_features_extractor = False
+            # Extract the original value_net
+            original_value_net = policy.mlp_extractor.value_net
+            
+            # Create the modified value_net with two additional layers
+            extended_value_net = nn.Sequential(
+                *list(original_value_net.children()),  # Copy existing layers
+                nn.Linear(in_features=original_value_net[-2].out_features, out_features=64, bias=True),  # Additional layer 1
+                nn.ReLU(),
+                nn.Linear(in_features=64, out_features=policy.value_net.in_features, bias=True),  # Additional layer 2
+                nn.ReLU()
+            )
+
+            # Update the model with the extended value_net
+            policy.mlp_extractor.value_net = extended_value_net
             # policy =  DefaultActorCriticPolicy(env, device, **policy_kwargs)
             # policy = CustomMLPPolicy(env.observation_space, env.action_space,"MlpPolicy", {}, CustomMLPFeaturesExtractor)
-            # policy.eval()
-            # policy.optimizer.param_groups[0]['lr'] = 0.001
-            # policy.vf_net.optimizer.param_groups[0]['lr'] = 0.01 
+
             env_kwargs['policy'] = policy
             env_kwargs['expert_policy'] = bc_policy
             env = make_vec_env(
@@ -210,11 +223,12 @@ if __name__ == "__main__":
                                 env=env,
                                 # n_steps=100,
                                 batch_size=64,
-                                ent_coef = 0.05,
+                                # ent_coef = -0.05,
                                 # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
                                 device=device,
                                 verbose=1,
+                                tensorboard_log = "/tmp/rl_log/", 
                                 # learning_rate = 3e-3
                             )
             
@@ -231,10 +245,10 @@ if __name__ == "__main__":
             training_info = model.learn(
                                         total_timesteps=total_timesteps,
                                         callback=[
-                                                    kldivergencecallback,
+                                                    # kldivergencecallback,
                                                     curriculamcallback,
                                                     checkptcallback, 
-                                                    entropyscehdulecallback
+                                                    # entropyscehdulecallback
                                                 ]
                                         )
                 
@@ -332,7 +346,7 @@ if __name__ == "__main__":
             # env = make_configure_env(**env_kwargs)
             # state_dim = env.observation_space.high.shape[0]*env.observation_space.high.shape[1]
             rng=np.random.default_rng()
-            if False:
+            if True:
                 policy = DefaultActorCriticPolicy(env, device, **policy_kwargs)
             else:
                 policy =                    retrieve_agent(
@@ -417,7 +431,7 @@ if __name__ == "__main__":
                                                             policy = policy,
                                                             device = device, 
                                                             project = project, 
-                                                            zip_filenames = 'temp_19.zip', 
+                                                            zip_filenames = 'temp_1.zip', 
                                                             batch_size = 64, 
                                                             minibatch_size = minibatch_size, 
                                                             n_cpu = n_cpu,
@@ -428,7 +442,7 @@ if __name__ == "__main__":
                             trainer._bc_logger.record(key, value, step=trainer.batch_num)
                     trainer.train(
                                     n_batches=num_mini_batches,
-                                    # on_epoch_end=on_epoch_end,
+                                    on_epoch_end=on_epoch_end,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
@@ -507,7 +521,7 @@ if __name__ == "__main__":
                                                                 )
             final_policy = bc_trainer.policy
             final_policy.eval()
-            if True:
+            if False:
                 print('Saving final model')
                 save_checkpoint(
                                     project = project, 
@@ -576,6 +590,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
+            append_key_to_dict_of_dict(env_kwargs,'config','position_noise',lambda: 0)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
