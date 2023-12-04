@@ -71,9 +71,10 @@ class CustomCurriculamCallback(BaseCallback):
         if self.average_reward > 0.0:
             config = self.training_env.env_method("get_config")[0]
             config['duration'] += 5
-            config['max_vehicles_count'] = int(1.05 *  config['max_vehicles_count'])
+            config['max_vehicles_count'] = int(1.25 *  config['max_vehicles_count'])
+            config['max_vehicles_count'] = min(175, config['max_vehicles_count'])
             self.training_env.env_method("set_config", config)
-            print("Updated env duration to ", self.training_env.env_method("get_config")[0]['duration'])
+            print("Updated env duration to ", self.training_env.env_method("get_config")[0]['duration'], ' max_vehicles_count ', config['max_vehicles_count'])
         print("----------------------------------------------------------------------------------------")
         # Clear the episode_rewards list for the next epoch
         return True
