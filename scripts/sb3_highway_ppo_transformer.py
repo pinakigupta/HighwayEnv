@@ -173,7 +173,7 @@ if __name__ == "__main__":
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 20)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 30)
             total_timesteps=5000*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
@@ -222,7 +222,7 @@ if __name__ == "__main__":
                                 # policy=bc_policy,
                                 env=env,
                                 # n_steps=100,
-                                batch_size=64,
+                                batch_size=1024,
                                 # ent_coef = -0.05,
                                 # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
