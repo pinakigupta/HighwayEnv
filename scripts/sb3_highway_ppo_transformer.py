@@ -176,7 +176,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 20)
             total_timesteps=5000*1000
             # Set the checkpoint frequency
-            checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
+            checkpoint_freq = total_timesteps/5  # Save the model every 10,000 timesteps
 
             bc_policy =                                        retrieve_agent(
                                                                                 artifact_version='trained_model_directory:latest',

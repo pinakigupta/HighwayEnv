@@ -17,8 +17,8 @@ class CustomCheckpointCallback(BaseCallback):
             self.model.save(self.save_path)  # Save the initial model
 
     def _on_step(self) -> bool:
-        # if self.n_calls % self.save_freq == 0:
-        #     self.model.save(self.save_path)  # Save the model at specified intervals
+        if self.n_calls % self.save_freq == 0:
+            self.model.save(self.save_path)  # Save the model at specified intervals
         return True
 
     def _on_rollout_end(self) -> bool:
