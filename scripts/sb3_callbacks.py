@@ -68,10 +68,10 @@ class CustomCurriculamCallback(BaseCallback):
         # ep_rew = self.training_env.env_method("get_ep_reward")
         # ep_rew_mean = statistics.mean(ep_rew)
         print("Mean episode ep_rew_mean:", self.average_reward)
-        if self.average_reward > 0.0:
+        if self.average_reward > 0.2:
             config = self.training_env.env_method("get_config")[0]
             config['duration'] += 5
-            config['max_vehicles_count'] = int(1.25 *  config['max_vehicles_count'])
+            config['max_vehicles_count'] = int(1.5 *  config['max_vehicles_count'])
             config['max_vehicles_count'] = min(175, config['max_vehicles_count'])
             self.training_env.env_method("set_config", config)
             print("Updated env duration to ", self.training_env.env_method("get_config")[0]['duration'], ' max_vehicles_count ', config['max_vehicles_count'])

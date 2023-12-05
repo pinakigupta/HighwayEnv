@@ -137,7 +137,8 @@ class HighwayEnv(AbstractEnv):
         """
         rewards = self._rewards(action)
         if rewards['collision_reward']:
-            return rewards['collision_reward']* self.config.get('collision_reward', 0)
+            # print('only collision reward', self.cum_imitation_reward*self.config.get('imitation_reward', 0))
+            return rewards['collision_reward'] * self.config.get('collision_reward', 0)
         weighed_reward = [self.config.get(name, 0) * reward for name, reward in rewards.items()]
         reward = sum(weighed_reward)
         # if self.config["normalize_reward"]:
