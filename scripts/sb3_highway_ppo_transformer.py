@@ -173,7 +173,7 @@ if __name__ == "__main__":
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 30)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 20)
             total_timesteps=5000*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/1000  # Save the model every 10,000 timesteps
@@ -222,7 +222,7 @@ if __name__ == "__main__":
                                 # policy=bc_policy,
                                 env=env,
                                 # n_steps=100,
-                                batch_size=1024,
+                                batch_size=64,
                                 # ent_coef = -0.05,
                                 # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
@@ -594,7 +594,7 @@ if __name__ == "__main__":
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
             env = make_configure_env(**env_kwargs)
-            # env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos/{project}')
+            env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos_1/{project}')
             # BC_agent                            = retrieve_agent(
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',

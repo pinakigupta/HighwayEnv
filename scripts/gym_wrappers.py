@@ -1,6 +1,7 @@
 import torch
 from torch import multiprocessing
 import gymnasium as gym
+from gymnasium.wrappers import RecordVideo
 from highway_env.utils import print_overwrite
 import concurrent.futures
 import statistics
@@ -52,6 +53,12 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
             dict_action[key] =  self.env.action_type.actions[key][discrete_action]
         return dict_action
     
+    def render(self):
+        return self.env.render()
+    
+    def set_record_video_wrapper(self, wrapper: RecordVideo):
+        return self.env.set_record_video_wrapper(wrapper)
+
     
 class ObsToDictObsWrapper(gym.Wrapper):
     def __init__(self, env,  **kwargs):
@@ -72,6 +79,11 @@ class ObsToDictObsWrapper(gym.Wrapper):
         custom_obs = {"obs": obs, "action": action}
         return custom_obs, reward, done, info
 
+    def render(self):
+        return self.env.render()
+
+    def set_record_video_wrapper(self, wrapper: RecordVideo):
+        return self.env.set_record_video_wrapper(wrapper)
 
 class SquashObservationsWrapper(gym.Wrapper):
     def __init__(self, env, policy=None, expert_policy=None, **kwargs):
@@ -119,7 +131,6 @@ class SquashObservationsWrapper(gym.Wrapper):
             shuffled_obs[idx, :] = obs[obs_idx, :]
         return shuffled_obs
         
-    
     def get_obs(self):
         obs = self.observation_type.observe()
         obs = self.shuffle_obs(obs)
@@ -142,7 +153,12 @@ class SquashObservationsWrapper(gym.Wrapper):
     def get_reward(self):
         return self.custom_reward
 
+    def render(self):
+        return self.env.render()
 
+    def set_record_video_wrapper(self, wrapper: RecordVideo):
+        return self.env.set_record_video_wrapper(wrapper)
+    
 class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
     def __init__(self, env, **kwargs):
         super(MultiDiscreteToSingleDiscreteWrapper, self).__init__(env, **kwargs)
@@ -179,10 +195,14 @@ class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
         
         return action # Already multi 
 
-        
-    
     def convert_to_single_discrete(self, multi_action:gym.spaces)->gym.spaces:
         return multi_action @ self.action_weights
+    
+    def render(self):
+        return self.env.render()
+    
+    def set_record_video_wrapper(self, wrapper: RecordVideo):
+        return self.env.set_record_video_wrapper(wrapper)
 
 
 def make_configure_env(policy=None, expert_policy=None, **kwargs):
@@ -193,9 +213,9 @@ def make_configure_env(policy=None, expert_policy=None, **kwargs):
                     **kwargs
                   )
     # env.configure(kwargs["config"])
-    env.reset()
     custom_key_order = ['long','lat']
     env = DictToMultiDiscreteWrapper(env,key_order=custom_key_order)
     env = MultiDiscreteToSingleDiscreteWrapper(env)
     env = SquashObservationsWrapper(env, policy=policy, expert_policy=expert_policy)
+    env.reset()
     return env

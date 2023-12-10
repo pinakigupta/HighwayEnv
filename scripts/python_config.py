@@ -131,7 +131,7 @@ project_names= \
         f'RL',                       # RLVALIDATION = 8
     ]
 
-train = TrainEnum.RLTRAIN
+train = TrainEnum.BCDEPLOY
 # zip_filename = \
 #                 [
 #                     'temp_5.zip',
