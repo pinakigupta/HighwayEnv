@@ -128,10 +128,10 @@ project_names= \
         f"BC" ,                      # BCDEPLOY = 6
         f'None',                     # ANALYSIS = 7
         f'BC',                       # BCVALIDATION = 8
-        f'RL',                       # RLVALIDATION = 8
+        f'RL',                       # RLVALIDATION = 9
     ]
 
-train = TrainEnum.BCDEPLOY
+train = TrainEnum.RLDEPLOY
 # zip_filename = \
 #                 [
 #                     'temp_5.zip',

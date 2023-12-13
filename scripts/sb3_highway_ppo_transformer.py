@@ -582,19 +582,21 @@ if __name__ == "__main__":
             print('Ending final validation step and plotting the heatmap ')
             final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY or train == TrainEnum.RLDEPLOY or train == TrainEnum.IRLDEPLOY:
+            env_kwargs.update({'project': project})
             env_kwargs.update({'render_mode': 'human'})
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',75)
-            append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',2)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count',99)
+            append_key_to_dict_of_dict(env_kwargs,'config','min_lanes_count',3)
             # append_key_to_dict_of_dict(env_kwargs,'config','lanes_count',2)
             append_key_to_dict_of_dict(env_kwargs,'config','real_time_rendering',True)
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             append_key_to_dict_of_dict(env_kwargs,'config','duration',40)
             append_key_to_dict_of_dict(env_kwargs,'config','position_noise',lambda: 0)
             append_key_to_dict_of_dict(env_kwargs,'config','offscreen_rendering',False)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_width',3.0)
             if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
                 append_key_to_dict_of_dict(env_kwargs,'config','screen_text',True)
             env = make_configure_env(**env_kwargs)
-            env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos_1/{project}')
+            # env = record_videos(env=env, name_prefix = f'{project}', video_folder=f'videos_1/{project}')
             # BC_agent                            = retrieve_agent(
             #                                                         artifact_version='trained_model_directory:latest',
             #                                                         agent_model = 'agent_final.pt',
@@ -602,7 +604,7 @@ if __name__ == "__main__":
             #                                                         project=project
             #                                                     )
             BC_agent                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:latest',
+                                                        artifact_version='trained_model_directory:v65',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
                                                         project=project

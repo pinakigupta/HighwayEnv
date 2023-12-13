@@ -53,8 +53,8 @@ class DictToMultiDiscreteWrapper(gym.Wrapper):
             dict_action[key] =  self.env.action_type.actions[key][discrete_action]
         return dict_action
     
-    def render(self):
-        return self.env.render()
+    # def render(self):
+    #     return self.env.render()
     
     def set_record_video_wrapper(self, wrapper: RecordVideo):
         return self.env.set_record_video_wrapper(wrapper)
@@ -79,8 +79,8 @@ class ObsToDictObsWrapper(gym.Wrapper):
         custom_obs = {"obs": obs, "action": action}
         return custom_obs, reward, done, info
 
-    def render(self):
-        return self.env.render()
+    # def render(self):
+    #     return self.env.render()
 
     def set_record_video_wrapper(self, wrapper: RecordVideo):
         return self.env.set_record_video_wrapper(wrapper)
@@ -153,8 +153,8 @@ class SquashObservationsWrapper(gym.Wrapper):
     def get_reward(self):
         return self.custom_reward
 
-    def render(self):
-        return self.env.render()
+    # def render(self):
+    #     return self.env.render()
 
     def set_record_video_wrapper(self, wrapper: RecordVideo):
         return self.env.set_record_video_wrapper(wrapper)
@@ -198,8 +198,8 @@ class MultiDiscreteToSingleDiscreteWrapper(gym.Wrapper):
     def convert_to_single_discrete(self, multi_action:gym.spaces)->gym.spaces:
         return multi_action @ self.action_weights
     
-    def render(self):
-        return self.env.render()
+    # def render(self):
+    #     return self.env.render()
     
     def set_record_video_wrapper(self, wrapper: RecordVideo):
         return self.env.set_record_video_wrapper(wrapper)
@@ -212,6 +212,8 @@ def make_configure_env(policy=None, expert_policy=None, **kwargs):
                     # config=kwargs["config"],
                     **kwargs
                   )
+    if "project" in kwargs:
+        env = record_videos(env=env, name_prefix = f'{kwargs["project"]}', video_folder=f'videos_1/{kwargs["project"]}')
     # env.configure(kwargs["config"])
     custom_key_order = ['long','lat']
     env = DictToMultiDiscreteWrapper(env,key_order=custom_key_order)
