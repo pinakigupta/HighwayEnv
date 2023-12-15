@@ -180,7 +180,7 @@ class Vehicle(RoadObject):
 
     def on_state_update(self) -> None:
         if self.road:
-            if abs(self.heading) < np.pi/36:
+            if abs(self.heading) < np.pi/16:
                 self.lane_index = self.road.network.get_closest_lane_index(self.position, self.heading)
             self.lane = self.road.network.get_lane(self.lane_index)
             if self.road.record_history:
