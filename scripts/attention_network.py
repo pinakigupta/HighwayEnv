@@ -60,7 +60,7 @@ class MultiLayerPerceptron(BaseModule):
         self.reshape = reshape
         self.layer_sizes = layer_sizes or [64, 64]
         self.out_size = out_size
-        self.activation = activation_factory(activation)
+        self.activation = activation_factory(activation) if activation else activation
         self.is_policy = is_policy
         self.softmax = nn.Softmax(dim=-1)
         self.dropout_factor = dropout_factor
@@ -76,7 +76,7 @@ class MultiLayerPerceptron(BaseModule):
         if self.reshape:
             x = x.reshape(x.shape[0], -1)  # We expect a batch of vectors
         for layer in self.layers:
-            x = self.activation(layer(x.float()))
+            x = self.activation(layer(x.float())) if self.activation else layer(x.float())
         if self.out_size:
             x = self.predict(x)
         if self.is_policy:

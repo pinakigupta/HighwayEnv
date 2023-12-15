@@ -168,7 +168,7 @@ attention_network_kwargs = dict(
                                 "out_size": 256,
                                 "layer_sizes": [], 
                                 "reshape": False,
-                                "activation": 'RELU',
+                                "activation": None,
                                 'dropout_factor': 0.2
                             },
     attention_layer_kwargs={
