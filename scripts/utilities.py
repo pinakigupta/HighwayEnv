@@ -194,8 +194,7 @@ class CustomDataset(Dataset):
         # sample['obs'] = {'obs':sample['obs'], 'action':prev_sample['act']}
 
         return sample 
-        
-        
+                
 def display_vehicles_attention(agent_surface, sim_surface, env, extractor, device,  min_attention=0.01):
         v_attention = compute_vehicles_attention(env, extractor, device)
         # print("v_attention ", v_attention)
@@ -292,7 +291,6 @@ def save_checkpoint(project, run_name, epoch, model, **kwargs):
     wandb.finish()
     clear_and_makedirs("models_archive")
 
-
 class DownSamplingSampler(SubsetRandomSampler):
     def __init__(self, labels, class_weights, num_samples):
         """
@@ -353,7 +351,7 @@ def process_zip_file(result_queue, train_data_file, visited_data_files, zip_file
         # return modified_dataset
     result_queue.put(modified_dataset)
 
-def create_balanced_subset(dataset, shuffled_indices, alpha = 5.1):
+def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
     class_distribution = Counter(sample['acts'].item() for sample in dataset)
     class_counts = defaultdict(int)
 
@@ -376,8 +374,6 @@ def create_balanced_subset(dataset, shuffled_indices, alpha = 5.1):
     balanced_subset = Subset(dataset, balanced_indices)
 
     return balanced_subset
-
-
         
 def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, load_data = True, **kwargs):
     # Extract the names of the HDF5 files from the zip archive
@@ -670,9 +666,6 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
 
             }
     return metrics
-
-
-
 
 class CustomDataLoader: # Created to deal with very large data files, and limited memory space
     def __init__(self, zip_filename, device, visited_data_files, batch_size, n_cpu, validation=False, verbose=False, **kwargs):

@@ -100,8 +100,9 @@ class EgoAttention(BaseModule):
     def __init__(self,
                  feature_size=64,
                  heads=4,
-                 dropout_factor=0):
-        super().__init__()
+                 dropout_factor=0,
+                 **kwargs):
+        super().__init__(**kwargs)
         self.feature_size = feature_size
         self.heads = heads
         self.dropout_factor = dropout_factor
@@ -168,6 +169,7 @@ class EgoAttentionNetwork(BaseModule):
                  presence_feature_idx=0,
                  embedding_layer_kwargs=None,
                  attention_layer_kwargs=None,
+                 skip_layer_kwargs =None,
                  **kwargs):
         super().__init__(**kwargs)
         self.out_size = out_size
@@ -179,16 +181,21 @@ class EgoAttentionNetwork(BaseModule):
         #     self.encoder = nn.ModuleList([EncoderLayer(d_model, heads) for _ in range(kwargs['num_layers'])])
         self.ego_embedding = MultiLayerPerceptron(**embedding_layer_kwargs)
         self.embedding = MultiLayerPerceptron(**embedding_layer_kwargs)
-
         attention_layer_kwargs = attention_layer_kwargs or {}
         self.attention_layer = EgoAttention(**attention_layer_kwargs)
+        hidden_size = self.attention_layer.attention_combine.out_features
+        self.feedforward = MultiLayerPerceptron(**skip_layer_kwargs)
+        self.norm1 = nn.LayerNorm(hidden_size)
 
     def forward(self, x):
         ego_embedded_att, _ = self.forward_attention(x)
         # print(ego_embedded_att.shape)
         # for _ in range(4):
         #     ego_embedded_att, _=self.forward_attention(ego_embedded_att)
-        return ego_embedded_att
+        # Skip connection and layer normalization
+        x = torch.flatten(x, start_dim=1)
+        x = self.norm1(self.feedforward(x) + ego_embedded_att)
+        return x
 
     def split_input(self, x, mask=None):
         # Dims: batch, entities, features

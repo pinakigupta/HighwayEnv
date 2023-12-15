@@ -128,29 +128,29 @@ project_names= \
         f"BC" ,                      # BCDEPLOY = 6
         f'None',                     # ANALYSIS = 7
         f'BC',                       # BCVALIDATION = 8
-        f'RL',                       # RLVALIDATION = 8
+        f'RL',                       # RLVALIDATION = 9
     ]
 
-train = TrainEnum.RLTRAIN
-# zip_filename = \
-#                 [
-#                     'temp_5.zip',
-#                     'temp_7.zip',
-#                     'temp_10.zip', 
-#                     'temp_11.zip', 
-#                     'temp_12.zip', 
-#                     'temp_13.zip', 
-#                     'temp_14.zip',
-#                     'temp_15.zip',
-#                     'temp_16.zip',
-#                     'CL_temp_17.zip',                     
-#                     'temp_18.zip',
-#                     'temp_19.zip',
-#                     'temp_20.zip',
-#                     'temp_21.zip',
-#                     'temp_22.zip',
-#                 ]
-zip_filename =    'temp_1.zip' 
+train = TrainEnum.BC
+zip_filename = \
+                [
+                    'temp_5.zip',
+                    'temp_7.zip',
+                    'temp_10.zip', 
+                    'temp_11.zip', 
+                    'temp_12.zip', 
+                    'temp_13.zip', 
+                    'temp_14.zip',
+                    'temp_15.zip',
+                    'temp_16.zip',
+                    'CL_temp_17.zip',                     
+                    'temp_18.zip',
+                    'temp_19.zip',
+                    'temp_20.zip',
+                    'temp_21.zip',
+                    'temp_22.zip',
+                ]
+# zip_filename =    'temp_24.zip' 
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
@@ -158,7 +158,15 @@ attention_network_kwargs = dict(
     # in_size=5*15,
     embedding_layer_kwargs={
                                 "in_size": len(env_kwargs['config']['KinematicObservation']['features']), 
-                                "layer_sizes": [128, 256, 256], 
+                                "layer_sizes": [128, 256], 
+                                "reshape": False,
+                                "activation": 'RELU',
+                                'dropout_factor': 0.2
+                            },
+    skip_layer_kwargs=  {
+                                "in_size": 100, 
+                                "out_size": 256,
+                                "layer_sizes": [], 
                                 "reshape": False,
                                 "activation": 'RELU',
                                 'dropout_factor': 0.2
@@ -166,7 +174,8 @@ attention_network_kwargs = dict(
     attention_layer_kwargs={
                                 "feature_size": 256, 
                                 "heads": 8, 
-                                "dropout_factor" :0.25
+                                "dropout_factor" :0.25,
+                                # "layer_sizes": [64],
                            },
     # num_layers = 3,
 )

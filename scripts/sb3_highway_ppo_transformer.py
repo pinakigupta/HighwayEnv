@@ -167,13 +167,13 @@ if __name__ == "__main__":
                                         policy,
                                         extract_path = extract_path,
                                         zip_filename=zip_filename,
-                                        delta_iterations = 9,
+                                        delta_iterations = 19,
                                         **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                     )
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 
             append_key_to_dict_of_dict(env_kwargs,'config','duration',10)
-            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 30)
+            append_key_to_dict_of_dict(env_kwargs,'config','max_vehicles_count', 20)
             total_timesteps=5000*1000
             # Set the checkpoint frequency
             checkpoint_freq = total_timesteps/5  # Save the model every 10,000 timesteps
@@ -222,7 +222,7 @@ if __name__ == "__main__":
                                 # policy=bc_policy,
                                 env=env,
                                 # n_steps=100,
-                                batch_size=1024,
+                                batch_size=256,
                                 # ent_coef = -0.05,
                                 # learning_rate=2e-3,
                                 # policy_kwargs=policy_kwargs,
@@ -248,7 +248,7 @@ if __name__ == "__main__":
                                                     # kldivergencecallback,
                                                     curriculamcallback,
                                                     checkptcallback, 
-                                                    # entropyscehdulecallback
+                                                    entropyscehdulecallback
                                                 ]
                                         )
                 
@@ -420,7 +420,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 25600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 255600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -442,7 +442,7 @@ if __name__ == "__main__":
                             trainer._bc_logger.record(key, value, step=trainer.batch_num)
                     trainer.train(
                                     n_batches=num_mini_batches,
-                                    on_epoch_end=on_epoch_end,
+                                    # on_epoch_end=on_epoch_end,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )
@@ -521,7 +521,7 @@ if __name__ == "__main__":
                                                                 )
             final_policy = bc_trainer.policy
             final_policy.eval()
-            if False:
+            if True:
                 print('Saving final model')
                 save_checkpoint(
                                     project = project, 
