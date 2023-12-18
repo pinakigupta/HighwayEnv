@@ -10,7 +10,6 @@ import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
-from sb3_contrib import  RecurrentPPO
 import os
 gym_alias = os.getenv("GYM_ALIAS", "gymnasium")
 import importlib
@@ -20,7 +19,6 @@ import wandb
 import torchvision.transforms.functional as TF
 from datetime import datetime
 import time
-from models.gail import GAIL
 from generate_expert_data import expert_data_collector, retrieve_agent
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict
 from sb3_callbacks import *
@@ -264,6 +262,7 @@ if __name__ == "__main__":
             # Save the final model
             # model.save("highway_attention_ppo/model")
         elif train == TrainEnum.IRLTRAIN:
+            from models.gail import GAIL
             project_name = f"random_env_gail_1"
             
             
