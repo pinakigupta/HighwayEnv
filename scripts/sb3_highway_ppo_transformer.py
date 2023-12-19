@@ -396,7 +396,7 @@ if __name__ == "__main__":
                                         ) # Unfotunately needed to instantiate repetitively
 
                 # If multiple GPUs are available, use parallel training for the policy
-                if torch.cuda.device_count() > 1:
+                if device==torch.device('cuda') and torch.cuda.device_count() > 1:
                     print("Using", torch.cuda.device_count(), "GPUs!")
                     trainer.policy.action_net = torch.nn.parallel.DataParallel(trainer.policy.action_net)
                     trainer.policy.value_net = torch.nn.parallel.DataParallel(trainer.policy.value_net)
