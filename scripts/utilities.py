@@ -594,7 +594,8 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
             if len(accuracies) > kwargs['val_batch_count']:
                 break
         except Exception as e:
-            print(e)
+            pass
+            # print(e)
         calculate_metrics()
 
     while len(accuracies) < kwargs['val_batch_count']:
@@ -654,7 +655,7 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
         for worker_process in alive_workers:
             os.kill(worker_process.pid, signal.SIGKILL)
         time.sleep(0.25)  # Sleep for a second (you can adjust the sleep duration)
-        print([worker.pid for worker in processes if worker.is_alive()])
+        # print([worker.pid for worker in processes if worker.is_alive()])
 
     metrics = {
                'accuracy':      accuracy,
@@ -776,7 +777,7 @@ class CustomDataLoader: # Created to deal with very large data files, and limite
                     values = values @ self.kwargs['label_weights']
                 batch[key] = torch.tensor(values, dtype=torch.float32).to(self.device)
         except Exception as e:
-            print(batch_samples[0].keys())
+            # print(batch_samples[0].keys())
             for k, v,in batch_samples.items():
                 print(f'{k} length is {len(v)}')
             raise e

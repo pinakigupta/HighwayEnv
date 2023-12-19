@@ -281,7 +281,7 @@ def collect_expert_data(
         for worker_process in alive_workers:
             os.kill(worker_process.pid, signal.SIGKILL)
         time.sleep(0.25)  # Sleep for a second (you can adjust the sleep duration)
-        print([worker.pid for worker in worker_processes if worker.is_alive()])
+        # print([worker.pid for worker in worker_processes if worker.is_alive()])
 
     # print(" End of worker_process join")
 

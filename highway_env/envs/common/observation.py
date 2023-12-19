@@ -196,6 +196,8 @@ class KinematicObservation(ObservationType):
                 "x":  [-5.0 * Vehicle.MAX_SPEED, 5.0 * Vehicle.MAX_SPEED],
                 "y":  [0 , self.env.vehicle.lane.DEFAULT_WIDTH*lanes[1]],
                 "vx": [-0.2*Vehicle.MAX_SPEED, 1.25*Vehicle.MAX_SPEED],
+                "ax": [-5.0, 5.0],
+                "ay": [ 2.5, 2.5],
                 "vy": [-0.02*Vehicle.MAX_SPEED, 0.02*Vehicle.MAX_SPEED],
                 'L':  [0.75*self.env.config['min_length'], 1.25*self.env.config['max_length']],
                 'W':  [0.75*self.env.config['min_width'] , 1.25*self.env.config['max_width']],

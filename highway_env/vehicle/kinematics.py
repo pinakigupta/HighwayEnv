@@ -209,6 +209,10 @@ class Vehicle(RoadObject):
     @property
     def velocity(self) -> np.ndarray:
         return self.speed * self.direction  # TODO: slip angle beta should be used here
+    
+    @property
+    def accel(self) -> np.ndarray:
+        return self.action['acceleration'] * self.direction  # TODO: slip angle beta should be used here
 
     @property
     def destination(self) -> np.ndarray:
@@ -246,6 +250,8 @@ class Vehicle(RoadObject):
             'y': self.observed_position[1],
             'vx': self.velocity[0],
             'vy': self.velocity[1],
+            'ax': self.accel[0],
+            'ay': self.accel[1],
             'heading': self.heading,
             'cos_h': self.direction[0],
             'sin_h': self.direction[1],
