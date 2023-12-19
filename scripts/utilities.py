@@ -10,6 +10,7 @@ import sys
 from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
 from torch.utils.data import Dataset, DataLoader
 import torch
+from torch.nn.parallel import DataParallel
 from generate_expert_data import extract_post_processed_expert_data, retrieve_agent
 import pygame  
 import numpy as np
@@ -459,10 +460,10 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                                         shuffle=True,
                                         # sampler=sampler,
                                         drop_last=True,
-                                        num_workers=kwargs['n_cpu'],
+                                        # num_workers=10,
                                         # pin_memory=True,
                                         # pin_memory_device=device,
-                                 ) 
+                                 )
     return train_data_loader
 
 def process_validation_batch(output_queue, input_queue, labels, worker_index,lock, batch_count=None, **kwargs):

@@ -150,7 +150,7 @@ zip_filename = \
                     'temp_21.zip',
                     'temp_22.zip',
                 ]
-# zip_filename =    'temp_24.zip' 
+zip_filename =    'temp_1.zip' 
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 

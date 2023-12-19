@@ -124,8 +124,8 @@ if __name__ == "__main__":
     day = now.strftime("%d")
 
     n_cpu =  mp.cpu_count()
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = torch.device('cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -379,6 +379,11 @@ if __name__ == "__main__":
         
 
             def _train(env, policy, zip_filenames, extract_path, device=device, **training_kwargs):
+                # # Set the GPU devices you want to use
+                # device_ids = [0, 1]  # Replace with the IDs of your GPUs
+                # os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, device_ids))
+                # # If you want to use DataParallel for multi-GPU training
+                # policy = torch.nn.parallel.DataParallel(policy, device_ids=device_ids)
                 num_epochs = training_kwargs['num_epochs'] # These are dagger epochs
                 checkpoint_interval = num_epochs//2
                 append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
@@ -389,6 +394,13 @@ if __name__ == "__main__":
                                             num_epochs=num_epochs, 
                                             device=device
                                         ) # Unfotunately needed to instantiate repetitively
+
+                # If multiple GPUs are available, use parallel training for the policy
+                if torch.cuda.device_count() > 1:
+                    print("Using", torch.cuda.device_count(), "GPUs!")
+                    trainer.policy.action_net = torch.nn.parallel.DataParallel(trainer.policy.action_net)
+                    trainer.policy.value_net = torch.nn.parallel.DataParallel(trainer.policy.value_net)
+                    trainer.policy.features_extractor = torch.nn.parallel.DataParallel(trainer.policy.features_extractor)
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
                 train_datasets = []                    
