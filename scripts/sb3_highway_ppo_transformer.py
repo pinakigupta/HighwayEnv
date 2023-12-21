@@ -143,17 +143,17 @@ if __name__ == "__main__":
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = None
+            policy = True
             env = make_configure_env(**env_kwargs)
             if policy:
-                policy                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:latest',
-                                                        agent_model = 'agent_final.pth',
-                                                        device=device,
-                                                        project=project
-                                                        )
+                # policy                            = retrieve_agent(
+                #                                         artifact_version='trained_model_directory:latest',
+                #                                         agent_model = 'agent_final.pth',
+                #                                         device=device,
+                #                                         project=project
+                #                                         )
                 # policy = DefaultActorCriticPolicy(make_configure_env(**env_kwargs), device, **policy_kwargs)
-                # policy = RandomPolicy(env=env, device=device, **policy_kwargs)
+                policy = RandomPolicy(env=env, device=device, **policy_kwargs)
                 # policy.load_state_dict(oracle_agent.state_dict())
                 policy.eval()
                 print('EXPERT_DATA_COLLECTION using PREVIOUS POLICY for exploration')
@@ -165,7 +165,7 @@ if __name__ == "__main__":
                                         policy,
                                         extract_path = extract_path,
                                         zip_filename=zip_filename,
-                                        delta_iterations = 19,
+                                        delta_iterations = 1,
                                         **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                     )
             print(" finished collecting data for ALL THE files ")
@@ -413,8 +413,8 @@ if __name__ == "__main__":
                         train_data_loader                                            = create_dataloaders(
                                                                                                             zip_filename,
                                                                                                             train_datasets, 
-                                                                                                            type = 'train',
-                                                                                                            device=device,
+                                                                                                            type = 'val',
+                                                                                                            device=torch.device('cpu'),
                                                                                                             batch_size=minibatch_size,
                                                                                                             n_cpu = n_cpu,
                                                                                                             visited_data_files=visited_data_files,
