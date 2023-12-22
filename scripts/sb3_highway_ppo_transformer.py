@@ -413,7 +413,7 @@ if __name__ == "__main__":
                         train_data_loader                                            = create_dataloaders(
                                                                                                             zip_filename,
                                                                                                             train_datasets, 
-                                                                                                            type = 'val',
+                                                                                                            type = 'train',
                                                                                                             device=torch.device('cpu'),
                                                                                                             batch_size=minibatch_size,
                                                                                                             n_cpu = n_cpu,
