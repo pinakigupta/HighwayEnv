@@ -400,7 +400,9 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
 
                     # print('modified_dataset', modified_dataset)
 
-                    train_datasets.append(modified_dataset)
+                    shuffled_indices = np.arange(len(modified_dataset))
+                    balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices)
+                    train_datasets.append(balanced_modified_dataset)
                     print(f"Dataset appended for  {train_data_file}")
 
 
