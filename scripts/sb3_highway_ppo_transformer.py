@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
     n_cpu =  mp.cpu_count()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # device = torch.device('cpu')
+    device = torch.device('cpu')
     extract_path = 'data'
 
     import python_config
@@ -403,23 +403,39 @@ if __name__ == "__main__":
                     trainer.policy.features_extractor = torch.nn.parallel.DataParallel(trainer.policy.features_extractor)
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
-                train_datasets = []                    
                 visited_data_files = set([])
                 metricses = {}
                 zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
+                type = 'train'
+                manager = multiprocessing.Manager()
+                train_datasets = manager.list()                   
+                lock = manager.Lock()
+                
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
-                    for index, zip_filename in enumerate(zip_filenames):
-                        train_data_loader                                            = create_dataloaders(
-                                                                                                            zip_filename,
-                                                                                                            train_datasets, 
-                                                                                                            type = 'train',
-                                                                                                            device=torch.device('cpu'),
-                                                                                                            batch_size=minibatch_size,
-                                                                                                            n_cpu = n_cpu,
-                                                                                                            visited_data_files=visited_data_files,
-                                                                                                            load_data = (index == len(zip_filenames) - 1)
-                                                                                                        )
+                    # for index, zip_filename in enumerate(zip_filenames):
+                    
+                    with multiprocessing.Pool() as pool:
+                        pool_args = [(zip_filename, visited_data_files , device, train_datasets, lock, {'type': 'train'}) for zip_filename in zip_filenames]
+                        pool.map(create_dataloaders, pool_args)
+                    train_datasets = list(train_datasets)    
+                    combined_train_dataset = ConcatDataset()
+                    shuffled_indices = np.arange(len(combined_train_dataset))
+                    np.random.shuffle(shuffled_indices)
+                    # shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices) if (type=='train') else Subset(combined_train_dataset, shuffled_indices)
+                    shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices)
+                    print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
+                    print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')
+                    train_data_loader = DataLoader(
+                                                    shuffled_combined_train_dataset, 
+                                                    batch_size=minibatch_size, 
+                                                    shuffle=True,
+                                                    # sampler=sampler,
+                                                    drop_last=True,
+                                                    # num_workers=10,
+                                                    # pin_memory=True,
+                                                    # pin_memory_device=device,
+                                                  )
                     # train_data_loader = CustomDataLoader(
                     #                                         zip_filename, 
                     #                                         device, 

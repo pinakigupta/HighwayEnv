@@ -376,7 +376,8 @@ def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
 
     return balanced_subset
         
-def create_dataloaders(zip_filename, train_datasets, device, visited_data_files, load_data = True, **kwargs):
+def create_dataloaders(args):
+    zip_filename, visited_data_files, device, train_datasets, lock, kwargs = args
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(f" File handle for the zip file {zip_filename} opened ")
@@ -402,15 +403,18 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
 
                     shuffled_indices = np.arange(len(modified_dataset))
                     balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices)
-                    train_datasets.append(balanced_modified_dataset)
+                    with lock:
+                        balanced_modified_list = list(balanced_modified_dataset)
+                        train_datasets.extend(balanced_modified_list)
                     print(f"Dataset appended for  {train_data_file}")
 
 
     # Combine the results into the train_datasets list
     # train_datasets.extend(modified_datasets)
     print("All datasets appended.")
-    if not load_data:
-        return
+    return
+    # if not load_data:
+    #     return
 
     # shutil.rmtree(extract_path)
 
