@@ -165,7 +165,7 @@ if __name__ == "__main__":
                                         policy,
                                         extract_path = extract_path,
                                         zip_filename=zip_filename,
-                                        delta_iterations = 1,
+                                        delta_iterations = 19,
                                         **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                     )
             print(" finished collecting data for ALL THE files ")
@@ -431,7 +431,7 @@ if __name__ == "__main__":
                     #                                     )
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 255600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 55600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -591,7 +591,7 @@ if __name__ == "__main__":
             #                                                                 plot_path=None
             #                                                               )
             print('Ending final validation step and plotting the heatmap ')
-            final_policy.to(device)
+            # final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY or train == TrainEnum.RLDEPLOY or train == TrainEnum.IRLDEPLOY:
             env_kwargs.update({'project': project})
             env_kwargs.update({'render_mode': 'human'})
@@ -615,7 +615,7 @@ if __name__ == "__main__":
             #                                                         project=project
             #                                                     )
             BC_agent                            = retrieve_agent(
-                                                        artifact_version='trained_model_directory:v65',
+                                                        artifact_version='trained_model_directory:latest',
                                                         agent_model = 'agent_final.pth',
                                                         device=device,
                                                         project=project
