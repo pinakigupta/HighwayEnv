@@ -190,7 +190,7 @@ class CustomDataset(Dataset):
             pass
             # raise e
 
-        sample['obs'][:, -1].fill_(0)
+        sample['obs'][:, -7].fill_(0)
         sample['obs'] = torch.cat([ sample['obs'].view(-1), prev_sample['act'].view(1)], dim=0)
         # sample['obs'] = {'obs':sample['obs'], 'action':prev_sample['act']}
 
@@ -354,8 +354,8 @@ def process_zip_file(result_queue, train_data_file, visited_data_files, zip_file
 
 def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
     class_distribution = Counter(sample['acts'].item() for sample in dataset)
-    class_counts = defaultdict(int)
-
+    class_counts = {}
+    
     # Calculate min_samples_per_class as the actual minimum count in the dataset
     min_samples_per_class = int(min(class_distribution.values()))
 
@@ -365,11 +365,15 @@ def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
     balanced_indices = []
 
     for index in shuffled_indices:
-        _, label = dataset[index]  # Assuming dataset[index] returns a tuple (data, label)
+        label = int(dataset[index]['acts'].item())
         
-        if class_counts[label] < max_samples_per_class:
+        if label in class_counts:
+            if class_counts[label] < max_samples_per_class:
+                balanced_indices.append(index)
+                class_counts[label] += 1
+        else:
             balanced_indices.append(index)
-            class_counts[label] += 1
+            class_counts[label] = 1
 
     # Create the Subset
     balanced_subset = Subset(dataset, balanced_indices)
@@ -398,12 +402,19 @@ def create_dataloaders(zip_filename, train_datasets, device, visited_data_files,
                             my_dict[new_key] = my_dict.pop(old_key)
                         modified_dataset.append(my_dict)
 
-                    # print('modified_dataset', modified_dataset)
+                    class_distribution = Counter(sample['acts'].item() for sample in modified_dataset)
+                    print('modified_dataset', class_distribution)
 
                     shuffled_indices = np.arange(len(modified_dataset))
-                    balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices)
+                    balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices, alpha=3.1)
+                    class_distribution = Counter(sample['acts'].item() for sample in balanced_modified_dataset)
+                    print('balanced_modified_dataset', class_distribution)
                     train_datasets.append(balanced_modified_dataset)
                     print(f"Dataset appended for  {train_data_file}")
+                    
+                    del samples
+                    del modified_dataset
+                    del balanced_modified_dataset
 
 
     # Combine the results into the train_datasets list
