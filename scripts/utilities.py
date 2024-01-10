@@ -190,7 +190,7 @@ class CustomDataset(Dataset):
             pass
             # raise e
 
-        sample['obs'][:, -1].fill_(0)
+        sample['obs'][:, -7].fill_(0)
         sample['obs'] = torch.cat([ sample['obs'].view(-1), prev_sample['act'].view(1)], dim=0)
         # sample['obs'] = {'obs':sample['obs'], 'action':prev_sample['act']}
 
@@ -354,8 +354,8 @@ def process_zip_file(result_queue, train_data_file, visited_data_files, zip_file
 
 def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
     class_distribution = Counter(sample['acts'].item() for sample in dataset)
-    class_counts = defaultdict(int)
-
+    class_counts = {}
+    
     # Calculate min_samples_per_class as the actual minimum count in the dataset
     min_samples_per_class = int(min(class_distribution.values()))
 
@@ -365,11 +365,15 @@ def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
     balanced_indices = []
 
     for index in shuffled_indices:
-        _, label = dataset[index]  # Assuming dataset[index] returns a tuple (data, label)
+        label = int(dataset[index]['acts'].item())
         
-        if class_counts[label] < max_samples_per_class:
+        if label in class_counts:
+            if class_counts[label] < max_samples_per_class:
+                balanced_indices.append(index)
+                class_counts[label] += 1
+        else:
             balanced_indices.append(index)
-            class_counts[label] += 1
+            class_counts[label] = 1
 
     # Create the Subset
     balanced_subset = Subset(dataset, balanced_indices)
@@ -399,14 +403,21 @@ def create_dataloaders(args):
                             my_dict[new_key] = my_dict.pop(old_key)
                         modified_dataset.append(my_dict)
 
-                    # print('modified_dataset', modified_dataset)
+                    class_distribution = Counter(sample['acts'].item() for sample in modified_dataset)
+                    print('modified_dataset', class_distribution)
 
-                    shuffled_indices = np.arange(len(modified_dataset))
-                    balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices)
                     with lock:
-                        balanced_modified_list = list(balanced_modified_dataset)
-                        train_datasets.extend(balanced_modified_list)
-                    print(f"Dataset appended for  {train_data_file}")
+                        if kwargs['type'] == 'val':
+                            train_datasets.append(modified_dataset)
+                        else:
+                            shuffled_indices = np.arange(len(modified_dataset))
+                            balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices,  alpha=3.1)
+                            train_datasets.append(balanced_modified_dataset)
+                            del balanced_modified_dataset
+                        print(f"Dataset appended for  {train_data_file}")
+                    
+                    del samples
+                    del modified_dataset
 
 
     # Combine the results into the train_datasets list
@@ -574,7 +585,8 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
         processes.append(worker_process)
         worker_process.start()
 
-    progress_bar = tqdm(total=kwargs['val_batch_count'], desc= f'{kwargs["type"]} progress')
+    val_batch_count = kwargs['val_batch_count']
+    progress_bar = tqdm(total=val_batch_count, desc= f'{kwargs["type"]} progress')
     conf_matrix = np.array([])
 
     def calculate_metrics():
@@ -592,20 +604,25 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
             conf_matrix += result['conf_matrix']
         progress_bar.update(1)
             
+    batch_count = 0         
     for batch in val_data_loader:
         sample = {key: value.to(torch.device('cpu')) for key, value in batch.items()}
         try:
             input_queue.put(sample)
-            if input_queue.qsize() > 1.25*kwargs['val_batch_count']:
+            if input_queue.qsize() > 1.25*val_batch_count:
                 break
-            if len(accuracies) > kwargs['val_batch_count']:
+            if len(accuracies) > val_batch_count:
                 break
         except Exception as e:
             pass
             # print(e)
+        batch_count += 1
         calculate_metrics()
+        
+    val_batch_count = min(val_batch_count, batch_count )
+        
 
-    while len(accuracies) < kwargs['val_batch_count']:
+    while len(accuracies) < val_batch_count:
         if output_queue.empty():
             time.sleep(0.1)
             return
@@ -622,19 +639,19 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
         process.terminate()
 
                 
-
+    print('Calculate evaluation metrics')
     # Calculate evaluation metrics
     axis = 0
     accuracy  = np.mean(accuracies,  axis=axis) 
     precision = np.mean(precisions, axis=axis)
     recall    = np.mean(recalls, axis=axis)
     f1        = np.mean(f1s, axis=axis)
-    cross_entropies = np.mean(cross_entropies)
+    cross_entropy = np.mean(cross_entropies)
     entropies = np.mean(entropies)
 
     # Print the metrics
     print("Accuracy:", accuracy, np.mean(accuracy))
-    print("cross_entropy:", np.mean(cross_entropies), "entropy:", np.mean(entropies))
+    print("cross_entropy:", np.mean(cross_entropy), "entropy:", np.mean(entropies))
     print("Precision:", precision, np.mean(precision))
     print("Recall:", recall, np.mean(recall))
     print("F1 Score:", f1, np.mean(f1))
@@ -669,7 +686,7 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
                'precision':     np.mean(precision), 
                'recall':        np.mean(recall), 
                'f1':            np.mean(f1),
-               'cross_entropy': np.mean(cross_entropies),
+               'cross_entropy': np.mean(cross_entropy),
                'entropy':       np.mean(entropies),
 
             }
