@@ -403,11 +403,11 @@ if __name__ == "__main__":
                     trainer.policy.features_extractor = torch.nn.parallel.DataParallel(trainer.policy.features_extractor)
                 print(" trainer policy (train_mode ?)", trainer.policy.training)
                 epoch = None
-                visited_data_files = set([])
                 metricses = {}
                 zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
                 type = 'train'
                 manager = multiprocessing.Manager()
+                visited_data_files = manager.list() 
                 train_datasets = manager.list()                   
                 lock = manager.Lock()
                 
@@ -415,7 +415,7 @@ if __name__ == "__main__":
                     print(f'Loadng training data loader for epoch {epoch}')
                     # for index, zip_filename in enumerate(zip_filenames):
                     
-                    with multiprocessing.Pool() as pool:
+                    with multiprocessing.Pool(processes=n_cpu) as pool:
                         pool_args = [(zip_filename, visited_data_files , device, train_datasets, lock, {'type': 'train'}) for zip_filename in zip_filenames]
                         pool.map(create_dataloaders, pool_args)
                     train_datasets = list(train_datasets)    

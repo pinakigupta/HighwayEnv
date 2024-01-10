@@ -389,7 +389,7 @@ def create_dataloaders(args):
         for train_data_file in hdf5_train_file_names:
             visited_filepath = zip_filename + train_data_file
             if visited_filepath not in visited_data_files:
-                visited_data_files.add(visited_filepath)
+                visited_data_files.append(visited_filepath)
                 with zipf.open(train_data_file) as file_in_zip:
                     print(f"Opening the data file {train_data_file}")
                     samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])
@@ -406,16 +406,18 @@ def create_dataloaders(args):
                     class_distribution = Counter(sample['acts'].item() for sample in modified_dataset)
                     print('modified_dataset', class_distribution)
 
-                    with lock:
+                    shuffled_indices = np.arange(len(modified_dataset))
+                    balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices,  alpha=3.1)
+                    balanced_modified_dataset = [{key: value.cpu().numpy() for key, value in balanced_modified_dataset[i].items()}  for i in range(len(balanced_modified_dataset))]
+                    if True:
                         if kwargs['type'] == 'val':
                             train_datasets.append(modified_dataset)
                         else:
-                            shuffled_indices = np.arange(len(modified_dataset))
-                            balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices,  alpha=3.1)
                             train_datasets.append(balanced_modified_dataset)
-                            del balanced_modified_dataset
-                        print(f"Dataset appended for  {train_data_file}")
+                            
+                    print(f"Dataset appended for  {train_data_file}")
                     
+                    del balanced_modified_dataset
                     del samples
                     del modified_dataset
 
