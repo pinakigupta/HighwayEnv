@@ -396,6 +396,10 @@ if __name__ == "__main__":
                                             device=device
                                         ) # Unfotunately needed to instantiate repetitively
 
+                def convert_to_tensor(data, tensor_data):                    
+                    for key, value in data.items():
+                        tensor_data[key].append(value)                    
+
                 # If multiple GPUs are available, use parallel training for the policy
                 if device==torch.device('cuda') and torch.cuda.device_count() > 1:
                     print("Using", torch.cuda.device_count(), "GPUs!")
@@ -407,11 +411,8 @@ if __name__ == "__main__":
                 metricses = {}
                 zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
                 type = 'train'
-                manager = multiprocessing.Manager()
-                visited_data_files = manager.list() 
-                train_datalist = manager.list()                   
-                # lock = manager.Lock()
-                
+                visited_data_files_list = [] 
+                                                   
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
                     # for index, zip_filename in enumerate(zip_filenames):
@@ -419,19 +420,24 @@ if __name__ == "__main__":
                     # with multiprocessing.get_context('spawn').Pool() as pool:
                     #     pool_args = [(zip_filename, visited_data_files , device, train_datasets, lock, {'type': 'train'}) for zip_filename in zip_filenames]
                     #     pool.map(create_dataloaders, pool_args)
+                    
+                    train_data_list = []
                     for zip_filename in zip_filenames:
-                        args = (zip_filename, visited_data_files , device, train_datalist, {'type': 'train'})
-                        create_dataloaders(args)
+                        args = (zip_filename, visited_data_files_list , device, {'type': 'train', 'n_cpu': n_cpu})
+                        train_data_list.extend(create_dataloaders(args))
+                    print("All datasets appended.")
                     # train_datasets = list(train_datasets)    
                     # combined_train_dataset = ConcatDataset()
-                    shuffled_indices = np.arange(len(train_datalist))
-                    np.random.shuffle(shuffled_indices)
                     # shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices) if (type=='train') else Subset(combined_train_dataset, shuffled_indices)
-                    tensor_data = []
-                    for data in train_datalist:
-                        x = {key: torch.tensor(value).to(device) for key, value in data} 
-                    tensor_data = [ for i in range(len(train_datasets))]
-                    train_datasets = TensorDataset(tensor_data)
+                    # manager = multiprocessing.Manager()
+                    tensor_data = {}
+                    for key in train_data_list[0]:
+                        tensor_data[key] = []
+                    for data in train_data_list: 
+                        convert_to_tensor(data, tensor_data)        
+                    shuffled_indices = np.arange(len(tensor_data))
+                    np.random.shuffle(shuffled_indices)
+                    train_datasets = CustomDataset(tensor_data, device, keys_attributes=['obs', 'acts'])
                     shuffled_combined_train_dataset = create_balanced_subset(train_datasets, shuffled_indices)
                     print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
                     print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')
@@ -445,15 +451,7 @@ if __name__ == "__main__":
                                                     # pin_memory=True,
                                                     # pin_memory_device=device,
                                                   )
-                    # train_data_loader = CustomDataLoader(
-                    #                                         zip_filename, 
-                    #                                         device, 
-                    #                                         visited_data_files, 
-                    #                                         batch_size = minibatch_size, 
-                    #                                         n_cpu=n_cpu, 
-                    #                                         chunk_size=15000,
-                    #                                         type='train'
-                    #                                     )
+
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
                     num_mini_batches = 55600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch

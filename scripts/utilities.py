@@ -153,12 +153,15 @@ def DefaultActorCriticPolicy(env, device, **policy_kwargs):
         return policy   
 
 class CustomDataset(Dataset):
-    def __init__(self, data_file, device, pad_value=0, **kwargs):
+    def __init__(self, data, device, pad_value=0, **kwargs):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
-        self.keys_attributes = kwargs['keys_attributes'] 
-        self.data_file = data_file
-        self.data = extract_post_processed_expert_data(data_file, self.keys_attributes)
+        self.keys_attributes = kwargs['keys_attributes']
+        if isinstance(data, dict):
+            self.data =  data
+        else:
+            self.data_file = data
+            self.data = extract_post_processed_expert_data(self.data_file, self.keys_attributes)
         self.pad_value = pad_value
         self.device = device
         # print(" data lengths ", len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
@@ -419,23 +422,30 @@ def load_data_for_single_file_within_a_zipfile(args):
             
             
 def create_dataloaders(args):
-    zip_filename, visited_data_files, device, train_datasets, kwargs = args
+    zip_filename, visited_data_files_list, device, kwargs = args
     val_only = kwargs['type'] == 'val'
+    n_cpu = kwargs['n_cpu']
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(f" File handle for the zip file {zip_filename} opened ")
         hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name]
-        
-    with multiprocessing.Pool() as pool:
-        pool_args = [ (zip_filename, train_data_file, visited_data_files, device, train_datasets, val_only) for train_data_file in hdf5_train_file_names]
-        pool.map(load_data_for_single_file_within_a_zipfile, pool_args)
-        
+
+    train_data_list = []
+    with multiprocessing.Manager() as manager:
+        visited_data_files  = manager.list(visited_data_files_list)
+        managed_train_data_list     = manager.list()        
+        with multiprocessing.get_context('spawn').Pool(processes=n_cpu) as pool:
+            pool_args = [ (zip_filename, train_data_file, visited_data_files, device, managed_train_data_list, val_only) for train_data_file in hdf5_train_file_names]
+            pool.map(load_data_for_single_file_within_a_zipfile, pool_args)
+        visited_data_files_list = list(visited_data_files)
+        train_data_list = list(managed_train_data_list) 
+    return train_data_list
 
 
     # Combine the results into the train_datasets list
     # train_datasets.extend(modified_datasets)
-    print("All datasets appended.")
-    return
+    
+    
     # if not load_data:
     #     return
 
