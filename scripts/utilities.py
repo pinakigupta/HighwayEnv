@@ -379,47 +379,57 @@ def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
     balanced_subset = Subset(dataset, balanced_indices)
 
     return balanced_subset
-        
+
+def load_data_for_single_file_within_a_zipfile(args):    
+    zip_filename, train_data_file, visited_data_files, device, train_datasets, val_only = args  
+    visited_filepath = zip_filename + train_data_file
+    if visited_filepath not in visited_data_files:
+        visited_data_files.append(visited_filepath)
+        with zipfile.ZipFile(zip_filename, 'r') as zipf:
+            with zipf.open(train_data_file) as file_in_zip:
+                print(f"Opening the data file {train_data_file}")
+                samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])
+                print(f"Loaded custom data set for {train_data_file}")
+                new_key = 'acts'
+                old_key = 'act'
+                modified_dataset = []
+                for i in range(len(samples)):
+                    my_dict = samples[i]
+                    if old_key in my_dict and new_key not in my_dict:
+                        my_dict[new_key] = my_dict.pop(old_key)
+                    modified_dataset.append(my_dict)
+
+                class_distribution = Counter(sample['acts'].item() for sample in modified_dataset)
+                print('modified_dataset', class_distribution)
+
+                shuffled_indices = np.arange(len(modified_dataset))
+                balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices,  alpha=3.1)
+                balanced_modified_dataset = [{key: value.cpu().numpy() for key, value in balanced_modified_dataset[i].items()}  for i in range(len(balanced_modified_dataset))]
+                if True:
+                    if val_only:
+                        train_datasets.extend(modified_dataset)
+                    else:
+                        train_datasets.extend(balanced_modified_dataset)
+                        
+                print(f"Dataset appended for  {train_data_file}")
+                
+                del balanced_modified_dataset
+                del samples
+                del modified_dataset
+            
+            
 def create_dataloaders(args):
-    zip_filename, visited_data_files, device, train_datasets, lock, kwargs = args
+    zip_filename, visited_data_files, device, train_datasets, kwargs = args
+    val_only = kwargs['type'] == 'val'
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(f" File handle for the zip file {zip_filename} opened ")
-        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name] 
-        for train_data_file in hdf5_train_file_names:
-            visited_filepath = zip_filename + train_data_file
-            if visited_filepath not in visited_data_files:
-                visited_data_files.append(visited_filepath)
-                with zipf.open(train_data_file) as file_in_zip:
-                    print(f"Opening the data file {train_data_file}")
-                    samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])
-                    print(f"Loaded custom data set for {train_data_file}")
-                    new_key = 'acts'
-                    old_key = 'act'
-                    modified_dataset = []
-                    for i in range(len(samples)):
-                        my_dict = samples[i]
-                        if old_key in my_dict and new_key not in my_dict:
-                            my_dict[new_key] = my_dict.pop(old_key)
-                        modified_dataset.append(my_dict)
-
-                    class_distribution = Counter(sample['acts'].item() for sample in modified_dataset)
-                    print('modified_dataset', class_distribution)
-
-                    shuffled_indices = np.arange(len(modified_dataset))
-                    balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices,  alpha=3.1)
-                    balanced_modified_dataset = [{key: value.cpu().numpy() for key, value in balanced_modified_dataset[i].items()}  for i in range(len(balanced_modified_dataset))]
-                    if True:
-                        if kwargs['type'] == 'val':
-                            train_datasets.append(modified_dataset)
-                        else:
-                            train_datasets.append(balanced_modified_dataset)
-                            
-                    print(f"Dataset appended for  {train_data_file}")
-                    
-                    del balanced_modified_dataset
-                    del samples
-                    del modified_dataset
+        hdf5_train_file_names = [file_name for file_name in zipf.namelist() if file_name.endswith('.h5')  and kwargs['type'] in file_name]
+        
+    with multiprocessing.Pool() as pool:
+        pool_args = [ (zip_filename, train_data_file, visited_data_files, device, train_datasets, val_only) for train_data_file in hdf5_train_file_names]
+        pool.map(load_data_for_single_file_within_a_zipfile, pool_args)
+        
 
 
     # Combine the results into the train_datasets list

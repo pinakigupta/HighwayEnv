@@ -10,6 +10,7 @@ import numpy as np
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.evaluation import evaluate_policy
+from torch.utils.data import TensorDataset
 import os
 gym_alias = os.getenv("GYM_ALIAS", "gymnasium")
 import importlib
@@ -408,22 +409,30 @@ if __name__ == "__main__":
                 type = 'train'
                 manager = multiprocessing.Manager()
                 visited_data_files = manager.list() 
-                train_datasets = manager.list()                   
-                lock = manager.Lock()
+                train_datalist = manager.list()                   
+                # lock = manager.Lock()
                 
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
                     # for index, zip_filename in enumerate(zip_filenames):
                     
-                    with multiprocessing.Pool(processes=n_cpu) as pool:
-                        pool_args = [(zip_filename, visited_data_files , device, train_datasets, lock, {'type': 'train'}) for zip_filename in zip_filenames]
-                        pool.map(create_dataloaders, pool_args)
-                    train_datasets = list(train_datasets)    
-                    combined_train_dataset = ConcatDataset()
-                    shuffled_indices = np.arange(len(combined_train_dataset))
+                    # with multiprocessing.get_context('spawn').Pool() as pool:
+                    #     pool_args = [(zip_filename, visited_data_files , device, train_datasets, lock, {'type': 'train'}) for zip_filename in zip_filenames]
+                    #     pool.map(create_dataloaders, pool_args)
+                    for zip_filename in zip_filenames:
+                        args = (zip_filename, visited_data_files , device, train_datalist, {'type': 'train'})
+                        create_dataloaders(args)
+                    # train_datasets = list(train_datasets)    
+                    # combined_train_dataset = ConcatDataset()
+                    shuffled_indices = np.arange(len(train_datalist))
                     np.random.shuffle(shuffled_indices)
                     # shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices) if (type=='train') else Subset(combined_train_dataset, shuffled_indices)
-                    shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices)
+                    tensor_data = []
+                    for data in train_datalist:
+                        x = {key: torch.tensor(value).to(device) for key, value in data} 
+                    tensor_data = [ for i in range(len(train_datasets))]
+                    train_datasets = TensorDataset(tensor_data)
+                    shuffled_combined_train_dataset = create_balanced_subset(train_datasets, shuffled_indices)
                     print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
                     print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')
                     train_data_loader = DataLoader(
