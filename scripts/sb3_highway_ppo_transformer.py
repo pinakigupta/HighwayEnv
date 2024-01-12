@@ -432,9 +432,13 @@ if __name__ == "__main__":
                         list_of_dicts = manager.list(list_of_dicts)
                         for key in list_of_dicts[0]:
                             managed_dict_of_lists[key] = []
-                        with multiprocessing.Pool() as pool:
+                        with multiprocessing.Pool(processes=n_cpu) as pool:
                             pool_args = [(data, managed_dict_of_lists) for data in list_of_dicts]
-                            pool.map(list_of_dicts_to_dict_of_lists, pool_args)
+                            with tqdm(total=len(pool_args)) as pbar:
+                                def update(*a):
+                                    pbar.update()
+                                for _ in pool.imap_unordered( list_of_dicts_to_dict_of_lists, pool_args, chunksize=1): # chunksize to control updates of pbar
+                                    update()                        
                         dict_of_lists = dict(managed_dict_of_lists)
 
                     shuffled_indices = np.arange(len(dict_of_lists['acts']))
