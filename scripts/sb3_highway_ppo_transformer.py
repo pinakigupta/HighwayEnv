@@ -395,10 +395,7 @@ if __name__ == "__main__":
                                             num_epochs=num_epochs, 
                                             device=device
                                         ) # Unfotunately needed to instantiate repetitively
-
-                def convert_to_tensor(data, tensor_data):                    
-                    for key, value in data.items():
-                        tensor_data[key].append(value)                    
+                   
 
                 # If multiple GPUs are available, use parallel training for the policy
                 if device==torch.device('cuda') and torch.cuda.device_count() > 1:
@@ -421,23 +418,29 @@ if __name__ == "__main__":
                     #     pool_args = [(zip_filename, visited_data_files , device, train_datasets, lock, {'type': 'train'}) for zip_filename in zip_filenames]
                     #     pool.map(create_dataloaders, pool_args)
                     
-                    train_data_list = []
+                    list_of_dicts = []
                     for zip_filename in zip_filenames:
-                        args = (zip_filename, visited_data_files_list , device, {'type': 'train', 'n_cpu': n_cpu})
-                        train_data_list.extend(create_dataloaders(args))
-                    print("All datasets appended.")
+                        args = (zip_filename, visited_data_files_list , device, {'type': 'train'})
+                        list_of_dicts.extend(create_dataloaders(args))
+                    print("All datasets appended. dataset lenght " , len(list_of_dicts))
                     # train_datasets = list(train_datasets)    
                     # combined_train_dataset = ConcatDataset()
                     # shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices) if (type=='train') else Subset(combined_train_dataset, shuffled_indices)
-                    # manager = multiprocessing.Manager()
-                    tensor_data = {}
-                    for key in train_data_list[0]:
-                        tensor_data[key] = []
-                    for data in train_data_list: 
-                        convert_to_tensor(data, tensor_data)        
-                    shuffled_indices = np.arange(len(tensor_data))
+                    dict_of_lists = {}
+                    with  multiprocessing.Manager() as manager:
+                        managed_dict_of_lists = manager.dict()
+                        list_of_dicts = manager.list(list_of_dicts)
+                        for key in list_of_dicts[0]:
+                            managed_dict_of_lists[key] = []
+                        with multiprocessing.Pool() as pool:
+                            pool_args = [(data, managed_dict_of_lists) for data in list_of_dicts]
+                            pool.map(list_of_dicts_to_dict_of_lists, pool_args)
+                        dict_of_lists = dict(managed_dict_of_lists)
+
+                    shuffled_indices = np.arange(len(dict_of_lists['acts']))
                     np.random.shuffle(shuffled_indices)
-                    train_datasets = CustomDataset(tensor_data, device, keys_attributes=['obs', 'acts'])
+                    print(' dict_of_lists compiled. Length is ', len(shuffled_indices))
+                    train_datasets = CustomDataset(dict_of_lists, device, keys_attributes=['obs', 'acts'])
                     shuffled_combined_train_dataset = create_balanced_subset(train_datasets, shuffled_indices)
                     print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
                     print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')

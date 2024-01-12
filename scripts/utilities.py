@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch import multiprocessing
 import os, shutil
 from contextlib import redirect_stdout
-import io
+import copy
 os.environ["HDF5_USE_THREADING"] = "true"
 import h5py
 import sys
@@ -420,11 +420,18 @@ def load_data_for_single_file_within_a_zipfile(args):
                 del samples
                 del modified_dataset
             
-            
+def list_of_dicts_to_dict_of_lists(arg):
+    dict_, managed_dict_of_lists = arg     
+    for key, value in dict_.items():
+        managed_dict_of_lists[key] += [value]
+        # print(' key ', type(key), type(managed_dict_of_lists.keys()[0]), managed_dict_of_lists[key])               
+    # for key, value in managed_dict_of_lists.items():   
+    #     print('managed_dict_of_lists length ', key, len(value)) 
+                 
 def create_dataloaders(args):
     zip_filename, visited_data_files_list, device, kwargs = args
     val_only = kwargs['type'] == 'val'
-    n_cpu = kwargs['n_cpu']
+    # n_cpu = kwargs['n_cpu']
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
         print(f" File handle for the zip file {zip_filename} opened ")
@@ -434,11 +441,12 @@ def create_dataloaders(args):
     with multiprocessing.Manager() as manager:
         visited_data_files  = manager.list(visited_data_files_list)
         managed_train_data_list     = manager.list()        
-        with multiprocessing.get_context('spawn').Pool(processes=n_cpu) as pool:
+        with multiprocessing.get_context('spawn').Pool() as pool:
             pool_args = [ (zip_filename, train_data_file, visited_data_files, device, managed_train_data_list, val_only) for train_data_file in hdf5_train_file_names]
             pool.map(load_data_for_single_file_within_a_zipfile, pool_args)
         visited_data_files_list = list(visited_data_files)
         train_data_list = list(managed_train_data_list) 
+        print(' managed_train_data_list len ', len(managed_train_data_list), len(train_data_list))
     return train_data_list
 
 
