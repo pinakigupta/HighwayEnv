@@ -422,29 +422,28 @@ if __name__ == "__main__":
                     for zip_filename in zip_filenames:
                         args = (zip_filename, visited_data_files_list , device, {'type': 'train'})
                         list_of_dicts.extend(create_dataloaders(args))
-                    print("All datasets appended. dataset lenght " , len(list_of_dicts))
+                    print("All datasets appended. dataset lenght " , len(list_of_dicts), ' keys ', list_of_dicts[0].keys())
                     # train_datasets = list(train_datasets)    
                     # combined_train_dataset = ConcatDataset()
                     # shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices) if (type=='train') else Subset(combined_train_dataset, shuffled_indices)
-                    dict_of_lists = {}
-                    with  multiprocessing.Manager() as manager:
-                        managed_dict_of_lists = manager.dict()
-                        list_of_dicts = manager.list(list_of_dicts)
-                        for key in list_of_dicts[0]:
-                            managed_dict_of_lists[key] = []
-                        with multiprocessing.Pool(processes=n_cpu) as pool:
-                            pool_args = [(data, managed_dict_of_lists) for data in list_of_dicts]
-                            with tqdm(total=len(pool_args)) as pbar:
-                                def update(*a):
-                                    pbar.update()
-                                for _ in pool.imap_unordered( list_of_dicts_to_dict_of_lists, pool_args, chunksize=1): # chunksize to control updates of pbar
-                                    update()                        
-                        dict_of_lists = dict(managed_dict_of_lists)
+                    # dict_of_lists = {}
+                    # with  multiprocessing.Manager() as manager:
+                    #     list_of_dicts = manager.list(list_of_dicts)
+                    #     # obs_list  =   manager.list()
+                    #     # acts_list =   manager.list()
+                    #     # lock = manager.Lock()
+                    #     results = []
+                    #     with multiprocessing.Pool(processes=3 * n_cpu) as pool:
+                    #         results = list(tqdm(pool.imap_unordered(list_of_dicts_to_dict_of_lists, list_of_dicts, chunksize=1), total=len(list_of_dicts)))
 
-                    shuffled_indices = np.arange(len(dict_of_lists['acts']))
+                    #     obs_list, acts_list = zip(*results)
+                                    
+                    #     dict_of_lists = {'obs': list(obs_list), 'acts': list(acts_list)}                      
+
+                    shuffled_indices = np.arange(len(list_of_dicts))
                     np.random.shuffle(shuffled_indices)
-                    print(' dict_of_lists compiled. Length is ', len(shuffled_indices))
-                    train_datasets = CustomDataset(dict_of_lists, device, keys_attributes=['obs', 'acts'])
+                    print(' dict_of_lists compiled. Length is ', len(shuffled_indices), max(shuffled_indices), min(shuffled_indices))
+                    train_datasets = CustomDataset(list_of_dicts, device, keys_attributes=['obs', 'acts'])
                     shuffled_combined_train_dataset = create_balanced_subset(train_datasets, shuffled_indices)
                     print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
                     print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')
@@ -461,7 +460,7 @@ if __name__ == "__main__":
 
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 55600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 5600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)

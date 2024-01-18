@@ -157,7 +157,7 @@ class CustomDataset(Dataset):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
         self.keys_attributes = kwargs['keys_attributes']
-        if isinstance(data, dict):
+        if isinstance(data, dict) or isinstance(data, list):
             self.data =  data
         else:
             self.data_file = data
@@ -169,22 +169,38 @@ class CustomDataset(Dataset):
 
     def __len__(self):
         # print("data length for custom data set ",id(self), " is ", len(self.exp_acts),  len(self.exp_obs))
-        return len(self.data['acts'])
+        try:
+            self.length = len(self.data['acts'])
+        except Exception as e:
+            self.length = len(self.data)
+        return self.length
 
     def __getitem__(self, idx):
+        # idx = idx % self.__len__()
         sample = {}
         prev_sample = {}
         try:
             for key in self.keys_attributes:
-                if key in self.data:
+                if key in self.data or key in self.data[0]:
                     try:
                         # Attempt to deserialize the data as JSON
                         value = json.loads(self.data[key][idx])
                         prev_value =  json.loads(self.data[key][idx-1]) if idx>1 else value
-                    except:
                         # If JSON deserialization fails, assume it's a primitive type
-                        value = self.data[key][idx]
-                        prev_value = self.data[key][idx-1] if idx>1 else value
+                        # print(f"data key{key}, index{idx} of length {len(self.data[key])}")
+                    except Exception as e:
+                        try:
+                            value = self.data[key][idx]
+                            prev_value = self.data[key][idx-1] if idx>1 else value
+                        except Exception as e:
+                            try:                        
+                                value = self.data[idx][key]
+                                prev_value = self.data[idx-1][key] if idx>1 else value
+                            except Exception as e:
+                                print(e)
+                                print(' idx ', idx, ' data length ', len(self.data))
+                                return sample
+                                # raise(e)
                     sample[key] = torch.tensor(value, dtype=torch.float32).to(self.device)
                     prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32).to(self.device)
 
@@ -193,8 +209,12 @@ class CustomDataset(Dataset):
             pass
             # raise e
 
-        sample['obs'][:, -7].fill_(0)
-        sample['obs'] = torch.cat([ sample['obs'].view(-1), prev_sample['act'].view(1)], dim=0)
+        try:
+            sample['obs'][:, -7].fill_(0)
+            prev_sample = prev_sample['acts'].view(1) if 'acts' in prev_sample else prev_sample['act'].view(1)
+            sample['obs'] = torch.cat([ sample['obs'].view(-1), prev_sample], dim=0)
+        except Exception as e:
+            pass
         # sample['obs'] = {'obs':sample['obs'], 'action':prev_sample['act']}
 
         return sample 
@@ -356,7 +376,12 @@ def process_zip_file(result_queue, train_data_file, visited_data_files, zip_file
     result_queue.put(modified_dataset)
 
 def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
-    class_distribution = Counter(sample['acts'].item() for sample in dataset)
+    class_distribution = Counter()
+    collected_samples = 0 
+    for sample in dataset:
+        acts_value = sample['acts'].item()
+        class_distribution[acts_value] += 1
+        collected_samples += 1
     class_counts = {}
     
     # Calculate min_samples_per_class as the actual minimum count in the dataset
@@ -420,13 +445,17 @@ def load_data_for_single_file_within_a_zipfile(args):
                 del samples
                 del modified_dataset
             
-def list_of_dicts_to_dict_of_lists(arg):
-    dict_, managed_dict_of_lists = arg     
+def list_of_dicts_to_dict_of_lists(dict_):
+    # dict_, obs_list, acts_list = arg   
+    obs_list = []
+    acts_list = []  
     for key, value in dict_.items():
-        managed_dict_of_lists[key] += [value]
-        # print(' key ', type(key), type(managed_dict_of_lists.keys()[0]), managed_dict_of_lists[key])               
-    # for key, value in managed_dict_of_lists.items():   
-    #     print('managed_dict_of_lists length ', key, len(value)) 
+        if key == 'obs':
+            obs_list.append(value)
+        if key == 'acts':
+            acts_list.append(value)
+    return obs_list, acts_list
+
                  
 def create_dataloaders(args):
     zip_filename, visited_data_files_list, device, kwargs = args
