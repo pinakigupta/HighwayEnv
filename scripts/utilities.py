@@ -377,12 +377,16 @@ def process_zip_file(result_queue, train_data_file, visited_data_files, zip_file
 
 def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
     class_distribution = Counter()
-    collected_samples = 0 
+    scanned_samples = 0 
     for sample in dataset:
-        acts_value = sample['acts'].item()
-        class_distribution[acts_value] += 1
-        collected_samples += 1
+        if sample:
+            acts_value = sample['acts'].item()
+            class_distribution[acts_value] += 1
+        scanned_samples += 1
+        if scanned_samples >= len(dataset):
+            break
     class_counts = {}
+    print(f"scanned_samples complete")
     
     # Calculate min_samples_per_class as the actual minimum count in the dataset
     min_samples_per_class = int(min(class_distribution.values()))
