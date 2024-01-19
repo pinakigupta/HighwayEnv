@@ -444,7 +444,30 @@ if __name__ == "__main__":
                     np.random.shuffle(shuffled_indices)
                     print(' dict_of_lists compiled. Length is ', len(shuffled_indices), max(shuffled_indices), min(shuffled_indices))
                     train_datasets = CustomDataset(list_of_dicts, device, keys_attributes=['obs', 'acts'])
-                    shuffled_combined_train_dataset = create_balanced_subset(train_datasets, shuffled_indices)
+                    
+                    class_distribution = Counter()
+                    with multiprocessing.Manager() as manager:
+                        managed_class_distribution = manager.dict()
+                        total_scanned_samples = manager.Value('i', 0)
+                        max_samples = len(train_datasets)
+                        lock = manager.Lock()
+
+                        with multiprocessing.Pool() as pool:
+                            # args_list = [(sample, managed_class_distribution, total_scanned_samples, max_samples) for sample in train_datasets]
+                            args_list = []
+                            for sample in train_datasets:
+                                if not sample:
+                                    break
+                                args_list.append((sample, managed_class_distribution, total_scanned_samples, lock))
+                            for _ in pool.imap_unordered(process_sample_for_balanced_subset, args_list):
+                                # print(f"total_scanned_samples {total_scanned_samples}", flush=True)
+                                if total_scanned_samples.value >= max_samples:
+                                    break
+                        class_distribution = Counter(dict(managed_class_distribution))
+                        
+                    
+                    print(f"scanned_samples complete. Raw class counts {class_distribution}")
+                    shuffled_combined_train_dataset = create_balanced_subset(train_datasets, shuffled_indices, class_distribution)
                     print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
                     print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')
                     train_data_loader = DataLoader(
@@ -453,7 +476,7 @@ if __name__ == "__main__":
                                                     shuffle=True,
                                                     # sampler=sampler,
                                                     drop_last=True,
-                                                    # num_workers=10,
+                                                    num_workers=n_cpu,
                                                     # pin_memory=True,
                                                     # pin_memory_device=device,
                                                   )

@@ -375,18 +375,20 @@ def process_zip_file(result_queue, train_data_file, visited_data_files, zip_file
         # return modified_dataset
     result_queue.put(modified_dataset)
 
-def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
-    class_distribution = Counter()
-    scanned_samples = 0 
-    for sample in dataset:
-        if sample:
-            acts_value = sample['acts'].item()
+def process_sample_for_balanced_subset(args):
+    sample, class_distribution, total_scanned_samples, lock = args
+    if sample:
+        acts_value = sample['acts'].item()
+        # with class_distribution.get_lock():
+        if acts_value in class_distribution:
             class_distribution[acts_value] += 1
-        scanned_samples += 1
-        if scanned_samples >= len(dataset):
-            break
-    class_counts = {}
-    print(f"scanned_samples complete")
+        else:
+            class_distribution[acts_value] = 1
+        total_scanned_samples.value += 1
+            
+def create_balanced_subset(dataset, shuffled_indices, class_distribution = None , alpha = 9.1):
+    
+    class_distribution = class_distribution if class_distribution else Counter(sample['acts'].item() for sample in dataset)
     
     # Calculate min_samples_per_class as the actual minimum count in the dataset
     min_samples_per_class = int(min(class_distribution.values()))
@@ -395,7 +397,8 @@ def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
     max_samples_per_class = int(min_samples_per_class * alpha)
 
     balanced_indices = []
-
+    class_counts = {}
+    
     for index in shuffled_indices:
         label = int(dataset[index]['acts'].item())
         
@@ -407,6 +410,7 @@ def create_balanced_subset(dataset, shuffled_indices, alpha = 9.1):
             balanced_indices.append(index)
             class_counts[label] = 1
 
+    print(f"After shuffling and downsampling class_counts {class_counts}")
     # Create the Subset
     balanced_subset = Subset(dataset, balanced_indices)
 
