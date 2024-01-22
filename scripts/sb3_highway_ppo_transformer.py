@@ -420,7 +420,7 @@ if __name__ == "__main__":
                     #     pool_args = [(zip_filename, visited_data_files , device, train_datasets, lock, {'type': 'train'}) for zip_filename in zip_filenames]
                     #     pool.map(create_dataloaders, pool_args)
                     
-                    train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size)
+                    train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, n_cpu = n_cpu)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
                     num_mini_batches = 5600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
@@ -546,42 +546,7 @@ if __name__ == "__main__":
                             n_cpu = n_cpu,
                             visited_data_files = set([])
                             )
-            # train_datasets =[]
-            # data_loader              = CustomDataLoader(
-            #                                                 zip_filename, 
-            #                                                 device=val_device,
-            #                                                 batch_size=batch_size,
-            #                                                 n_cpu=n_cpu,
-            #                                                 val_batch_count=500,
-            #                                                 chunk_size=500,
-            #                                                 type='val',
-            #                                                 plot_path=None,
-            #                                                 visited_data_files = set([])
-            #                                             ) 
-            # metrics                         = calculate_validation_metrics(
-            #                                                                 data_loader,
-            #                                                                 final_policy, 
-            #                                                                 zip_filename=zip_filename,
-            #                                                                 device=val_device,
-            #                                                                 batch_size=batch_size,
-            #                                                                 n_cpu=n_cpu,
-            #                                                                 val_batch_count=500,
-            #                                                                 chunk_size=500,
-            #                                                                 type='val',
-            #                                                                 plot_path=None
-            #                                                               )
-            # metrics                        = calculate_validation_metrics(
-            #                                                                 data_loader,
-            #                                                                 final_policy, 
-            #                                                                 zip_filename=zip_filename,
-            #                                                                 device=val_device,
-            #                                                                 batch_size=batch_size,
-            #                                                                 n_cpu=n_cpu,
-            #                                                                 val_batch_count=500,
-            #                                                                 chunk_size=500,
-            #                                                                 type='train',
-            #                                                                 plot_path=None
-            #                                                               )
+
             print('Ending final validation step and plotting the heatmap ')
             # final_policy.to(device)
         elif train == TrainEnum.BCDEPLOY or train == TrainEnum.RLDEPLOY or train == TrainEnum.IRLDEPLOY:
@@ -759,31 +724,7 @@ if __name__ == "__main__":
                             val_batch_count = 1000,
                             # plot_heatmap = False
                           )
-                # type = 'train'
-                # train_data_loader = CustomDataLoader(
-                #                                     zip_filename, 
-                #                                     device=val_device,
-                #                                     batch_size=batch_size,
-                #                                     n_cpu=n_cpu,
-                #                                     val_batch_count=500,
-                #                                     chunk_size=500,
-                #                                     type= type,
-                #                                     plot_path=None,
-                #                                     visited_data_files = set([])
-                #                                   ) 
-                # metrics                      = calculate_validation_metrics(
-                #                                                                 train_data_loader,
-                #                                                                 policy, 
-                #                                                                 zip_filename=zip_filename,
-                #                                                                 device=val_device,
-                #                                                                 batch_size=batch_size,
-                #                                                                 n_cpu=n_cpu,
-                #                                                                 val_batch_count=500,
-                #                                                                 chunk_size=500,
-                #                                                                 type= type,
-                #                                                                 validation = True,
-                #                                                                 plot_path=None
-                #                                                               )
+
     except KeyboardInterrupt:
         if TRACE:
             tracemalloc.stop()  # Stop memory tracing when done

@@ -376,7 +376,7 @@ def process_zip_file(result_queue, train_data_file, visited_data_files, zip_file
     result_queue.put(modified_dataset)
 
 def process_sample_for_balanced_subset(args):
-    sample, class_distribution, total_scanned_samples, lock = args
+    sample, class_distribution, total_scanned_samples = args
     if sample:
         acts_value = sample['acts'].item()
         # with class_distribution.get_lock():
@@ -478,7 +478,7 @@ def create_dataloaders(args):
     with multiprocessing.Manager() as manager:
         visited_data_files  = manager.list(visited_data_files_list)
         managed_train_data_list     = manager.list()        
-        with multiprocessing.get_context('spawn').Pool() as pool:
+        with multiprocessing.get_context('spawn').Pool(processes=kwargs['n_cpu']) as pool:
             pool_args = [ (zip_filename, train_data_file, visited_data_files, device, managed_train_data_list, val_only) for train_data_file in hdf5_train_file_names]
             pool.map(load_data_for_single_file_within_a_zipfile, pool_args)
         visited_data_files_list = list(visited_data_files)
@@ -1229,21 +1229,12 @@ def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu 
         #                                                                                 plot_path=None,
         #                                                                                 visited_data_files = set([])
         #                                                                             ) 
-        train_datasets = []
-        for zip_filename in zip_filenames:
-            val_data_loader =                                                       create_dataloaders(
-                                                                                                        zip_filename,
-                                                                                                        train_datasets = train_datasets, 
-                                                                                                        type = type,
-                                                                                                        device=device,
-                                                                                                        batch_size=minibatch_size,
-                                                                                                        n_cpu = n_cpu,
-                                                                                                        visited_data_files= visited_data_files 
-                                                                                                    )
+        # train_datasets = []
+        val_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files , device , minibatch_size, type = 'train', n_cpu = n_cpu)
         metrics                      = calculate_validation_metrics(
                                                                         val_data_loader,
                                                                         policy, 
-                                                                        zip_filename=zip_filename,
+                                                                        zip_filename=zip_filenames,
                                                                         device=val_device,
                                                                         batch_size=batch_size,
                                                                         n_cpu=n_cpu,
@@ -1254,11 +1245,11 @@ def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu 
                                                                         plot_path=None
                                                                     )
         
-def multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size):
+def multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, type = 'train', **kwargs):
     
     list_of_dicts = []
     for zip_filename in zip_filenames:
-        args = (zip_filename, visited_data_files_list , device, {'type': 'train'})
+        args = (zip_filename, visited_data_files_list , device, {'type': type, 'n_cpu': kwargs['n_cpu']})
         list_of_dicts.extend(create_dataloaders(args))
     print("All datasets appended. dataset lenght " , len(list_of_dicts), ' keys ', list_of_dicts[0].keys())
         
@@ -1273,15 +1264,15 @@ def multiprocess_data_loader(zip_filenames, visited_data_files_list , device , m
         managed_class_distribution = manager.dict()
         total_scanned_samples = manager.Value('i', 0)
         max_samples = len(list_of_dicts)
-        lock = manager.Lock()
+        # lock = manager.Lock()
 
-        with multiprocessing.Pool() as pool:
+        with multiprocessing.Pool(processes=kwargs['n_cpu']) as pool:
             # args_list = [(sample, managed_class_distribution, total_scanned_samples, max_samples) for sample in train_datasets]
             args_list = []
             for sample in list_of_dicts:
                 if not sample:
                     break
-                args_list.append((sample, managed_class_distribution, total_scanned_samples, lock))
+                args_list.append((sample, managed_class_distribution, total_scanned_samples))
             for _ in pool.imap_unordered(process_sample_for_balanced_subset, args_list):
                 # print(f"total_scanned_samples {total_scanned_samples}", flush=True)
                 if total_scanned_samples.value >= max_samples:
