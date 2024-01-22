@@ -424,7 +424,7 @@ if __name__ == "__main__":
                     train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, n_cpu = n_cpu)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 5600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 55600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)

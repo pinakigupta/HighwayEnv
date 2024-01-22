@@ -5,15 +5,12 @@ os.environ["HDF5_USE_THREADING"] = "true"
 import h5py
 import sys
 from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
-from torch.utils.data import Dataset, DataLoader
 import torch
-from generate_expert_data import extract_post_processed_expert_data
 import pygame  
 import numpy as np
 import seaborn as sns
 from highway_env.utils import lmap
 import wandb
-import json
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -21,12 +18,7 @@ import zipfile
 import time
 import signal
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
-from torch.utils.data import DataLoader, ConcatDataset, Subset
 from contextlib import ExitStack
-import random
-import math
-import functools
-from collections import defaultdict, Counter
 from gymnasium.spaces import Space as Space
 import numpy as np
 import tracemalloc

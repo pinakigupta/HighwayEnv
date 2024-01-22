@@ -182,7 +182,7 @@ def load_data_for_single_file_within_a_zipfile(args):
                 shuffled_indices = np.arange(len(modified_dataset))
                 balanced_modified_dataset = None
                 if val_only:
-                    return modified_dataset
+                    return [{key: value.cpu().numpy() for key, value in modified_dataset[i].items()}  for i in range(len(modified_dataset))]
                 else:
                     balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices,  alpha=3.1)
                     balanced_modified_dataset_list = [{key: value.cpu().numpy() for key, value in balanced_modified_dataset[i].items()}  for i in range(len(balanced_modified_dataset))]
@@ -362,7 +362,7 @@ def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu 
         #                                                                                 visited_data_files = set([])
         #                                                                             ) 
         # train_datasets = []
-        val_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files , device , minibatch_size, type = 'train', n_cpu = n_cpu)
+        val_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files , device , minibatch_size, type = type, n_cpu = n_cpu)
         metrics                      = calculate_validation_metrics(
                                                                         val_data_loader,
                                                                         policy, 
