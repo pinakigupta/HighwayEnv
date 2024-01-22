@@ -24,6 +24,7 @@ from generate_expert_data import expert_data_collector, retrieve_agent
 from forward_simulation import make_configure_env, append_key_to_dict_of_dict
 from sb3_callbacks import *
 from utilities import *
+from data_loaders import *
 from utils import record_videos
 import warnings
 from imitation.algorithms import bc
