@@ -1253,3 +1253,54 @@ def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu 
                                                                         validation = True,
                                                                         plot_path=None
                                                                     )
+        
+def multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size):
+    
+    list_of_dicts = []
+    for zip_filename in zip_filenames:
+        args = (zip_filename, visited_data_files_list , device, {'type': 'train'})
+        list_of_dicts.extend(create_dataloaders(args))
+    print("All datasets appended. dataset lenght " , len(list_of_dicts), ' keys ', list_of_dicts[0].keys())
+        
+
+    shuffled_indices = np.arange(len(list_of_dicts))
+    np.random.shuffle(shuffled_indices)
+    print(' dict_of_lists compiled. Length is ', len(shuffled_indices), max(shuffled_indices), min(shuffled_indices))
+    # train_datasets = CustomDataset(list_of_dicts, device, keys_attributes=['obs', 'acts'])
+    
+    class_distribution = Counter()
+    with multiprocessing.Manager() as manager:
+        managed_class_distribution = manager.dict()
+        total_scanned_samples = manager.Value('i', 0)
+        max_samples = len(list_of_dicts)
+        lock = manager.Lock()
+
+        with multiprocessing.Pool() as pool:
+            # args_list = [(sample, managed_class_distribution, total_scanned_samples, max_samples) for sample in train_datasets]
+            args_list = []
+            for sample in list_of_dicts:
+                if not sample:
+                    break
+                args_list.append((sample, managed_class_distribution, total_scanned_samples, lock))
+            for _ in pool.imap_unordered(process_sample_for_balanced_subset, args_list):
+                # print(f"total_scanned_samples {total_scanned_samples}", flush=True)
+                if total_scanned_samples.value >= max_samples:
+                    break
+        class_distribution = Counter(dict(managed_class_distribution))
+        
+    
+    print(f"scanned_samples complete. Raw class counts {class_distribution}")
+    shuffled_combined_train_dataset = create_balanced_subset(list_of_dicts, shuffled_indices, class_distribution)
+    print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
+    print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')
+    _data_loader = DataLoader(
+                                    shuffled_combined_train_dataset, 
+                                    batch_size=minibatch_size, 
+                                    shuffle=True,
+                                    # sampler=sampler,
+                                    drop_last=True,
+                                    num_workers=5,
+                                    # pin_memory=True,
+                                    # pin_memory_device=device,
+                                    )
+    return _data_loader

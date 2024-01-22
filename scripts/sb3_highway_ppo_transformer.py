@@ -409,6 +409,8 @@ if __name__ == "__main__":
                 zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
                 type = 'train'
                 visited_data_files_list = [] 
+                
+                
                                                    
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
@@ -418,69 +420,7 @@ if __name__ == "__main__":
                     #     pool_args = [(zip_filename, visited_data_files , device, train_datasets, lock, {'type': 'train'}) for zip_filename in zip_filenames]
                     #     pool.map(create_dataloaders, pool_args)
                     
-                    list_of_dicts = []
-                    for zip_filename in zip_filenames:
-                        args = (zip_filename, visited_data_files_list , device, {'type': 'train'})
-                        list_of_dicts.extend(create_dataloaders(args))
-                    print("All datasets appended. dataset lenght " , len(list_of_dicts), ' keys ', list_of_dicts[0].keys())
-                    # train_datasets = list(train_datasets)    
-                    # combined_train_dataset = ConcatDataset()
-                    # shuffled_combined_train_dataset = create_balanced_subset(combined_train_dataset, shuffled_indices) if (type=='train') else Subset(combined_train_dataset, shuffled_indices)
-                    # dict_of_lists = {}
-                    # with  multiprocessing.Manager() as manager:
-                    #     list_of_dicts = manager.list(list_of_dicts)
-                    #     # obs_list  =   manager.list()
-                    #     # acts_list =   manager.list()
-                    #     # lock = manager.Lock()
-                    #     results = []
-                    #     with multiprocessing.Pool(processes=3 * n_cpu) as pool:
-                    #         results = list(tqdm(pool.imap_unordered(list_of_dicts_to_dict_of_lists, list_of_dicts, chunksize=1), total=len(list_of_dicts)))
-
-                    #     obs_list, acts_list = zip(*results)
-                                    
-                    #     dict_of_lists = {'obs': list(obs_list), 'acts': list(acts_list)}                      
-
-                    shuffled_indices = np.arange(len(list_of_dicts))
-                    np.random.shuffle(shuffled_indices)
-                    print(' dict_of_lists compiled. Length is ', len(shuffled_indices), max(shuffled_indices), min(shuffled_indices))
-                    # train_datasets = CustomDataset(list_of_dicts, device, keys_attributes=['obs', 'acts'])
-                    
-                    class_distribution = Counter()
-                    with multiprocessing.Manager() as manager:
-                        managed_class_distribution = manager.dict()
-                        total_scanned_samples = manager.Value('i', 0)
-                        max_samples = len(list_of_dicts)
-                        lock = manager.Lock()
-
-                        with multiprocessing.Pool() as pool:
-                            # args_list = [(sample, managed_class_distribution, total_scanned_samples, max_samples) for sample in train_datasets]
-                            args_list = []
-                            for sample in list_of_dicts:
-                                if not sample:
-                                    break
-                                args_list.append((sample, managed_class_distribution, total_scanned_samples, lock))
-                            for _ in pool.imap_unordered(process_sample_for_balanced_subset, args_list):
-                                # print(f"total_scanned_samples {total_scanned_samples}", flush=True)
-                                if total_scanned_samples.value >= max_samples:
-                                    break
-                        class_distribution = Counter(dict(managed_class_distribution))
-                        
-                    
-                    print(f"scanned_samples complete. Raw class counts {class_distribution}")
-                    shuffled_combined_train_dataset = create_balanced_subset(list_of_dicts, shuffled_indices, class_distribution)
-                    print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
-                    print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')
-                    train_data_loader = DataLoader(
-                                                    shuffled_combined_train_dataset, 
-                                                    batch_size=minibatch_size, 
-                                                    shuffle=True,
-                                                    # sampler=sampler,
-                                                    drop_last=True,
-                                                    num_workers=5,
-                                                    # pin_memory=True,
-                                                    # pin_memory_device=device,
-                                                  )
-
+                    train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
                     num_mini_batches = 5600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
