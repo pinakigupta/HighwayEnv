@@ -72,6 +72,22 @@ class CustomPPO(PPO):
                     param.requires_grad = False
 
 
+def on_epoch_end(trainer, policy, device, n_cpu ):
+    print('Entering on_epoch_end ', flush=True)
+    validation_metrics =   validation(
+                                        policy = policy,
+                                        device = device, 
+                                        # project = project, 
+                                        zip_filenames = 'temp_val.zip', 
+                                        batch_size = 64, 
+                                        minibatch_size = 64, 
+                                        n_cpu = n_cpu,
+                                        visited_data_files = set([]),
+                                        val_batch_count = 500
+                                    )
+    for key, value in validation_metrics.items():
+        trainer._bc_logger.record(key, value, step=trainer.batch_num)
+
 if __name__ == "__main__":
     torch.cuda.empty_cache()
     TRACE = False
@@ -430,23 +446,11 @@ if __name__ == "__main__":
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
-                    def on_epoch_end():
-                        validation_metrics =   validation(
-                                                            policy = policy,
-                                                            device = device, 
-                                                            project = project, 
-                                                            zip_filenames = 'temp_val.zip', 
-                                                            batch_size = 64, 
-                                                            minibatch_size = minibatch_size, 
-                                                            n_cpu = n_cpu,
-                                                            visited_data_files = set([]),
-                                                            val_batch_count = 500
-                                                        )
-                        for key, value in validation_metrics.items():
-                            trainer._bc_logger.record(key, value, step=trainer.batch_num)
+
+                    partial_func = functools.partial(on_epoch_end, trainer, policy, device, n_cpu)
                     trainer.train(
                                     n_batches=num_mini_batches,
-                                    # on_epoch_end=on_epoch_end,
+                                    on_epoch_end=partial_func,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )

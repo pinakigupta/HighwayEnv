@@ -284,9 +284,10 @@ def process_validation_batch(output_queue, input_queue, labels, worker_index,loc
     # shutil.copy('validation_policy.pth', local_policy_path)
     if lock.acquire(timeout=10):
         local_policy = torch.load('validation_policy.pth', map_location='cpu')
+        # print(f"Fetched the validation pol`icy for worker {worker_index}", flush = True)
         lock.release()
     else:
-        print(f"Couldn't fetch the validation policy for worker {worker_index}")
+        print(f"Couldn't fetch the validation policy for worker {worker_index}", flush = True)
         return
     
     # print(f"ID of val policy is {id(local_policy)}")
@@ -296,6 +297,7 @@ def process_validation_batch(output_queue, input_queue, labels, worker_index,loc
             batch = input_queue.get()
         else:
             time.sleep(0.1)
+            # print(f"Input queue empty. Output queue size {output_queue.qsize()} ", flush=True)
             continue
         # print(f"batch collected from worker {worker_index}")
         true_labels = batch['acts'].numpy()
@@ -413,7 +415,9 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
             pass
             # print(e)
         batch_count += 1
+        print(f"batch_count {batch_count}")
         calculate_metrics()
+        
         
     val_batch_count = min(val_batch_count, batch_count )
         
@@ -487,5 +491,6 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
 
             }
     return metrics
+
 
 
