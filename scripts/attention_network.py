@@ -184,7 +184,7 @@ class EgoAttentionNetwork(BaseModule):
         attention_layer_kwargs = attention_layer_kwargs or {}
         self.attention_layer = EgoAttention(**attention_layer_kwargs)
         hidden_size = self.attention_layer.attention_combine.out_features
-        self.feedforward = MultiLayerPerceptron(**skip_layer_kwargs)
+        self.feedforward = MultiLayerPerceptron(**skip_layer_kwargs) if skip_layer_kwargs else None
         self.norm1 = nn.LayerNorm(hidden_size)
 
     def forward(self, x):
@@ -194,6 +194,8 @@ class EgoAttentionNetwork(BaseModule):
         #     ego_embedded_att, _=self.forward_attention(ego_embedded_att)
         # Skip connection and layer normalization
         x = torch.flatten(x, start_dim=1)
+        if not self.feedforward :
+            return ego_embedded_att
         x = self.norm1(self.feedforward(x) + ego_embedded_att)
         return x
 

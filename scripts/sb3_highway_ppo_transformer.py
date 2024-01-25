@@ -97,7 +97,7 @@ if __name__ == "__main__":
             action_extractor_kwargs = dict(
                                             action_extractor_kwargs = {
                                                                         "feature_size": 4, 
-                                                                        "dropout_factor": 0.95, # probability of an element to be zeroed.
+                                                                        "dropout_factor": 0.999, # probability of an element to be zeroed.
                                                                         "obs_space": obs_space,
                                                                         "act_space": act_space
                                                                     }
@@ -424,7 +424,7 @@ if __name__ == "__main__":
                     train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, n_cpu = n_cpu)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 55600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 25600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -435,7 +435,7 @@ if __name__ == "__main__":
                                                             policy = policy,
                                                             device = device, 
                                                             project = project, 
-                                                            zip_filenames = 'temp_1.zip', 
+                                                            zip_filenames = 'temp_val.zip', 
                                                             batch_size = 64, 
                                                             minibatch_size = minibatch_size, 
                                                             n_cpu = n_cpu,
@@ -714,6 +714,7 @@ if __name__ == "__main__":
                                                                     device=device,
                                                                     project=project
                                                                     )
+
                 validation(
                             policy = policy,
                             device = device, 

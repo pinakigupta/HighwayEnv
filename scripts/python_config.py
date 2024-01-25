@@ -134,10 +134,16 @@ project_names= \
 train = TrainEnum.BC
 zip_filename = \
                 [
-                    'temp_2.zip',
+                    # 'temp_2.zip',
                     'temp_3.zip', 
                     'temp_5.zip',
                     'temp_6.zip', 
+                    'temp_7.zip',
+                    'temp_8.zip',
+                    'temp_9.zip',
+                    'temp_7_random.zip',
+                    'temp_8_random.zip',
+                    'temp_10_random.zip',
                     # 'temp_12.zip', 
                     # 'temp_13.zip', 
                     # 'temp_14.zip',
@@ -150,7 +156,7 @@ zip_filename = \
                     # 'temp_21.zip',
                     # 'temp_22.zip',
                 ]
-zip_filename =    'temp.zip' 
+# zip_filename =    'temp_9.zip' 
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
@@ -163,14 +169,14 @@ attention_network_kwargs = dict(
                                 "activation": 'RELU',
                                 'dropout_factor': 0.2
                             },
-    skip_layer_kwargs=  {
-                                "in_size": env_kwargs['config']['KinematicObservation']['vehicles_count']*len(env_kwargs['config']['KinematicObservation']['features']), 
-                                "out_size": 256,
-                                "layer_sizes": [], 
-                                "reshape": False,
-                                "activation": None,
-                                'dropout_factor': 0.2
-                            },
+    # skip_layer_kwargs=  {
+    #                             "in_size": env_kwargs['config']['KinematicObservation']['vehicles_count']*len(env_kwargs['config']['KinematicObservation']['features']), 
+    #                             "out_size": 256,
+    #                             "layer_sizes": [], 
+    #                             "reshape": False,
+    #                             "activation": None,
+    #                             'dropout_factor': 0.8 # Looks like skip layer was causing over fitting 
+    #                         },
     attention_layer_kwargs={
                                 "feature_size": 256, 
                                 "heads": 8, 

@@ -80,7 +80,7 @@ class CustomDataset(Dataset):
             # raise e
 
         try:
-            sample['obs'][:, -7].fill_(0)
+            sample['obs'][:, -5:].fill_(0)
             prev_sample = prev_sample['acts'].view(1) if 'acts' in prev_sample else prev_sample['act'].view(1)
             sample['obs'] = torch.cat([ sample['obs'].view(-1), prev_sample], dim=0)
         except Exception as e:
@@ -362,6 +362,10 @@ def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu 
         #                                                                                 visited_data_files = set([])
         #                                                                             ) 
         # train_datasets = []
+        # policy.features_extractor.action_extractor.dropout_factor = 0.99
+        # policy.features_extractor.action_extractor.training = True
+        # policy.features_extractor.obs_extractor.extractor.feedforward.dropout_factor = 0.99
+        # policy.features_extractor.obs_extractor.extractor.feedforward.training = True
         val_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files , device , minibatch_size, type = type, n_cpu = n_cpu)
         metrics                      = calculate_validation_metrics(
                                                                         val_data_loader,
@@ -383,7 +387,7 @@ def multiprocess_data_loader(zip_filenames, visited_data_files_list , device , m
     for zip_filename in zip_filenames:
         args = (zip_filename, visited_data_files_list , device, {'type': type, 'n_cpu': kwargs['n_cpu']})
         list_of_dicts.extend(create_dataloaders(args))
-    print("All datasets appended. dataset lenght " , len(list_of_dicts), ' keys ', list_of_dicts[0].keys())
+    print("All datasets appended. dataset lenght " , len(list_of_dicts), ' keys ', list_of_dicts[0].keys(), 'number of batches ', len(list_of_dicts)//minibatch_size)
         
 
     shuffled_indices = np.arange(len(list_of_dicts))
