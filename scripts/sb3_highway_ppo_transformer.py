@@ -428,6 +428,10 @@ if __name__ == "__main__":
                 visited_data_files_list = [] 
                 
                 
+                sample_indices = []
+                if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
+                    for feature in env_kwargs['config']['observation']['features']:
+                        sample_indices.append(env_kwargs['config']['observation']['all_features'].index(feature))
                                                    
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
@@ -436,8 +440,7 @@ if __name__ == "__main__":
                     # with multiprocessing.get_context('spawn').Pool() as pool:
                     #     pool_args = [(zip_filename, visited_data_files , device, train_datasets, lock, {'type': 'train'}) for zip_filename in zip_filenames]
                     #     pool.map(create_dataloaders, pool_args)
-                    
-                    train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, n_cpu = n_cpu)
+                    train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, n_cpu = n_cpu, sample_indices = sample_indices)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
                     num_mini_batches = 25600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
@@ -450,7 +453,7 @@ if __name__ == "__main__":
                     partial_func = functools.partial(on_epoch_end, trainer, policy, device, n_cpu)
                     trainer.train(
                                     n_batches=num_mini_batches,
-                                    on_epoch_end=partial_func,
+                                    # on_epoch_end=partial_func,
                                     # log_rollouts_venv = env,
                                     # log_rollouts_n_episodes =10,
                                  )

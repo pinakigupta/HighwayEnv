@@ -23,7 +23,7 @@ import numpy as np
 from utilities import *
 
 class CustomDataset(Dataset):
-    def __init__(self, data, device, pad_value=0, **kwargs):
+    def __init__(self, data, device, pad_value=0, sample_indices = None, **kwargs):
         # Load your data from the file and prepare it here
         # self.data = ...  # Load your data into this variable
         self.keys_attributes = kwargs['keys_attributes']
@@ -34,6 +34,7 @@ class CustomDataset(Dataset):
             self.data = extract_post_processed_expert_data(self.data_file, self.keys_attributes)
         self.pad_value = pad_value
         self.device = device
+        self.sample_indices = sample_indices
         # print(" data lengths ", len(self.exp_obs), len(self.exp_acts), len(self.exp_dones))
         return
 
@@ -71,16 +72,18 @@ class CustomDataset(Dataset):
                                 print(' idx ', idx, ' data length ', len(self.data))
                                 return sample
                                 # raise(e)
+                    value = value[:][self.sample_indices] if (self.sample_indices and np.ndim(value) == 2) else value
+                    prev_value = prev_value[:][self.sample_indices] if (self.sample_indices and np.ndim(prev_value) == 2) else prev_value
                     sample[key] = torch.tensor(value, dtype=torch.float32).to(self.device)
                     prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32).to(self.device)
 
         except Exception as e:
-            print(f' {e} , for , { id(self)}. key {key} , value {value} ')
+            print(f' {e} , for Dataset id , { id(self)}. key {key} , value {value} ')
             pass
             # raise e
 
         try:
-            sample['obs'][:, -5:].fill_(0)
+            # sample['obs'][:, -7:].fill_(0)
             prev_sample = prev_sample['acts'].view(1) if 'acts' in prev_sample else prev_sample['act'].view(1)
             sample['obs'] = torch.cat([ sample['obs'].view(-1), prev_sample], dim=0)
         except Exception as e:
@@ -158,14 +161,14 @@ def create_balanced_subset(dataset, shuffled_indices, class_distribution = None 
     return balanced_subset
 
 def load_data_for_single_file_within_a_zipfile(args):    
-    zip_filename, train_data_file, visited_data_files, device, val_only = args  
+    zip_filename, train_data_file, visited_data_files, device, val_only, sample_indices= args  
     visited_filepath = zip_filename + train_data_file
     if visited_filepath not in visited_data_files:
         visited_data_files.append(visited_filepath)
         with zipfile.ZipFile(zip_filename, 'r') as zipf:
             with zipf.open(train_data_file) as file_in_zip:
                 print(f"Opening the data file {train_data_file}")
-                samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'])
+                samples = CustomDataset(file_in_zip, device, keys_attributes = ['obs', 'act'], sample_indices=sample_indices)
                 print(f"Loaded custom data set for {train_data_file}")
                 new_key = 'acts'
                 old_key = 'act'
@@ -198,6 +201,7 @@ def load_data_for_single_file_within_a_zipfile(args):
 def create_dataloaders(args):
     zip_filename, visited_data_files_list, device, kwargs = args
     val_only = kwargs['type'] == 'val'
+    sample_indices = kwargs['sample_indices']
     # n_cpu = kwargs['n_cpu']
     # Extract the names of the HDF5 files from the zip archive
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
@@ -209,7 +213,7 @@ def create_dataloaders(args):
         visited_data_files  = manager.list(visited_data_files_list)
         # managed_train_data_list     = manager.list()        
         with multiprocessing.get_context('spawn').Pool(processes=kwargs['n_cpu']) as pool:
-            pool_args = [ (zip_filename, train_data_file, visited_data_files, device, val_only) for train_data_file in hdf5_train_file_names]
+            pool_args = [ (zip_filename, train_data_file, visited_data_files, device, val_only, sample_indices) for train_data_file in hdf5_train_file_names]
             results = pool.map(load_data_for_single_file_within_a_zipfile, pool_args)
             
         for result in results:
@@ -385,8 +389,11 @@ def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu 
 def multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, type = 'train', **kwargs):
     
     list_of_dicts = []
+    dataloader_kwargs = {'type': type, 'n_cpu': kwargs['n_cpu']}
+    if 'sample_indices' in kwargs:
+        dataloader_kwargs['sample_indices'] = kwargs['sample_indices']
     for zip_filename in zip_filenames:
-        args = (zip_filename, visited_data_files_list , device, {'type': type, 'n_cpu': kwargs['n_cpu']})
+        args = (zip_filename, visited_data_files_list , device, dataloader_kwargs)
         list_of_dicts.extend(create_dataloaders(args))
     print("All datasets appended. dataset lenght " , len(list_of_dicts), ' keys ', list_of_dicts[0].keys(), 'number of batches ', len(list_of_dicts)//minibatch_size)
         
