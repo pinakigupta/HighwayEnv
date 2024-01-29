@@ -415,7 +415,7 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
             pass
             # print(e)
         batch_count += 1
-        print(f"batch_count {batch_count}")
+        # print(f"batch_count {batch_count}")
         calculate_metrics()
         
         

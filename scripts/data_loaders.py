@@ -72,8 +72,8 @@ class CustomDataset(Dataset):
                                 print(' idx ', idx, ' data length ', len(self.data))
                                 return sample
                                 # raise(e)
-                    value = value[:][self.sample_indices] if (self.sample_indices and np.ndim(value) == 2) else value
-                    prev_value = prev_value[:][self.sample_indices] if (self.sample_indices and np.ndim(prev_value) == 2) else prev_value
+                    value = value[:, self.sample_indices] if (self.sample_indices and np.ndim(value) == 2) else value
+                    prev_value = prev_value[:, self.sample_indices] if (self.sample_indices and np.ndim(prev_value) == 2) else prev_value
                     sample[key] = torch.tensor(value, dtype=torch.float32).to(self.device)
                     prev_sample[key] = torch.tensor(prev_value, dtype=torch.float32).to(self.device)
 
@@ -85,7 +85,7 @@ class CustomDataset(Dataset):
         try:
             # sample['obs'][:, -7:].fill_(0)
             prev_sample = prev_sample['acts'].view(1) if 'acts' in prev_sample else prev_sample['act'].view(1)
-            sample['obs'] = torch.cat([ sample['obs'].view(-1), prev_sample], dim=0)
+            sample['obs'] = torch.cat([ sample['obs'].reshape(-1), prev_sample], dim=0)
         except Exception as e:
             pass
         # sample['obs'] = {'obs':sample['obs'], 'action':prev_sample['act']}
@@ -346,7 +346,7 @@ def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
         print('Plotting done')
     return normalized_counts
 
-def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500):
+def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500, sample_indices = None):
 
     zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
     val_device = torch.device('cpu')
@@ -370,7 +370,7 @@ def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu 
         # policy.features_extractor.action_extractor.training = True
         # policy.features_extractor.obs_extractor.extractor.feedforward.dropout_factor = 0.99
         # policy.features_extractor.obs_extractor.extractor.feedforward.training = True
-        val_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files , device , minibatch_size, type = type, n_cpu = n_cpu)
+        val_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files , device , minibatch_size, type = type, n_cpu = n_cpu, sample_indices = sample_indices)
         print('validation data loader uploaded ', flush=True)
         metrics                      = calculate_validation_metrics(
                                                                         val_data_loader,
@@ -411,7 +411,7 @@ def multiprocess_data_loader(zip_filenames, visited_data_files_list , device , m
                                     shuffle=True,
                                     # sampler=sampler,
                                     drop_last=True,
-                                    num_workers=5,
+                                    num_workers=10,
                                     # pin_memory=True,
                                     # pin_memory_device=device,
                                     )

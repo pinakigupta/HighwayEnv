@@ -23,7 +23,7 @@ from highway_env.envs.common.action import DiscreteMetaAction
 from forward_simulation import append_key_to_dict_of_dict
 from gym_wrappers import make_configure_env
 
-torch.set_default_tensor_type(torch.FloatTensor)
+torch.set_default_dtype(torch.float32)
 
 def worker(
                 exit_event,

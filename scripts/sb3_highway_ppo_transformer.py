@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings("ignore")
 import torch.multiprocessing as mp
 import functools
 import gymnasium as gym
@@ -26,7 +28,6 @@ from sb3_callbacks import *
 from utilities import *
 from data_loaders import *
 from utils import record_videos
-import warnings
 from imitation.algorithms import bc
 # from imitation.util import logger as imit_logger
 from stable_baselines3.common.logger import Logger
@@ -42,7 +43,7 @@ import threading
 import torch.optim as custom_optimizer
 # import tensorflow as tf
 # tf.get_logger().setLevel('ERROR')
-warnings.filterwarnings("ignore")
+
 
 from highway_env.envs.common.action import DiscreteMetaAction
 ACTIONS_ALL = DiscreteMetaAction.ACTIONS_ALL
@@ -155,6 +156,11 @@ if __name__ == "__main__":
     num_epochs = sweep_config['parameters']['num_epochs']['values'][0]
     minibatch_size = batch_size
     num_deploy_rollouts = 50
+    
+    sample_indices = []
+    if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
+        for feature in env_kwargs['config']['observation']['features']:
+            sample_indices.append(env_kwargs['config']['observation']['all_features'].index(feature))
 
     try:
         project= project_names[train.value]                           
@@ -428,10 +434,7 @@ if __name__ == "__main__":
                 visited_data_files_list = [] 
                 
                 
-                sample_indices = []
-                if env_kwargs['config']['observation'] == env_kwargs['config']['KinematicObservation']:
-                    for feature in env_kwargs['config']['observation']['features']:
-                        sample_indices.append(env_kwargs['config']['observation']['all_features'].index(feature))
+
                                                    
                 for epoch in range(num_epochs): # Epochs here correspond to new data distribution (as maybe collecgted through DAGGER)
                     print(f'Loadng training data loader for epoch {epoch}')
@@ -731,6 +734,7 @@ if __name__ == "__main__":
                             n_cpu = n_cpu,
                             visited_data_files = set([]),
                             val_batch_count = 1000,
+                            sample_indices = sample_indices
                             # plot_heatmap = False
                           )
 
