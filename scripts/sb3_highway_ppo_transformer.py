@@ -73,9 +73,10 @@ class CustomPPO(PPO):
                     param.requires_grad = False
 
 
-def on_epoch_end(trainer, policy, device, n_cpu, sample_indices=None ):
+def on_epoch_end(manager, trainer, policy, device, n_cpu, sample_indices=None ):
     print('Entering on_epoch_end ', flush=True)
     validation_metrics =   validation(
+                                        manager = manager,
                                         policy = policy,
                                         device = device, 
                                         # project = project, 
@@ -447,20 +448,21 @@ if __name__ == "__main__":
                     train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, n_cpu = n_cpu, sample_indices = sample_indices)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 25600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 55600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
 
-                    partial_func = functools.partial(on_epoch_end, trainer, policy, device, n_cpu, sample_indices)
-                    trainer.train(
-                                    n_batches=num_mini_batches,
-                                    # on_epoch_end=partial_func,
-                                    # log_rollouts_venv = env,
-                                    # log_rollouts_n_episodes =10,
-                                 )
+                    with multiprocessing.Manager() as manager:
+                        partial_func = functools.partial(on_epoch_end, manager, trainer, policy, device, n_cpu, sample_indices)
+                        trainer.train(
+                                        n_batches=num_mini_batches,
+                                        # on_epoch_end=partial_func,
+                                        # log_rollouts_venv = env,
+                                        # log_rollouts_n_episodes =10,
+                                    )
                     if TrainPartiallyPreTrained:
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=True)
                         trainer.train(n_batches=25000)                   
@@ -725,19 +727,20 @@ if __name__ == "__main__":
                                                                     device=device,
                                                                     project=project
                                                                     )
-
-                validation(
-                            policy = policy,
-                            device = device, 
-                            zip_filenames = zip_filename, 
-                            batch_size = batch_size, 
-                            minibatch_size = 64, 
-                            n_cpu = n_cpu,
-                            visited_data_files = set([]),
-                            val_batch_count = 1000,
-                            sample_indices = sample_indices
-                            # plot_heatmap = False
-                          )
+                with multiprocessing.Manager() as manager:
+                    validation(
+                                manager = manager,
+                                policy = policy,
+                                device = device, 
+                                zip_filenames = zip_filename, 
+                                batch_size = batch_size, 
+                                minibatch_size = 64, 
+                                n_cpu = n_cpu,
+                                visited_data_files = set([]),
+                                val_batch_count = 1000,
+                                sample_indices = sample_indices
+                                # plot_heatmap = False
+                            )
 
     except KeyboardInterrupt:
         if TRACE:

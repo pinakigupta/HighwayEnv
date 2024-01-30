@@ -346,7 +346,7 @@ def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
         print('Plotting done')
     return normalized_counts
 
-def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500, sample_indices = None):
+def validation(manager, policy, device, zip_filenames, batch_size, minibatch_size, n_cpu ,visited_data_files, val_batch_count = 2500, sample_indices = None):
 
     zip_filenames = zip_filenames if isinstance(zip_filenames, list) else [zip_filenames]
     val_device = torch.device('cpu')
@@ -374,6 +374,7 @@ def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu 
         val_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files , device , minibatch_size, type = type, n_cpu = n_cpu, sample_indices = sample_indices)
         print('validation data loader uploaded ', flush=True)
         metrics                      = calculate_validation_metrics(
+                                                                        manager,
                                                                         val_data_loader,
                                                                         policy, 
                                                                         zip_filename=zip_filenames,

@@ -334,7 +334,7 @@ def validation_batch_worker_process(output_queue, input_queue, labels, worker_in
         except Exception as e:
             return
 
-def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs):
+def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, **kwargs):
     true_labels = []
     predicted_labels = []
     # Iterate through the validation data and make predictions
@@ -361,7 +361,7 @@ def calculate_validation_metrics(val_data_loader, policy,zip_filename, **kwargs)
     batch_count = 0
 
     # manager = multiprocessing.Manager()
-    with multiprocessing.Manager() as manager:
+    with manager:
     # if True:
         lock = manager.Lock()
         torch.save(policy,'validation_policy.pth')
