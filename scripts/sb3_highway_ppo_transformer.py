@@ -73,7 +73,7 @@ class CustomPPO(PPO):
                     param.requires_grad = False
 
 
-def on_epoch_end(trainer, policy, device, n_cpu ):
+def on_epoch_end(trainer, policy, device, n_cpu, sample_indices=None ):
     print('Entering on_epoch_end ', flush=True)
     validation_metrics =   validation(
                                         policy = policy,
@@ -84,7 +84,8 @@ def on_epoch_end(trainer, policy, device, n_cpu ):
                                         minibatch_size = 64, 
                                         n_cpu = n_cpu,
                                         visited_data_files = set([]),
-                                        val_batch_count = 500
+                                        val_batch_count = 500,
+                                        sample_indices = sample_indices
                                     )
     for key, value in validation_metrics.items():
         trainer._bc_logger.record(key, value, step=trainer.batch_num)
@@ -453,7 +454,7 @@ if __name__ == "__main__":
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
 
-                    partial_func = functools.partial(on_epoch_end, trainer, policy, device, n_cpu)
+                    partial_func = functools.partial(on_epoch_end, trainer, policy, device, n_cpu, sample_indices)
                     trainer.train(
                                     n_batches=num_mini_batches,
                                     # on_epoch_end=partial_func,

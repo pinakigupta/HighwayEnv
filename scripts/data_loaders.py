@@ -370,6 +370,7 @@ def validation(policy, device, zip_filenames, batch_size, minibatch_size, n_cpu 
         # policy.features_extractor.action_extractor.training = True
         # policy.features_extractor.obs_extractor.extractor.feedforward.dropout_factor = 0.99
         # policy.features_extractor.obs_extractor.extractor.feedforward.training = True
+        print('validation data loader initiated ', flush=True)
         val_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files , device , minibatch_size, type = type, n_cpu = n_cpu, sample_indices = sample_indices)
         print('validation data loader uploaded ', flush=True)
         metrics                      = calculate_validation_metrics(
