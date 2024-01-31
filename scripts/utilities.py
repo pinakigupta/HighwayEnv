@@ -282,15 +282,7 @@ class DownSamplingSampler(SubsetRandomSampler):
 def validation_batch_worker_process(output_queue, input_queue, labels, worker_index,lock, batch_count=None, **kwargs):
     # local_policy_path = f'/tmp/validation_policy{worker_index}.pth'
     # shutil.copy('validation_policy.pth', local_policy_path)
-    if lock.acquire(timeout=10):
-        local_policy = torch.load('validation_policy.pth', map_location='cpu')
-        # print(f"Fetched the validation pol`icy for worker {worker_index}", flush = True)
-        lock.release()
-    else:
-        print(f"Couldn't fetch the validation policy for worker {worker_index}", flush = True)
-        return
-    
-    # print(f"ID of val policy is {id(local_policy)}")
+
     output_samples =[]
     while True:
         try:
@@ -298,40 +290,51 @@ def validation_batch_worker_process(output_queue, input_queue, labels, worker_in
                 batch = input_queue.get()
             else:
                 time.sleep(0.1)
-                # print(f"Input queue empty. Output queue size {output_queue.qsize()} ", flush=True)
+                print(f"Input queue empty. Output queue size {output_queue.qsize()} ", flush=True)
                 continue
-            # print(f"batch collected from worker {worker_index}")
+            print(f"batch collected from worker {worker_index}")
             true_labels = batch['acts'].numpy()
             with torch.no_grad():
-                # print(f"Lock acquired by {worker_index}")
-                predicted_labels = [local_policy.predict(obs.numpy())[0] for obs in batch['obs']]
+                # if lock.acquire(timeout=10):
+                local_policy = torch.load('validation_policy.pth', map_location='cpu')
+                # print(f"Fetched the validation pol`icy for worker {worker_index}", flush = True)
+                # predicted_labels = [local_policy.predict(obs.numpy())[0] for obs in batch['obs']]
+                predicted_labels = true_labels
                 _, log_prob, entropy = local_policy.evaluate_actions(batch['obs'], batch['acts'])
+                    # lock.release()
+                # else:
+                #     print(f"Couldn't fetch the validation policy for worker {worker_index}", flush = True)
+                #     return
                 if 'label_weights' in kwargs:
                     true_labels         = true_labels @ kwargs['label_weights']
                     predicted_labels    = predicted_labels @ kwargs['label_weights']
-            accuracy = accuracy_score(true_labels, predicted_labels)
-            precision = precision_score(true_labels, predicted_labels, average=None, labels=labels)
-            recall = recall_score(true_labels, predicted_labels, average=None, labels=labels)
-            f1 = f1_score(true_labels, predicted_labels, average=None, labels=labels)
-            cross_entropy = -log_prob.mean().detach().cpu().numpy()
-            entropy = entropy.mean().detach().cpu().numpy()
-            conf_matrix = confusion_matrix(true_labels, predicted_labels, labels=labels)
-            output_sample = {
-                                'accuracy': accuracy,
-                                'precision': precision,
-                                'recall': recall,
-                                'f1': f1,
-                                'cross_entropy': cross_entropy,
-                                'entropy': entropy,
-                                'conf_matrix':conf_matrix 
-                            }
-            output_queue.put(output_sample)
+                print(f"Lock acquired by {worker_index}. True labels {true_labels}. \n predicted_labels {predicted_labels}")
+                accuracy = accuracy_score(true_labels, predicted_labels)
+                precision = precision_score(true_labels, predicted_labels, average=None, labels=labels)
+                recall = recall_score(true_labels, predicted_labels, average=None, labels=labels)
+                f1 = f1_score(true_labels, predicted_labels, average=None, labels=labels)
+                cross_entropy = -log_prob.mean().detach().cpu().numpy()
+                entropy = entropy.mean().detach().cpu().numpy()
+                conf_matrix = confusion_matrix(true_labels, predicted_labels, labels=labels)
+                output_sample = {
+                                    'accuracy': accuracy,
+                                    'precision': precision,
+                                    'recall': recall,
+                                    'f1': f1,
+                                    'cross_entropy': cross_entropy,
+                                    'entropy': entropy,
+                                    'conf_matrix':conf_matrix 
+                                }
+                print( predicted_labels , " output_sample ", output_sample, flush=True)
+                output_queue.put(output_sample)
             # if lock.acquire(timeout=0.1):
             #     output_queue.put(output_samples)
             #     lock.release()
             # else:
             #     output_samples.append(output_sample)
         except Exception as e:
+            print(f" Error in validation_batch_worker_process {e}")
+            raise(e)
             return
 
 def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, **kwargs):
@@ -361,8 +364,8 @@ def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, 
     batch_count = 0
 
     # manager = multiprocessing.Manager()
-    with manager:
-    # if True:
+    # with manager:
+    if True:
         lock = manager.Lock()
         torch.save(policy,'validation_policy.pth')
         # Create a list to store process objects
@@ -413,11 +416,14 @@ def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, 
                 # print(e)
             batch_count += 1
             # print(f"batch_count {batch_count}")
+            if output_queue.empty():
+                continue
             calculate_metrics(output_queue, managed_accuracy, managed_precision, managed_recall, managed_f1, managed_cross_entropy, managed_entropy)
             progress_bar.update(1)
             
             
         val_batch_count = min(val_batch_count, batch_count )
+        print('val_batch_count ', val_batch_count)
             
 
         while len(accuracies) < val_batch_count:

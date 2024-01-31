@@ -212,7 +212,7 @@ def create_dataloaders(args):
     with multiprocessing.Manager() as manager:
         visited_data_files  = manager.list(visited_data_files_list)
         # managed_train_data_list     = manager.list()        
-        with multiprocessing.get_context('spawn').Pool(processes=kwargs['n_cpu']) as pool:
+        with multiprocessing.Pool(processes=kwargs['n_cpu']) as pool:
             pool_args = [ (zip_filename, train_data_file, visited_data_files, device, val_only, sample_indices) for train_data_file in hdf5_train_file_names]
             results = pool.map(load_data_for_single_file_within_a_zipfile, pool_args)
             
@@ -354,22 +354,6 @@ def validation(manager, policy, device, zip_filenames, batch_size, minibatch_siz
     policy.eval()
     type = 'val'
     with torch.no_grad():
-        # val_data_loader                                             =  CustomDataLoader(
-        #                                                                                 zip_filename, 
-        #                                                                                 device=val_device,
-        #                                                                                 batch_size=batch_size,
-        #                                                                                 n_cpu=n_cpu,
-        #                                                                                 val_batch_count=val_batch_count,
-        #                                                                                 chunk_size=500,
-        #                                                                                 type= type,
-        #                                                                                 plot_path=None,
-        #                                                                                 visited_data_files = set([])
-        #                                                                             ) 
-        # train_datasets = []
-        # policy.features_extractor.action_extractor.dropout_factor = 0.99
-        # policy.features_extractor.action_extractor.training = True
-        # policy.features_extractor.obs_extractor.extractor.feedforward.dropout_factor = 0.99
-        # policy.features_extractor.obs_extractor.extractor.feedforward.training = True
         print('validation data loader initiated ', flush=True)
         val_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files , device , minibatch_size, type = type, n_cpu = n_cpu, sample_indices = sample_indices)
         print('validation data loader uploaded ', flush=True)

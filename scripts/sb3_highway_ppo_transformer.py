@@ -73,23 +73,24 @@ class CustomPPO(PPO):
                     param.requires_grad = False
 
 
-def on_epoch_end(manager, trainer, policy, device, n_cpu, sample_indices=None ):
+def on_epoch_end(trainer, policy, device, n_cpu, sample_indices=None ):
     print('Entering on_epoch_end ', flush=True)
-    validation_metrics =   validation(
-                                        manager = manager,
-                                        policy = policy,
-                                        device = device, 
-                                        # project = project, 
-                                        zip_filenames = 'temp_val.zip', 
-                                        batch_size = 64, 
-                                        minibatch_size = 64, 
-                                        n_cpu = n_cpu,
-                                        visited_data_files = set([]),
-                                        val_batch_count = 500,
-                                        sample_indices = sample_indices
-                                    )
-    for key, value in validation_metrics.items():
-        trainer._bc_logger.record(key, value, step=trainer.batch_num)
+    with multiprocessing.Manager() as manager:
+        validation_metrics =   validation(
+                                            manager = manager,
+                                            policy = policy,
+                                            device = device, 
+                                            # project = project, 
+                                            zip_filenames = 'temp_val.zip', 
+                                            batch_size = 64, 
+                                            minibatch_size = 64, 
+                                            n_cpu = n_cpu,
+                                            visited_data_files = set([]),
+                                            val_batch_count = 500,
+                                            sample_indices = sample_indices
+                                        )
+    # for key, value in validation_metrics.items():
+    #     trainer._bc_logger.record(key, value, step=trainer.batch_num)
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
@@ -144,7 +145,7 @@ if __name__ == "__main__":
     month = now.strftime("%m")
     day = now.strftime("%d")
 
-    n_cpu =  mp.cpu_count()
+    n_cpu =  1 # mp.cpu_count()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     device = torch.device('cpu')
     extract_path = 'data'
@@ -191,7 +192,7 @@ if __name__ == "__main__":
                                         policy,
                                         extract_path = extract_path,
                                         zip_filename=zip_filename,
-                                        delta_iterations = 19,
+                                        delta_iterations = 59,
                                         **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                     )
             print(" finished collecting data for ALL THE files ")
@@ -448,28 +449,27 @@ if __name__ == "__main__":
                     train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, n_cpu = n_cpu, sample_indices = sample_indices)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 55600 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 50 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
                     trainer.set_demonstrations(train_data_loader)
                     print(f'Beginning Training for epoch {epoch}')
 
-                    with multiprocessing.Manager() as manager:
-                        partial_func = functools.partial(on_epoch_end, manager, trainer, policy, device, n_cpu, sample_indices)
-                        trainer.train(
-                                        n_batches=num_mini_batches,
-                                        # on_epoch_end=partial_func,
-                                        # log_rollouts_venv = env,
-                                        # log_rollouts_n_episodes =10,
-                                    )
+                    trainer.train(
+                                    n_batches=num_mini_batches,
+                                    # on_epoch_end=partial_func,
+                                    # log_rollouts_venv = env,
+                                    # log_rollouts_n_episodes =10,
+                                )
+
                     if TrainPartiallyPreTrained:
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=True)
                         trainer.train(n_batches=25000)                   
                     print(f'Ended training for epoch {epoch}')
 
-                    policy = trainer.policy
-                    policy.eval()  
+
+
                     if not last_epoch and DAGGER:
                         print(f'Began Dagger data collection for epoch {epoch}')
                         expert_data_collector(
@@ -483,25 +483,6 @@ if __name__ == "__main__":
                                                     }           
                                             )
                         print(f'End Dagger data collection for epoch {epoch}')
-
-                    # if checkpoint_interval !=0 and epoch % checkpoint_interval == 0 and not last_epoch:
-                    #     print(f"saving check point for epoch {epoch}", epoch)
-                    #     torch.save(policy , f"models_archive/BC_agent_{epoch}.pth")
-                    if metrics_plot_path:
-                        print(f'Beginning validation for epoch {epoch}')
-                        metrics                      = calculate_validation_metrics(
-                                                                                        policy, 
-                                                                                        zip_filename=zip_filename,
-                                                                                        device=torch.devie('cpu'),
-                                                                                        batch_size=batch_size,
-                                                                                        n_cpu=n_cpu,
-                                                                                        val_batch_count=500,
-                                                                                        chunk_size=500,
-                                                                                        type='val',
-                                                                                        plot_path=None
-                                                                                    )
-                        {key: metricses.setdefault(key, []).append(value) for key, value in metrics.items()}
-                        print(f'End validation for epoch {epoch}')
                     policy.to(device)
                     policy.train()
                 
@@ -519,8 +500,7 @@ if __name__ == "__main__":
                         plt.title("Validation Metrics over Epochs")
                         plt.legend()
                         plt.grid(True)
-                        plt.savefig(f"{extract_path}/metrics.png")
-                    
+                        plt.savefig(f"{extract_path}/metrics.png")                    
                 return trainer  
 
             
@@ -538,6 +518,20 @@ if __name__ == "__main__":
                                                                 )
             final_policy = bc_trainer.policy
             final_policy.eval()
+            with multiprocessing.Manager() as val_manager:
+                validation(
+                            manager = val_manager,
+                            policy = final_policy,
+                            device = device, 
+                            zip_filenames = zip_filename, 
+                            batch_size = batch_size, 
+                            minibatch_size = 64, 
+                            n_cpu = n_cpu,
+                            visited_data_files = set([]),
+                            val_batch_count = 1000,
+                            sample_indices = sample_indices
+                            # plot_heatmap = False
+                        )
             if True:
                 print('Saving final model')
                 save_checkpoint(
