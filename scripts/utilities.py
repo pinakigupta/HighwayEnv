@@ -277,12 +277,20 @@ class DownSamplingSampler(SubsetRandomSampler):
 #     return obs_list, acts_list
 
 
-
+'''
+    Workers trying to process input data queue and put validation metrices on the output queue
+'''
 
 def validation_batch_worker_process(output_queue, input_queue, labels, worker_index,lock, batch_count=None, **kwargs):
     # local_policy_path = f'/tmp/validation_policy{worker_index}.pth'
     # shutil.copy('validation_policy.pth', local_policy_path)
-
+    if lock.acquire(timeout=10):
+        local_policy = torch.load('validation_policy.pth', map_location='cpu')
+        lock.release()
+    else:
+        print(f"Couldn't fetch the validation policy for worker {worker_index}", flush = True)
+        return {}
+    
     output_samples =[]
     while True:
         try:
@@ -292,24 +300,21 @@ def validation_batch_worker_process(output_queue, input_queue, labels, worker_in
                 time.sleep(0.1)
                 print(f"Input queue empty. Output queue size {output_queue.qsize()} ", flush=True)
                 continue
-            print(f"batch collected from worker {worker_index}")
+            # print(f"batch collected from worker {worker_index}")
             true_labels = batch['acts'].numpy()
             with torch.no_grad():
-                # if lock.acquire(timeout=10):
-                local_policy = torch.load('validation_policy.pth', map_location='cpu')
-                # print(f"Fetched the validation pol`icy for worker {worker_index}", flush = True)
-                # predicted_labels = [local_policy.predict(obs.numpy())[0] for obs in batch['obs']]
-                predicted_labels = true_labels
+
+                predicted_labels = [local_policy.predict(obs.numpy())[0] for obs in batch['obs']]
+                # predicted_labels = true_labels
                 _, log_prob, entropy = local_policy.evaluate_actions(batch['obs'], batch['acts'])
-                    # lock.release()
-                # else:
-                #     print(f"Couldn't fetch the validation policy for worker {worker_index}", flush = True)
-                #     return
+                
+
                 if 'label_weights' in kwargs:
                     true_labels         = true_labels @ kwargs['label_weights']
                     predicted_labels    = predicted_labels @ kwargs['label_weights']
-                print(f"Lock acquired by {worker_index}. True labels {true_labels}. \n predicted_labels {predicted_labels}")
+                # print(f"Fetched the validation policy for worker {worker_index}. predicted_labels {predicted_labels}", flush = True)
                 accuracy = accuracy_score(true_labels, predicted_labels)
+                # print(f"Lock acquired by {worker_index}. True labels {true_labels}. \n predicted_labels {predicted_labels}. \n accuracy {accuracy}")
                 precision = precision_score(true_labels, predicted_labels, average=None, labels=labels)
                 recall = recall_score(true_labels, predicted_labels, average=None, labels=labels)
                 f1 = f1_score(true_labels, predicted_labels, average=None, labels=labels)
@@ -325,7 +330,7 @@ def validation_batch_worker_process(output_queue, input_queue, labels, worker_in
                                     'entropy': entropy,
                                     'conf_matrix':conf_matrix 
                                 }
-                print( predicted_labels , " output_sample ", output_sample, flush=True)
+                # print( predicted_labels , " output_sample ", output_sample, flush=True)
                 output_queue.put(output_sample)
             # if lock.acquire(timeout=0.1):
             #     output_queue.put(output_samples)
@@ -335,8 +340,11 @@ def validation_batch_worker_process(output_queue, input_queue, labels, worker_in
         except Exception as e:
             print(f" Error in validation_batch_worker_process {e}")
             raise(e)
-            return
 
+
+'''
+    Use individual workers to collect samples of validation metrics data and combine them to create the final validation metrics
+'''
 def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, **kwargs):
     true_labels = []
     predicted_labels = []
@@ -363,6 +371,19 @@ def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, 
     policy.eval()
     batch_count = 0
 
+    def calculate_metrics(output_queue):
+        nonlocal accuracies, precisions, recalls, f1s, cross_entropies, entropies
+        result = output_queue.get()
+        accuracies.append(result['accuracy'])
+        precisions.append(result['precision'])
+        recalls.append(result['recall'])
+        f1s.append(result['f1'])
+        cross_entropies.append(result['cross_entropy'])
+        entropies.append(result['entropy'])
+        # if conf_matrix.size == 0 :
+        #     conf_matrix = result['conf_matrix']
+        # else:
+        #     conf_matrix += result['conf_matrix']
     # manager = multiprocessing.Manager()
     # with manager:
     if True:
@@ -395,14 +416,16 @@ def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, 
         progress_bar = tqdm(total=val_batch_count, desc= f'{kwargs["type"]} progress')
         conf_matrix = np.array([])        
         batch_count = 0
+
+        
         
     # with multiprocessing.Manager() as manager:
-        managed_accuracy        = manager.list()
-        managed_precision       = manager.list()
-        managed_recall          = manager.list()
-        managed_f1              = manager.list()
-        managed_cross_entropy   = manager.list()
-        managed_entropy         = manager.list()   
+        # managed_accuracy        = manager.list()
+        # managed_precision       = manager.list()
+        # managed_recall          = manager.list()
+        # managed_f1              = manager.list()
+        # managed_cross_entropy   = manager.list()
+        # managed_entropy         = manager.list()   
         for batch in val_data_loader:
             sample = {key: value.to(torch.device('cpu')) for key, value in batch.items()}
             try:
@@ -414,32 +437,26 @@ def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, 
             except Exception as e:
                 pass
                 # print(e)
-            batch_count += 1
             # print(f"batch_count {batch_count}")
+            batch_count += 1
             if output_queue.empty():
                 continue
-            calculate_metrics(output_queue, managed_accuracy, managed_precision, managed_recall, managed_f1, managed_cross_entropy, managed_entropy)
+            calculate_metrics(output_queue)
             progress_bar.update(1)
             
             
         val_batch_count = min(val_batch_count, batch_count )
-        print('val_batch_count ', val_batch_count)
+        print('val_batch_count ', val_batch_count, ' input_queue size ', input_queue.qsize(), ' output queue size ', output_queue.qsize())
             
 
         while len(accuracies) < val_batch_count:
-            if output_queue.empty():
-                time.sleep(0.1)
+            if output_queue.empty() and input_queue.empty():
                 break
-            calculate_metrics(output_queue, managed_accuracy, managed_precision, managed_recall, managed_f1, managed_cross_entropy, managed_entropy)
+            elif output_queue.empty():
+                time.sleep(0.1)
+            calculate_metrics(output_queue)
             progress_bar.update(1)
 
-        print('managed_accuracy ', managed_accuracy)
-        accuracies =        list(managed_accuracy) 
-        precisions =        list(managed_precision)
-        recalls =           list(managed_recall)
-        f1s =               list(managed_f1) 
-        cross_entropies =   list(managed_cross_entropy)
-        entropies =         list(managed_entropy)
         progress_bar.close()
 
 
@@ -450,7 +467,7 @@ def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, 
             process.terminate()
 
                 
-    print('Calculate evaluation metrics')
+    # print('Calculate evaluation metrics')
     # Calculate evaluation metrics
     axis = 0
     accuracy  = np.mean(accuracies,  axis=axis) 
@@ -505,17 +522,5 @@ def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, 
 
 
 
-def calculate_metrics(output_queue, managed_accuracy, managed_precision, managed_recall, managed_f1, managed_cross_entropy, managed_entropy):
-    # nonlocal accuracies, precisions, recalls, f1s, cross_entropies, entropies
-    result = output_queue.get()
-    managed_accuracy.append(result['accuracy'])
-    managed_precision.append(result['precision'])
-    managed_recall.append(result['recall'])
-    managed_f1.append(result['f1'])
-    managed_cross_entropy.append(result['cross_entropy'])
-    managed_entropy.append(result['entropy'])
-    # if conf_matrix.size == 0 :
-    #     conf_matrix = result['conf_matrix']
-    # else:
-    #     conf_matrix += result['conf_matrix']
+
     
