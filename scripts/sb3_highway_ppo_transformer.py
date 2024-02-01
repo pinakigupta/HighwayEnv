@@ -449,7 +449,7 @@ if __name__ == "__main__":
                     train_data_loader = multiprocess_data_loader(zip_filenames, visited_data_files_list , device , minibatch_size, n_cpu = n_cpu, sample_indices = sample_indices)
                     print(f'Loaded training data loader for epoch {epoch}')
                     last_epoch = (epoch == num_epochs-1)
-                    num_mini_batches = 50 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
+                    num_mini_batches = 15500 if last_epoch else 2500*(1+epoch) # Mini epoch here correspond to typical epoch
                     TrainPartiallyPreTrained = (env_kwargs['config']['observation'] == env_kwargs['config']['GrayscaleObservation'])
                     if TrainPartiallyPreTrained: 
                         trainer.policy.features_extractor.set_grad_video_feature_extractor(requires_grad=False)
@@ -518,20 +518,20 @@ if __name__ == "__main__":
                                                                 )
             final_policy = bc_trainer.policy
             final_policy.eval()
-            with multiprocessing.Manager() as val_manager:
-                validation(
-                            manager = val_manager,
-                            policy = final_policy,
-                            device = device, 
-                            zip_filenames = zip_filename, 
-                            batch_size = batch_size, 
-                            minibatch_size = 64, 
-                            n_cpu = n_cpu,
-                            visited_data_files = set([]),
-                            val_batch_count = 1000,
-                            sample_indices = sample_indices
-                            # plot_heatmap = False
-                        )
+            # with multiprocessing.Manager() as val_manager:
+            #     validation(
+            #                 manager = val_manager,
+            #                 policy = final_policy,
+            #                 device = device, 
+            #                 zip_filenames = zip_filename, 
+            #                 batch_size = batch_size, 
+            #                 minibatch_size = 64, 
+            #                 n_cpu = n_cpu,
+            #                 visited_data_files = set([]),
+            #                 val_batch_count = 1000,
+            #                 sample_indices = sample_indices
+            #                 # plot_heatmap = False
+            #             )
             if True:
                 print('Saving final model')
                 save_checkpoint(
