@@ -455,6 +455,7 @@ def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, 
             # el
             if output_queue.empty():
                 time.sleep(0.1)
+                continue
             calculate_metrics(output_queue)
             progress_bar.update(1)
 
