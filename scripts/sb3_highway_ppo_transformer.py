@@ -145,7 +145,7 @@ if __name__ == "__main__":
     month = now.strftime("%m")
     day = now.strftime("%d")
 
-    n_cpu =  1 # mp.cpu_count()
+    n_cpu =  mp.cpu_count()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     device = torch.device('cpu')
     extract_path = 'data'

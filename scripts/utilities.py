@@ -298,7 +298,7 @@ def validation_batch_worker_process(output_queue, input_queue, labels, worker_in
                 batch = input_queue.get()
             else:
                 time.sleep(0.1)
-                print(f"Input queue empty. Output queue size {output_queue.qsize()} ", flush=True)
+                # print(f"Input queue empty. Output queue size {output_queue.qsize()} ", flush=True)
                 continue
             # print(f"batch collected from worker {worker_index}")
             true_labels = batch['acts'].numpy()
@@ -449,10 +449,11 @@ def calculate_validation_metrics(manager, val_data_loader, policy,zip_filename, 
         print('val_batch_count ', val_batch_count, ' input_queue size ', input_queue.qsize(), ' output queue size ', output_queue.qsize())
             
 
-        while len(accuracies) < val_batch_count:
-            if output_queue.empty() and input_queue.empty():
-                break
-            elif output_queue.empty():
+        while len(accuracies) < 0.9*val_batch_count:
+            # if output_queue.empty() and input_queue.empty():
+            #     break
+            # el
+            if output_queue.empty():
                 time.sleep(0.1)
             calculate_metrics(output_queue)
             progress_bar.update(1)
