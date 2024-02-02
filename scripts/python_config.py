@@ -28,7 +28,7 @@ env_kwargs = {
                 # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
                 'planning_heuristic': False,
             },
-            **{
+            **{ # Reward configs
                 "collision_reward": -1.0,    # The reward received when colliding with a vehicle.
                 "right_lane_reward": 0.0,  # The reward received when driving on the right-most lanes, linearly mapped to
                                         # zero for other lanes.
@@ -56,7 +56,8 @@ env_kwargs = {
                 "KinematicObservation": {
                     "type": "Kinematics",
                     "vehicles_count": 10,
-                    "features": [ "presence", "x", "y", "vx", "vy", "cos_h", "sin_h", 'L', 'W', 'ax', 'ay', 'lane'],
+                    "features":     [ "presence", "x", "y", "vx", "vy"],
+                    "all_features": [ "presence", "x", "y", "vx", "vy", "cos_h", "sin_h", 'L', 'W', 'ax', 'ay', 'lane'],
                     "absolute": False,
                     "relative_features": ['x']
                 },
@@ -131,7 +132,7 @@ project_names= \
         f'RL',                       # RLVALIDATION = 9
     ]
 
-train = TrainEnum.BC
+train = TrainEnum.ANALYSIS
 zip_filename = \
                 [
                     # 'temp_2.zip',
@@ -144,6 +145,8 @@ zip_filename = \
                     'temp_7_random.zip',
                     'temp_8_random.zip',
                     'temp_10_random.zip',
+                    'temp_11_random.zip',
+                    # 'temp_14.zip',
                     # 'temp_12.zip', 
                     # 'temp_13.zip', 
                     # 'temp_14.zip',
@@ -156,7 +159,7 @@ zip_filename = \
                     # 'temp_21.zip',
                     # 'temp_22.zip',
                 ]
-# zip_filename =    'temp_9.zip' 
+zip_filename =    'temp_10_random.zip' 
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
