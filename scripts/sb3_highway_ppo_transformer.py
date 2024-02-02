@@ -171,7 +171,7 @@ if __name__ == "__main__":
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             policy = True
-            env_kwargs['config']['features'] = env_kwargs['config']['all_features']
+            env_kwargs['config']['KinematicObservation']['features'] = env_kwargs['config']['KinematicObservation']['all_features']
             env = make_configure_env(**env_kwargs)
             if policy:
                 # policy                            = retrieve_agent(
