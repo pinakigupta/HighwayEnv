@@ -193,7 +193,7 @@ if __name__ == "__main__":
                                         policy,
                                         extract_path = extract_path,
                                         zip_filename=zip_filename,
-                                        delta_iterations = 59,
+                                        delta_iterations = 1,
                                         **{**env_kwargs, **{'expert':'MDPVehicle'}}           
                                     )
             print(" finished collecting data for ALL THE files ")
@@ -682,7 +682,7 @@ if __name__ == "__main__":
             obs_list = manager.list()
             acts_list = manager.list()
             q =  analyze_data(
-                                                'temp.zip',
+                                                'temp_test.zip',
                                                 obs_list,
                                                 acts_list,
                                                 device=device,
@@ -695,26 +695,26 @@ if __name__ == "__main__":
                                                 chunk_size=500,
                                                 plot=False,
                                               )
-            obs_list = manager.list()
-            acts_list = manager.list()
-            p =  analyze_data(
-                                                zip_filename,
-                                                obs_list,
-                                                acts_list,
-                                                device=device,
-                                                batch_size=batch_size,
-                                                n_cpu=n_cpu,
-                                                type='train',
-                                                val_batch_count=val_batch_count,
-                                                plot_path=None,
-                                                validation=True,
-                                                chunk_size=500,
-                                                plot=False,
-                                              )
-            # Calculate the KL divergence between the two distributions
-            cross_entropy = entropy(p, q)
-            kl_div = np.sum(entropy(p, q) - entropy(p))
-            print('kl_div ', kl_div, ' cross_entropy ', np.sum(cross_entropy), cross_entropy)
+            # obs_list = manager.list()
+            # acts_list = manager.list()
+            # p =  analyze_data(
+            #                                     zip_filename,
+            #                                     obs_list,
+            #                                     acts_list,
+            #                                     device=device,
+            #                                     batch_size=batch_size,
+            #                                     n_cpu=n_cpu,
+            #                                     type='train',
+            #                                     val_batch_count=val_batch_count,
+            #                                     plot_path=None,
+            #                                     validation=True,
+            #                                     chunk_size=500,
+            #                                     plot=False,
+            #                                   )
+            # # Calculate the KL divergence between the two distributions
+            # cross_entropy = entropy(p, q)
+            # kl_div = np.sum(entropy(p, q) - entropy(p))
+            # print('kl_div ', kl_div, ' cross_entropy ', np.sum(cross_entropy), cross_entropy)
         elif train == TrainEnum.BCVALIDATION or train == TrainEnum.RLVALIDATION:
                 policy                            = retrieve_agent(
                                                                     artifact_version='trained_model_directory:latest',
