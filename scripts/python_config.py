@@ -56,7 +56,8 @@ env_kwargs = {
                 "KinematicObservation": {
                     "type": "Kinematics",
                     "vehicles_count": 10,
-                    "features": [ "presence", "x", "y", "vx", "vy", "cos_h", "sin_h", 'L', 'W', 'ax', 'ay', 'lane'],
+                    "all_features": [ "presence", "x", "y", "vx", "vy", "cos_h", "sin_h", 'L', 'W', 'ax', 'ay', 'lane'],
+                    "features": [ "presence", "x", "y", "vx", "vy"],
                     "absolute": False,
                     "relative_features": ['x']
                 },
@@ -131,7 +132,7 @@ project_names= \
         f'RL',                       # RLVALIDATION = 9
     ]
 
-train = TrainEnum.BC
+train = TrainEnum.ANALYSIS
 zip_filename = \
                 [
                     # 'temp_2.zip',
@@ -156,7 +157,7 @@ zip_filename = \
                     # 'temp_21.zip',
                     # 'temp_22.zip',
                 ]
-# zip_filename =    'temp_9.zip' 
+zip_filename =    'temp_test.zip' 
 # env_kwargs['config']['observation'] = env_kwargs['config']['GrayscaleObservation'] 
 env_kwargs['config']['observation'] = env_kwargs['config']['KinematicObservation'] 
 
