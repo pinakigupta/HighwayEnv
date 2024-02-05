@@ -87,6 +87,7 @@ class HighwayEnv(AbstractEnv):
 
         self.controlled_vehicles = []
         speed = self.np_random.uniform(low=0, high=30)
+        target_speed = 30 # self.np_random.uniform(low=0, high=30)
         for others in other_per_controlled:
             vehicle = Vehicle.create_random(
                 self.road,
@@ -106,10 +107,10 @@ class HighwayEnv(AbstractEnv):
                                                         position = vehicle.position, 
                                                         heading = vehicle.heading, 
                                                         speed = vehicle.speed,
-                                                        target_speed = 30, 
                                                         action_type = vehicle.action_type,
                                                         **{
                                                             **self.config,
+                                                            'target_speed':target_speed, 
                                                             'LENGTH':self.config['EGO_LENGTH'],
                                                             'WIDTH':self.config['EGO_WIDTH']
                                                           }                                                    
@@ -124,7 +125,10 @@ class HighwayEnv(AbstractEnv):
                                                             spacing= 1 / self.config["vehicles_density"],
                                                             action_type = self.action_type,
                                                             length_noise = functools.partial(np.random.normal, loc=0, scale=0.25),
-                                                            **self.config
+                                                            **{
+                                                                **self.config,
+                                                                # 'target_speed':target_speed,
+                                                              }
                                                            )
                 vehicle.randomize_behavior()
                 self.road.vehicles.append(vehicle)

@@ -81,7 +81,7 @@ def on_epoch_end(trainer, policy, device, n_cpu, sample_indices=None ):
                                             policy = policy,
                                             device = device, 
                                             # project = project, 
-                                            zip_filenames = 'temp_val.zip', 
+                                            zip_filenames = ['temp_val.zip'], 
                                             batch_size = 64, 
                                             minibatch_size = 64, 
                                             n_cpu = n_cpu,
@@ -685,6 +685,7 @@ if __name__ == "__main__":
                                                 'temp_test.zip',
                                                 obs_list,
                                                 acts_list,
+                                                extract_path=extract_path,
                                                 device=device,
                                                 batch_size=batch_size,
                                                 n_cpu=n_cpu,
@@ -693,7 +694,8 @@ if __name__ == "__main__":
                                                 plot_path=None,
                                                 validation=True,
                                                 chunk_size=500,
-                                                plot=False,
+                                                plot=True,
+                                                sample_indices = sample_indices,
                                               )
             # obs_list = manager.list()
             # acts_list = manager.list()
@@ -717,7 +719,7 @@ if __name__ == "__main__":
             # print('kl_div ', kl_div, ' cross_entropy ', np.sum(cross_entropy), cross_entropy)
         elif train == TrainEnum.BCVALIDATION or train == TrainEnum.RLVALIDATION:
                 policy                            = retrieve_agent(
-                                                                    artifact_version='trained_model_directory:latest',
+                                                                    artifact_version='trained_model_directory:v134',
                                                                     agent_model = 'agent_final.pth',
                                                                     device=device,
                                                                     project=project

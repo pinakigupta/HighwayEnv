@@ -245,27 +245,28 @@ def calculate_sample_counts(col_range, obs_list, feature_ranges):
 def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
     n_cpu=kwargs['n_cpu']
     val_batch_count=kwargs['val_batch_count']
-    # train_data_loader                                             = create_dataloaders(
-    #                                                                                               zip_filename,
-    #                                                                                               train_datasets=[], 
-    #                                                                                               type = 'train',
-    #                                                                                               device=device,
-    #                                                                                               batch_size=minibatch_size,
-    #                                                                                               n_cpu = n_cpu,
-    #                                                                                               visited_data_files=set([])
-    #                                                                                           )
-    train_data_loader                                             =  CustomDataLoader(
-                                                                        zip_filename, 
-                                                                        device=kwargs['device'],
-                                                                        batch_size=kwargs['batch_size'],
-                                                                        n_cpu=n_cpu,
-                                                                        val_batch_count=val_batch_count,
-                                                                        chunk_size=kwargs['chunk_size'],
-                                                                        type= kwargs['type'],
-                                                                        plot_path=kwargs['plot_path'],
-                                                                        validation=kwargs['validation'],
-                                                                        visited_data_files = set([])
-                                                                    ) 
+    dataloader_kwargs = { 'n_cpu': kwargs['n_cpu'], 'sample_indices': kwargs['sample_indices']}
+    # args = (
+    #             zip_filename,                 visited_data_files=set([]),
+    #             device=kwargs['device'],
+    #             type = 'train',
+    #             batch_size=kwargs['batch_size'],
+    #             n_cpu = n_cpu
+    #          )
+    train_data_loader                                             = multiprocess_data_loader(zip_filename, set([]) , kwargs['device'], kwargs['batch_size'], type = kwargs['type'], **dataloader_kwargs)
+                
+    # train_data_loader                                             =  CustomDataLoader(
+    #                                                                     zip_filename, 
+    #                                                                     device=kwargs['device'],
+    #                                                                     batch_size=kwargs['batch_size'],
+    #                                                                     n_cpu=n_cpu,
+    #                                                                     val_batch_count=val_batch_count,
+    #                                                                     chunk_size=kwargs['chunk_size'],
+    #                                                                     type= kwargs['type'],
+    #                                                                     plot_path=kwargs['plot_path'],
+    #                                                                     validation=kwargs['validation'],
+    #                                                                     visited_data_files = set([])
+    #                                                                 ) 
     train_data_loader_iterator = iter(train_data_loader)
     # Create a DataFrame from the data loader
     data_list = np.empty((0, 101))

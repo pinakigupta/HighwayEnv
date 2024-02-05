@@ -28,7 +28,7 @@ env_kwargs = {
                 # 'length_noise': functools.partial(np.random.normal, loc=0, scale=0.25),
                 'planning_heuristic': False,
             },
-            **{
+            **{ # Reward configs
                 "collision_reward": -1.0,    # The reward received when colliding with a vehicle.
                 "right_lane_reward": 0.0,  # The reward received when driving on the right-most lanes, linearly mapped to
                                         # zero for other lanes.
@@ -145,6 +145,8 @@ zip_filename = \
                     'temp_7_random.zip',
                     'temp_8_random.zip',
                     'temp_10_random.zip',
+                    'temp_11_random.zip',
+                    # 'temp_14.zip',
                     # 'temp_12.zip', 
                     # 'temp_13.zip', 
                     # 'temp_14.zip',
