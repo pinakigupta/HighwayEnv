@@ -170,7 +170,7 @@ if __name__ == "__main__":
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
             append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
-            policy = True
+            policy = None
             env_kwargs['config']['KinematicObservation']['features'] = env_kwargs['config']['KinematicObservation']['all_features']
             env = make_configure_env(**env_kwargs)
             if policy:
@@ -678,18 +678,19 @@ if __name__ == "__main__":
             print("F1 Score:", f1, np.mean(f1))
         elif train == TrainEnum.ANALYSIS:
             val_batch_count=50000
+            analysis_batch_size = 64
             manager = multiprocessing.Manager()
             obs_list = manager.list()
             acts_list = manager.list()
             q =  analyze_data(
-                                                'temp_test.zip',
+                                                ['temp_test_1.zip'],
                                                 obs_list,
                                                 acts_list,
                                                 extract_path=extract_path,
                                                 device=device,
-                                                batch_size=batch_size,
+                                                batch_size=analysis_batch_size,
                                                 n_cpu=n_cpu,
-                                                type='train',
+                                                type='val',
                                                 val_batch_count=val_batch_count,
                                                 plot_path=None,
                                                 validation=True,
@@ -704,9 +705,9 @@ if __name__ == "__main__":
             #                                     obs_list,
             #                                     acts_list,
             #                                     device=device,
-            #                                     batch_size=batch_size,
+            #                                     batch_size=analysis_batch_size,
             #                                     n_cpu=n_cpu,
-            #                                     type='train',
+            #                                     type='val',
             #                                     val_batch_count=val_batch_count,
             #                                     plot_path=None,
             #                                     validation=True,
@@ -719,7 +720,7 @@ if __name__ == "__main__":
             # print('kl_div ', kl_div, ' cross_entropy ', np.sum(cross_entropy), cross_entropy)
         elif train == TrainEnum.BCVALIDATION or train == TrainEnum.RLVALIDATION:
                 policy                            = retrieve_agent(
-                                                                    artifact_version='trained_model_directory:v134',
+                                                                    artifact_version='trained_model_directory:latest',
                                                                     agent_model = 'agent_final.pth',
                                                                     device=device,
                                                                     project=project

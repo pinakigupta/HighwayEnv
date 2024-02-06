@@ -87,8 +87,8 @@ class HighwayEnv(AbstractEnv):
 
         self.controlled_vehicles = []
         speed = self.np_random.uniform(low=0, high=30)
-        target_speed = 30 # self.np_random.uniform(low=0, high=30)
         for others in other_per_controlled:
+            target_speed = self.np_random.uniform(low=0, high=30)
             vehicle = Vehicle.create_random(
                 self.road,
                 speed=speed,

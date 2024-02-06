@@ -82,6 +82,7 @@ class CustomDataset(Dataset):
             pass
             # raise e
 
+        # print(" velocity = ", sample['obs'][:,3])
         try:
             # sample['obs'][:, -7:].fill_(0)
             prev_sample = prev_sample['acts'].view(1) if 'acts' in prev_sample else prev_sample['act'].view(1)
@@ -389,9 +390,13 @@ def multiprocess_data_loader(zip_filenames, visited_data_files_list , device , m
     np.random.shuffle(shuffled_indices)
     print(' dict_of_lists compiled. Length is ', len(shuffled_indices), max(shuffled_indices), min(shuffled_indices))
     
-    shuffled_combined_train_dataset = create_balanced_subset(list_of_dicts, shuffled_indices)
-    print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
-    print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')
+    if type == 'val':
+        shuffled_combined_train_dataset = create_balanced_subset(list_of_dicts, shuffled_indices, alpha=1000)
+    else:
+        shuffled_combined_train_dataset = create_balanced_subset(list_of_dicts, shuffled_indices)
+        print(f'shuffled_combined_train_dataset distribution {Counter(sample["acts"].item() for sample in shuffled_combined_train_dataset)}')
+        print(f'Total batch count in data set {len(shuffled_combined_train_dataset)//minibatch_size}')
+        
     _data_loader = DataLoader(
                                     shuffled_combined_train_dataset, 
                                     batch_size=minibatch_size, 
