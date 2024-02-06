@@ -119,7 +119,7 @@ def worker(
                     all_done[v][-1] = True
                 break
             ob = next_ob
-            obs[-2] = 0
+            # obs[-2] = 0
             # data_queue.put((ob, act))
             ep_rwds.append(rwd)
             # steps_collected += obs_collected
@@ -179,7 +179,7 @@ def collect_expert_data(
     episode_rewards = manager.list()
 
     # Determine the number of workers based on available CPU cores
-    num_workers =   max(multiprocessing.cpu_count()-3,1)
+    num_workers =   max(env_kwargs['n_cpu']-3,1)
 
     # Calculate the number of steps per worker
     num_steps_per_worker = min(num_steps_per_iter , 1 * (num_steps_per_iter// num_workers))

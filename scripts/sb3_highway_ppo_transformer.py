@@ -174,6 +174,7 @@ if __name__ == "__main__":
             env_kwargs['config']['KinematicObservation']['features'] = env_kwargs['config']['KinematicObservation']['all_features']
             env = make_configure_env(**env_kwargs)
             if policy:
+                env_kwargs['expert'] ='MDPVehicle',
                 # policy                            = retrieve_agent(
                 #                                         artifact_version='trained_model_directory:latest',
                 #                                         agent_model = 'agent_final.pth',
@@ -194,7 +195,8 @@ if __name__ == "__main__":
                                         extract_path = extract_path,
                                         zip_filename=zip_filename,
                                         delta_iterations = 1,
-                                        **{**env_kwargs, **{'expert':'MDPVehicle'}}           
+                                        n_cpu = n_cpu,
+                                        **env_kwargs          
                                     )
             print(" finished collecting data for ALL THE files ")
         elif train == TrainEnum.RLTRAIN: # training  # Reinforcement learning with curriculam update 

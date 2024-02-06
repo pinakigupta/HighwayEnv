@@ -6,7 +6,6 @@ import functools
 env_kwargs = {
     'id': 'highway-v0',
     'render_mode': 'rgb_array',
-    'expert': 'MDPVehicle',
     'config': {   #Vehicle configs
         'deploy': False,
         'obj_obs_random_shuffle_probability': 0.0,
@@ -132,7 +131,7 @@ project_names= \
         f'RL',                       # RLVALIDATION = 9
     ]
 
-train = TrainEnum.ANALYSIS
+train = TrainEnum.EXPERT_DATA_COLLECTION
 zip_filename = \
                 [
                     # 'temp_2.zip',

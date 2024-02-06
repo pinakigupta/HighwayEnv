@@ -135,14 +135,14 @@ class SquashObservationsWrapper(gym.Wrapper):
         obs = self.observation_type.observe()
         obs = self.shuffle_obs(obs)
         custom_obs = np.concatenate([obs.flatten(), [0]])
-        custom_obs[-1] = 0 
+        # custom_obs[-1] = 0 
         return custom_obs
     
     def step(self, action):
         obs, reward, done, truncated , info = self.env.step(action)
         obs = self.shuffle_obs(obs)
         custom_obs = np.concatenate([obs.flatten(), [0]]) 
-        custom_obs[-1] = 0 # hardcoding lane ids out 
+        # custom_obs[-1] = 0 # hardcoding lane ids out 
         # if self.policy and self.expert_policy:
         #     with torch.no_grad():
         # self.custom_obs = custom_obs
