@@ -414,6 +414,9 @@ def extract_expert_data(filename):
             # Iterate through each dataset in the episode group
             for dataset_name in datasets:
                 dataset = episode[dataset_name]
+                
+                # if not dataset or (not dataset.shape):
+                #     continue
 
                 # Append the data to the corresponding list
                 try:
@@ -427,7 +430,8 @@ def extract_expert_data(filename):
                         exp_done.extend([dataset[()]])
                 except Exception as e:
                     print('dataset[:].shape ', dataset_name, dataset)
-                    raise e
+                    pass
+                    # raise e
                     # print(e)
            
 

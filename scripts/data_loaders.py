@@ -82,7 +82,7 @@ class CustomDataset(Dataset):
             pass
             # raise e
 
-        # print(" velocity = ", sample['obs'][:,3])
+        # print(" velocity = ", [round(v.item(), 3) for v in sample['obs'][:,3]] )
         try:
             # sample['obs'][:, -7:].fill_(0)
             prev_sample = prev_sample['acts'].view(1) if 'acts' in prev_sample else prev_sample['act'].view(1)
@@ -181,7 +181,7 @@ def load_data_for_single_file_within_a_zipfile(args):
                     modified_dataset.append(my_dict)
 
                 class_distribution = Counter(sample['acts'].item() for sample in modified_dataset)
-                print('modified_dataset', class_distribution)
+                print('Raw dataset', class_distribution)
 
                 shuffled_indices = np.arange(len(modified_dataset))
                 balanced_modified_dataset = None
@@ -190,6 +190,8 @@ def load_data_for_single_file_within_a_zipfile(args):
                 else:
                     balanced_modified_dataset = create_balanced_subset(modified_dataset, shuffled_indices,  alpha=3.1)
                     balanced_modified_dataset_list = [{key: value.cpu().numpy() for key, value in balanced_modified_dataset[i].items()}  for i in range(len(balanced_modified_dataset))]
+                    class_distribution = Counter(sample['acts'].item() for sample in balanced_modified_dataset_list)
+                    print('Balanced dataset', class_distribution)
                     return balanced_modified_dataset_list
                         
                 print(f"Dataset appended for  {train_data_file}")
@@ -246,7 +248,7 @@ def calculate_sample_counts(col_range, obs_list, feature_ranges):
 def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
     n_cpu=kwargs['n_cpu']
     val_batch_count=kwargs['val_batch_count']
-    dataloader_kwargs = { 'n_cpu': kwargs['n_cpu'], 'sample_indices': kwargs['sample_indices']}
+    dataloader_kwargs = { 'n_cpu': kwargs['n_cpu'], 'sample_indices': kwargs['sample_indices'], 'type': kwargs['type']}
     # args = (
     #             zip_filename,                 visited_data_files=set([]),
     #             device=kwargs['device'],
@@ -254,7 +256,13 @@ def analyze_data(zip_filename, obs_list, acts_list, **kwargs):
     #             batch_size=kwargs['batch_size'],
     #             n_cpu = n_cpu
     #          )
-    train_data_loader                                             = multiprocess_data_loader(zip_filename, set([]) , kwargs['device'], kwargs['batch_size'], type = kwargs['type'], **dataloader_kwargs)
+    train_data_loader                                             = multiprocess_data_loader(
+                                                                                                zip_filename, 
+                                                                                                set([]) , 
+                                                                                                kwargs['device'], 
+                                                                                                kwargs['batch_size'], 
+                                                                                                **dataloader_kwargs
+                                                                                            )
                 
     # train_data_loader                                             =  CustomDataLoader(
     #                                                                     zip_filename, 

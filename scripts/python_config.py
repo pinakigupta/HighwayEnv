@@ -131,7 +131,7 @@ project_names= \
         f'RL',                       # RLVALIDATION = 9
     ]
 
-train = TrainEnum.EXPERT_DATA_COLLECTION
+train = TrainEnum.ANALYSIS
 zip_filename = \
                 [
                     # 'temp_2.zip',
