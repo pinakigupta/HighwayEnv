@@ -168,12 +168,12 @@ if __name__ == "__main__":
     try:
         project= project_names[train.value]                           
         if   train == TrainEnum.EXPERT_DATA_COLLECTION: # EXPERT_DATA_COLLECTION
-            append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
             append_key_to_dict_of_dict(env_kwargs,'config','deploy',True)
             policy = None
             env_kwargs['config']['KinematicObservation']['features'] = env_kwargs['config']['KinematicObservation']['all_features']
             env = make_configure_env(**env_kwargs)
             if policy:
+                append_key_to_dict_of_dict(env_kwargs,'config','mode','MDPVehicle')
                 env_kwargs['expert'] ='MDPVehicle',
                 # policy                            = retrieve_agent(
                 #                                         artifact_version='trained_model_directory:latest',
@@ -187,6 +187,7 @@ if __name__ == "__main__":
                 policy.eval()
                 print('EXPERT_DATA_COLLECTION using PREVIOUS POLICY for exploration')
             else:
+                append_key_to_dict_of_dict(env_kwargs,'config','mode','IDMVehicle')
                 print('EXPERT_DATA_COLLECTION using IDM+MOBIL for exploration')
             
             with torch.no_grad():
@@ -685,7 +686,7 @@ if __name__ == "__main__":
             obs_list = manager.list()
             acts_list = manager.list()
             q =  analyze_data(
-                                                ['temp_test_1.zip'],
+                                                ['temp_test.zip'],
                                                 obs_list,
                                                 acts_list,
                                                 extract_path=extract_path,

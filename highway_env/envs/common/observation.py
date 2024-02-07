@@ -250,9 +250,11 @@ class KinematicObservation(ObservationType):
 
         df = df[self.features]
 
+        # print("Before normalization velocity ", df['vx'])
         # Normalize and clip
         if self.normalize:
             df = self.normalize_obs(df)
+        # print("After normalization velocity ", df['vx'])
         # Fill missing rows
         if df.shape[0] < self.vehicles_count:
             rows = np.zeros((self.vehicles_count - df.shape[0], len(self.features)))

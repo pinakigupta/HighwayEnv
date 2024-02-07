@@ -241,7 +241,7 @@ class AbstractEnv(gym.Env):
         self._simulate(action)
 
         obs = self.observation_type.observe()
-        if 'mode' in self.config and (self.config['mode'] == 'expert'):
+        if 'mode' in self.config and (self.config['mode'] == 'IDMVehicle'):
             for v in self.road.vehicles:
                 if v is not self.vehicle and isinstance(v, IDMVehicle) and isinstance(self.observation_type, KinematicObservation):
                     v.observer = self.observation_type.observe(v)

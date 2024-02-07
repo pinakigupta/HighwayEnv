@@ -111,8 +111,10 @@ def worker(
                 all_acts[v].append(acts)
                 all_done[v].append(False)
                 all_kinematic_obs[v].append(observation_factory(env, env.config['KinematicObservation']).observe())
+                # print("all obs velocity ", all_kinematic_obs[v])
             
             # print('rollout_steps ', rollout_steps, all_acts)
+            
             
             if done:
                 for v in all_done:

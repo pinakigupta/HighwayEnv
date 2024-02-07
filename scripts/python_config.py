@@ -56,7 +56,7 @@ env_kwargs = {
                     "type": "Kinematics",
                     "vehicles_count": 10,
                     "all_features": [ "presence", "x", "y", "vx", "vy", "cos_h", "sin_h", 'L', 'W', 'ax', 'ay', 'lane'],
-                    "features": [ "presence", "x", "y", "vx", "vy"],
+                    "features":     [ "presence", "x", "y", "vx", "vy", "cos_h", "sin_h", 'L', 'W'],
                     "absolute": False,
                     "relative_features": ['x']
                 },
